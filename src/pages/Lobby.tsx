@@ -9,36 +9,39 @@ import { Search } from "lucide-react";
 const mockContests = [
   {
     id: "1",
-    eventName: "IRA National Championship",
-    raceName: "Men's Varsity Eight Grand Final",
+    eventName: "NCAA Championship Final",
+    raceName: "Varsity Men's Eight",
     type: "H2H" as const,
     entryFee: 9,
     prize: 15,
     capacity: 2,
     filled: 1,
-    lockTime: "in 2 hours",
+    lockTime: "2h 34m",
+    teams: ["Harvard", "Yale", "Princeton", "+1 more"],
   },
   {
     id: "2",
-    eventName: "Georgetown Spring Invitational",
+    eventName: "IRA National Championships",
     raceName: "Women's Varsity Four",
     type: "CAP_N" as const,
     entryFee: 5,
     prize: 40,
     capacity: 10,
     filled: 7,
-    lockTime: "tomorrow at 9:00 AM",
+    lockTime: "5h 12m",
+    teams: ["Washington", "Stanford", "Cal", "+1 more"],
   },
   {
     id: "3",
-    eventName: "Dad Vail Regatta",
-    raceName: "Men's Lightweight Eight Final",
+    eventName: "Head of the Charles",
+    raceName: "Championship Eights",
     type: "H2H" as const,
-    entryFee: 9,
-    prize: 15,
+    entryFee: 20,
+    prize: 35,
     capacity: 2,
     filled: 0,
-    lockTime: "in 4 hours",
+    lockTime: "1h 08m",
+    teams: ["Cambridge", "Oxford", "Yale", "+1 more"],
   },
   {
     id: "4",
@@ -49,7 +52,8 @@ const mockContests = [
     prize: 40,
     capacity: 10,
     filled: 3,
-    lockTime: "in 6 hours",
+    lockTime: "6h 45m",
+    teams: ["Boston University", "Northeastern", "MIT"],
   },
 ];
 
@@ -58,12 +62,12 @@ const Lobby = () => {
     <div className="flex flex-col min-h-screen">
       <Header />
       
-      <main className="flex-1 gradient-subtle py-12">
+      <main className="flex-1 bg-background py-16">
         <div className="container mx-auto px-4">
-          <div className="mb-12">
-            <h1 className="text-4xl font-bold mb-4">Contest Lobby</h1>
+          <div className="mb-12 text-center max-w-3xl mx-auto">
+            <h1 className="text-4xl md:text-5xl font-bold mb-4">Featured Contests</h1>
             <p className="text-xl text-muted-foreground">
-              Browse available contests and make your picks
+              Join contests with fixed prizes. Pick the winner and predict the margin.
             </p>
           </div>
 

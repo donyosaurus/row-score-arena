@@ -9,6 +9,7 @@ import Signup from "./pages/Signup";
 import Lobby from "./pages/Lobby";
 import ContestDetail from "./pages/ContestDetail";
 import Profile from "./pages/Profile";
+import HowItWorks from "./pages/HowItWorks";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -26,6 +27,7 @@ const App = () => (
           <Route path="/lobby" element={<Lobby />} />
           <Route path="/contest/:id" element={<ContestDetail />} />
           <Route path="/profile" element={<Profile />} />
+          <Route path="/how-it-works" element={<HowItWorks />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

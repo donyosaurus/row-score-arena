@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
-import { Target, TrendingUp, Shield, Clock, DollarSign, Users } from "lucide-react";
+import { Target, TrendingUp, Shield, Clock, DollarSign, Users, Trophy } from "lucide-react";
 
 const Index = () => {
   return (
@@ -12,32 +12,89 @@ const Index = () => {
       
       <main className="flex-1">
         {/* Hero Section */}
-        <section className="gradient-hero text-white py-20 md:py-32">
-          <div className="container mx-auto px-4">
-            <div className="max-w-4xl mx-auto text-center space-y-8">
-              <h1 className="text-4xl md:text-6xl font-bold tracking-tight">
-                Pick the Winner. <br />
-                <span className="text-accent-foreground/90">Nail the Margin.</span>
-              </h1>
-              <p className="text-xl md:text-2xl text-primary-foreground/90 max-w-2xl mx-auto">
-                Skill-based rowing contests with fixed prizes. 
-                No pools. No odds. Just your prediction vs. the clock.
+        <section className="relative bg-primary text-white py-20 md:py-32 overflow-hidden">
+          {/* Background Pattern */}
+          <div className="absolute inset-0 opacity-10">
+            <div className="absolute inset-0" style={{
+              backgroundImage: `repeating-linear-gradient(
+                90deg,
+                transparent,
+                transparent 50px,
+                rgba(255,255,255,0.03) 50px,
+                rgba(255,255,255,0.03) 51px
+              )`
+            }} />
+          </div>
+          
+          <div className="container mx-auto px-4 relative z-10">
+            <div className="max-w-4xl space-y-8">
+              {/* Badge */}
+              <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full border-2 border-accent/30 bg-primary/50 backdrop-blur-sm">
+                <Shield className="h-4 w-4 text-accent" />
+                <span className="text-accent font-medium">Skill-Based • Fixed Prizes • No Pooling</span>
+              </div>
+              
+              {/* Main Headline */}
+              <div>
+                <h1 className="text-5xl md:text-7xl font-bold tracking-tight leading-tight">
+                  Pick the Winner.
+                </h1>
+                <h1 className="text-5xl md:text-7xl font-bold tracking-tight leading-tight text-accent mt-2">
+                  Nail the Margin.
+                </h1>
+              </div>
+              
+              {/* Description */}
+              <p className="text-xl md:text-2xl text-white/90 max-w-3xl leading-relaxed">
+                Join skill-based rowing contests. Predict race winners and margins of victory. Fixed prizes. Clear rules. Your knowledge matters.
               </p>
-              <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+              
+              {/* CTA Buttons */}
+              <div className="flex flex-col sm:flex-row gap-4 items-start">
                 <Link to="/signup">
-                  <Button size="lg" variant="cta" className="text-lg px-8 py-6">
-                    Get Started
+                  <Button size="lg" className="text-lg px-8 py-6 bg-accent hover:bg-accent/90 text-white rounded-xl">
+                    Get Started →
                   </Button>
                 </Link>
                 <Link to="/how-it-works">
-                  <Button size="lg" variant="outline" className="text-lg px-8 py-6 bg-white/10 border-white/30 text-white hover:bg-white/20">
+                  <Button size="lg" variant="outline" className="text-lg px-8 py-6 border-2 border-white/30 text-white hover:bg-white/10 rounded-xl bg-transparent">
                     How It Works
                   </Button>
                 </Link>
               </div>
-              <p className="text-sm text-primary-foreground/70">
-                Age 18+. Skill-based contests. State restrictions apply.
-              </p>
+              
+              {/* Feature Pills */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-8">
+                <div className="flex items-start gap-4">
+                  <div className="w-12 h-12 rounded-xl bg-accent/20 flex items-center justify-center flex-shrink-0">
+                    <Trophy className="h-6 w-6 text-accent" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-lg mb-1">Fixed Prizes</h3>
+                    <p className="text-white/70 text-sm">Pre-posted payouts</p>
+                  </div>
+                </div>
+                
+                <div className="flex items-start gap-4">
+                  <div className="w-12 h-12 rounded-xl bg-accent/20 flex items-center justify-center flex-shrink-0">
+                    <TrendingUp className="h-6 w-6 text-accent" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-lg mb-1">Skill-Based</h3>
+                    <p className="text-white/70 text-sm">Knowledge wins</p>
+                  </div>
+                </div>
+                
+                <div className="flex items-start gap-4">
+                  <div className="w-12 h-12 rounded-xl bg-accent/20 flex items-center justify-center flex-shrink-0">
+                    <Shield className="h-6 w-6 text-accent" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-lg mb-1">Secure & Fair</h3>
+                    <p className="text-white/70 text-sm">KYC verified</p>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </section>
