@@ -37,16 +37,16 @@ const Index = () => {
               {/* Main Headline */}
               <div>
                 <h1 className="text-5xl md:text-7xl font-bold tracking-tight leading-tight">
-                  Pick the Winner.
+                  Predict, Compete, Win.
                 </h1>
                 <h1 className="text-5xl md:text-7xl font-bold tracking-tight leading-tight text-accent mt-2">
-                  Nail the Margin.
+                  #1 Rowing Fantasy Platform.
                 </h1>
               </div>
               
               {/* Description */}
               <p className="text-xl md:text-2xl text-white/90 max-w-3xl leading-relaxed">
-                Join skill-based rowing contests. Predict race winners and margins of victory. Fixed prizes. Clear rules. Your knowledge matters.
+                Join skill-based rowing contests. Predict race winners and margins of victory. Match up against others and win real prizes.
               </p>
               
               {/* CTA Buttons */}
