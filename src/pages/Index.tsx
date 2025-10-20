@@ -31,7 +31,7 @@ const Index = () => {
               {/* Badge */}
               <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full border-2 border-accent/30 bg-primary/50 backdrop-blur-sm">
                 <Shield className="h-4 w-4 text-accent" />
-                <span className="text-accent font-medium">Skill-Based • Fixed Prizes • No Pooling</span>
+                <span className="text-accent font-medium">Live Contests • Cash Prizes • Secure Transactions</span>
               </div>
               
               {/* Main Headline */}
