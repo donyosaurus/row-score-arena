@@ -9,23 +9,26 @@ const Index = () => {
   return (
     <div className="flex flex-col min-h-screen">
       <Header />
-      
+
       <main className="flex-1">
         {/* Hero Section */}
         <section className="relative bg-primary text-white py-20 md:py-32 overflow-hidden">
           {/* Background Pattern */}
           <div className="absolute inset-0 opacity-10">
-            <div className="absolute inset-0" style={{
-              backgroundImage: `repeating-linear-gradient(
+            <div
+              className="absolute inset-0"
+              style={{
+                backgroundImage: `repeating-linear-gradient(
                 90deg,
                 transparent,
                 transparent 50px,
                 rgba(255,255,255,0.03) 50px,
                 rgba(255,255,255,0.03) 51px
-              )`
-            }} />
+              )`,
+              }}
+            />
           </div>
-          
+
           <div className="container mx-auto px-4 relative z-10">
             <div className="max-w-4xl space-y-8">
               {/* Badge */}
@@ -33,22 +36,21 @@ const Index = () => {
                 <Shield className="h-4 w-4 text-accent" />
                 <span className="text-accent font-medium">Live Contests • Cash Prizes • Secure Transactions</span>
               </div>
-              
+
               {/* Main Headline */}
               <div>
-                <h1 className="text-5xl md:text-7xl font-bold tracking-tight leading-tight">
-                  Predict, Compete, Win.
-                </h1>
+                <h1 className="text-5xl md:text-7xl font-bold tracking-tight leading-tight">Predict, Compete, Win.</h1>
                 <h1 className="text-5xl md:text-7xl font-bold tracking-tight leading-tight text-accent mt-2">
                   #1 Rowing Fantasy Platform.
                 </h1>
               </div>
-              
+
               {/* Description */}
               <p className="text-xl md:text-2xl text-white/90 max-w-3xl leading-relaxed">
-                Join skill-based rowing contests. Predict race winners and margins of victory. Match up against others and win real prizes.
+                Join skill-based rowing contests. Predict race winners and margins of victory. Match up against others
+                and win real prizes.
               </p>
-              
+
               {/* CTA Buttons */}
               <div className="flex flex-col sm:flex-row gap-4 items-start">
                 <Link to="/signup">
@@ -57,12 +59,16 @@ const Index = () => {
                   </Button>
                 </Link>
                 <Link to="/how-it-works">
-                  <Button size="lg" variant="outline" className="text-lg px-8 py-6 border-2 border-white/30 text-white hover:bg-white/10 rounded-xl bg-transparent">
+                  <Button
+                    size="lg"
+                    variant="outline"
+                    className="text-lg px-8 py-6 border-2 border-white/30 text-white hover:bg-white/10 rounded-xl bg-transparent"
+                  >
                     How It Works
                   </Button>
                 </Link>
               </div>
-              
+
               {/* Feature Pills */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-8">
                 <div className="flex items-start gap-4">
@@ -74,7 +80,7 @@ const Index = () => {
                     <p className="text-white/70 text-sm">Pre-posted payouts</p>
                   </div>
                 </div>
-                
+
                 <div className="flex items-start gap-4">
                   <div className="w-12 h-12 rounded-xl bg-accent/20 flex items-center justify-center flex-shrink-0">
                     <TrendingUp className="h-6 w-6 text-accent" />
@@ -84,7 +90,7 @@ const Index = () => {
                     <p className="text-white/70 text-sm">Knowledge wins</p>
                   </div>
                 </div>
-                
+
                 <div className="flex items-start gap-4">
                   <div className="w-12 h-12 rounded-xl bg-accent/20 flex items-center justify-center flex-shrink-0">
                     <Shield className="h-6 w-6 text-accent" />
@@ -103,7 +109,7 @@ const Index = () => {
         <section className="py-20 gradient-subtle">
           <div className="container mx-auto px-4">
             <div className="text-center mb-16">
-              <h2 className="text-3xl md:text-4xl font-bold mb-4">Three Simple Steps</h2>
+              <h2 className="text-3xl md:text-4xl font-bold mb-4">How it Works</h2>
               <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
                 Compete on skill and rowing knowledge. Fixed prizes make it transparent.
               </p>
@@ -193,17 +199,13 @@ const Index = () => {
               <div className="p-6 rounded-lg border border-border bg-card transition-smooth hover:shadow-md">
                 <Users className="h-8 w-8 text-accent mb-4" />
                 <h3 className="text-lg font-semibold mb-2">Head-to-Head or Groups</h3>
-                <p className="text-muted-foreground">
-                  Compete 1v1 or join small-field contests. Your choice.
-                </p>
+                <p className="text-muted-foreground">Compete 1v1 or join small-field contests. Your choice.</p>
               </div>
 
               <div className="p-6 rounded-lg border border-border bg-card transition-smooth hover:shadow-md">
                 <Clock className="h-8 w-8 text-accent mb-4" />
                 <h3 className="text-lg font-semibold mb-2">Real-Time Results</h3>
-                <p className="text-muted-foreground">
-                  Official race results integrated. Fast, accurate settlement.
-                </p>
+                <p className="text-muted-foreground">Official race results integrated. Fast, accurate settlement.</p>
               </div>
 
               <div className="p-6 rounded-lg border border-border bg-card transition-smooth hover:shadow-md">
@@ -220,9 +222,7 @@ const Index = () => {
         {/* CTA Section */}
         <section className="gradient-hero text-white py-20">
           <div className="container mx-auto px-4 text-center">
-            <h2 className="text-3xl md:text-4xl font-bold mb-6">
-              Ready to Compete?
-            </h2>
+            <h2 className="text-3xl md:text-4xl font-bold mb-6">Ready to Compete?</h2>
             <p className="text-xl text-primary-foreground/90 mb-8 max-w-2xl mx-auto">
               Join RowLeague today and put your rowing knowledge to the test.
             </p>
