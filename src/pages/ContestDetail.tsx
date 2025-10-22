@@ -24,11 +24,10 @@ const mockContest: Contest = {
   filled: 1,
   lockTime: "May 30, 2025 at 9:00 AM EST",
   minPicks: 2,
-  maxPicks: 4,
+  maxPicks: 3,
   divisions: [
     { id: "div1", name: "Heavyweight Varsity 8+", boatClass: "Varsity 8+", category: "Heavyweight" },
     { id: "div2", name: "Lightweight Varsity 8+", boatClass: "Varsity 8+", category: "Lightweight" },
-    { id: "div4", name: "Varsity 4+", boatClass: "Varsity 4+", category: "Heavyweight" },
   ],
   crews: [
     // Heavyweight
@@ -43,11 +42,6 @@ const mockContest: Contest = {
     { id: "crew7", name: "Yale", institution: "Yale University", divisionId: "div2", seedPosition: 2 },
     { id: "crew8", name: "Harvard", institution: "Harvard University", divisionId: "div2", seedPosition: 3 },
     { id: "crew9", name: "Columbia", institution: "Columbia University", divisionId: "div2", seedPosition: 4 },
-    
-    // 4+
-    { id: "crew14", name: "Harvard", institution: "Harvard University", divisionId: "div4", seedPosition: 1 },
-    { id: "crew15", name: "Yale", institution: "Yale University", divisionId: "div4", seedPosition: 2 },
-    { id: "crew16", name: "Princeton", institution: "Princeton University", divisionId: "div4", seedPosition: 3 },
   ],
 };
 

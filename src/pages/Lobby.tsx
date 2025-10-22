@@ -17,9 +17,9 @@ const mockContests = [
     capacity: 2,
     filled: 1,
     lockTime: "2 hours",
-    divisions: ["Heavyweight V8+", "Lightweight V8+", "V4+"],
+    divisions: ["Heavyweight V8+", "Lightweight V8+"],
     minPicks: 2,
-    maxPicks: 3,
+    maxPicks: 2,
   },
   {
     id: "2",
