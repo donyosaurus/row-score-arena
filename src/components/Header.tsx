@@ -1,8 +1,11 @@
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Waves } from "lucide-react";
+import { Waves, LogOut, User } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
 
 export const Header = () => {
+  const { user, signOut } = useAuth();
+
   return (
     <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-50">
       <div className="container mx-auto px-4 py-4">
@@ -19,22 +22,39 @@ export const Header = () => {
             <Link to="/lobby" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-base">
               Contests
             </Link>
-            <Link to="/profile" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-base">
-              Profile
-            </Link>
+            {user && (
+              <Link to="/profile" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-base">
+                Profile
+              </Link>
+            )}
           </nav>
 
           <div className="flex items-center gap-3">
-            <Link to="/login">
-              <Button variant="ghost" size="sm">
-                Log In
-              </Button>
-            </Link>
-            <Link to="/signup">
-              <Button variant="hero" size="sm">
-                Sign Up
-              </Button>
-            </Link>
+            {user ? (
+              <>
+                <div className="flex items-center gap-2 px-3 py-1 rounded-md bg-accent/10">
+                  <User className="h-4 w-4 text-accent" />
+                  <span className="text-sm font-medium">{user.email}</span>
+                </div>
+                <Button variant="ghost" size="sm" onClick={signOut}>
+                  <LogOut className="h-4 w-4 mr-2" />
+                  Sign Out
+                </Button>
+              </>
+            ) : (
+              <>
+                <Link to="/login">
+                  <Button variant="ghost" size="sm">
+                    Log In
+                  </Button>
+                </Link>
+                <Link to="/signup">
+                  <Button variant="hero" size="sm">
+                    Sign Up
+                  </Button>
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </div>
