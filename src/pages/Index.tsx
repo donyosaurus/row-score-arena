@@ -47,8 +47,7 @@ const Index = () => {
 
               {/* Description */}
               <p className="text-xl md:text-2xl text-white/90 max-w-3xl leading-relaxed">
-                Join skill-based rowing contests. Predict race winners and margins of victory. Match up against others
-                and win real prizes.
+                Draft multiple crews across regatta divisions. Predict finish positions. Earn fantasy points. Win fixed prizes based on skill.
               </p>
 
               {/* CTA Buttons */}
@@ -116,16 +115,16 @@ const Index = () => {
             </div>
 
             <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
-              <Card className="transition-smooth hover:shadow-lg">
+                <Card className="transition-smooth hover:shadow-lg">
                 <CardHeader>
                   <div className="w-12 h-12 rounded-lg bg-accent/10 flex items-center justify-center mb-4">
                     <Target className="h-6 w-6 text-accent" />
                   </div>
-                  <CardTitle>1. Pick Your Winner</CardTitle>
+                  <CardTitle>1. Draft Multiple Crews</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <p className="text-muted-foreground">
-                    Choose which crew you predict will win the race. Study the lineups, review past performances.
+                    Select 2-4 crews from different divisions within a regatta. Study seedings and past performance.
                   </p>
                 </CardContent>
               </Card>
@@ -135,11 +134,11 @@ const Index = () => {
                   <div className="w-12 h-12 rounded-lg bg-accent/10 flex items-center justify-center mb-4">
                     <Clock className="h-6 w-6 text-accent" />
                   </div>
-                  <CardTitle>2. Predict the Margin</CardTitle>
+                  <CardTitle>2. Predict Finish Positions</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <p className="text-muted-foreground">
-                    Enter your predicted time margin of victory to the hundredth of a second. Precision matters.
+                    For each crew, predict their finish position (1st-7th+) and winning margin. Earn points based on accuracy.
                   </p>
                 </CardContent>
               </Card>
@@ -149,11 +148,11 @@ const Index = () => {
                   <div className="w-12 h-12 rounded-lg bg-success/10 flex items-center justify-center mb-4">
                     <TrendingUp className="h-6 w-6 text-success" />
                   </div>
-                  <CardTitle>3. Win Fixed Prizes</CardTitle>
+                  <CardTitle>3. Win with Fantasy Points</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <p className="text-muted-foreground">
-                    If your winner is correct and your margin is closest, win the pre-posted prize. No pools, no splits.
+                    Your crews earn points by finish position (100-10 pts). Highest total wins the fixed prize.
                   </p>
                 </CardContent>
               </Card>
@@ -182,9 +181,9 @@ const Index = () => {
 
               <div className="p-6 rounded-lg border border-border bg-card transition-smooth hover:shadow-md">
                 <Target className="h-8 w-8 text-accent mb-4" />
-                <h3 className="text-lg font-semibold mb-2">Skill-Based</h3>
+                <h3 className="text-lg font-semibold mb-2">Multi-Team Fantasy</h3>
                 <p className="text-muted-foreground">
-                  Outcome knowledge and precision predictions determine winners. Not chance.
+                  Draft from multiple real crews across divisions. Skill-based fantasy sports that comply with regulations.
                 </p>
               </div>
 
@@ -198,8 +197,8 @@ const Index = () => {
 
               <div className="p-6 rounded-lg border border-border bg-card transition-smooth hover:shadow-md">
                 <Users className="h-8 w-8 text-accent mb-4" />
-                <h3 className="text-lg font-semibold mb-2">Head-to-Head or Groups</h3>
-                <p className="text-muted-foreground">Compete 1v1 or join small-field contests. Your choice.</p>
+                <h3 className="text-lg font-semibold mb-2">Finish-Order Scoring</h3>
+                <p className="text-muted-foreground">Earn 100-10 points per crew based on finish position. Margin predictions only break ties.</p>
               </div>
 
               <div className="p-6 rounded-lg border border-border bg-card transition-smooth hover:shadow-md">

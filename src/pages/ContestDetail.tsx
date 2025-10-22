@@ -7,39 +7,134 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { ArrowLeft, Clock, DollarSign, Info, Target } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ArrowLeft, Clock, DollarSign, Info, Target, Plus, Trash2, Trophy } from "lucide-react";
+import { Contest, DraftPick, FINISH_POINTS } from "@/types/contest";
+import { toast } from "sonner";
 
-// Mock data
-const mockContest = {
+// Mock regatta contest data with multiple divisions
+const mockContest: Contest = {
   id: "1",
-  eventName: "IRA National Championship",
-  raceName: "Men's Varsity Eight Grand Final",
+  regattaName: "IRA National Championship 2025",
   type: "H2H",
-  entryFee: 9,
-  prize: 15,
+  entryFee: 15,
+  prize: 25,
   capacity: 2,
   filled: 1,
-  lockTime: "May 15, 2025 at 10:00 AM EST",
+  lockTime: "May 30, 2025 at 9:00 AM EST",
+  minPicks: 2,
+  maxPicks: 4,
+  divisions: [
+    { id: "div1", name: "Men's Heavyweight Varsity 8+", boatClass: "Varsity 8+", category: "Men's Heavyweight" },
+    { id: "div2", name: "Men's Lightweight Varsity 8+", boatClass: "Varsity 8+", category: "Men's Lightweight" },
+    { id: "div3", name: "Women's Varsity 8+", boatClass: "Varsity 8+", category: "Women's" },
+    { id: "div4", name: "Men's Varsity 4+", boatClass: "Varsity 4+", category: "Men's" },
+  ],
   crews: [
-    { id: "crew1", name: "Yale Bulldogs", institution: "Yale University", lane: 3 },
-    { id: "crew2", name: "Harvard Crimson", institution: "Harvard University", lane: 4 },
-    { id: "crew3", name: "Princeton Tigers", institution: "Princeton University", lane: 2 },
-    { id: "crew4", name: "Brown Bears", institution: "Brown University", lane: 5 },
-    { id: "crew5", name: "Penn Quakers", institution: "University of Pennsylvania", lane: 1 },
-    { id: "crew6", name: "Cornell Big Red", institution: "Cornell University", lane: 6 },
+    // Men's Heavyweight
+    { id: "crew1", name: "Yale", institution: "Yale University", divisionId: "div1", seedPosition: 1 },
+    { id: "crew2", name: "Harvard", institution: "Harvard University", divisionId: "div1", seedPosition: 2 },
+    { id: "crew3", name: "Washington", institution: "University of Washington", divisionId: "div1", seedPosition: 3 },
+    { id: "crew4", name: "California", institution: "University of California", divisionId: "div1", seedPosition: 4 },
+    { id: "crew5", name: "Princeton", institution: "Princeton University", divisionId: "div1", seedPosition: 5 },
+    
+    // Men's Lightweight
+    { id: "crew6", name: "Princeton LW", institution: "Princeton University", divisionId: "div2", seedPosition: 1 },
+    { id: "crew7", name: "Yale LW", institution: "Yale University", divisionId: "div2", seedPosition: 2 },
+    { id: "crew8", name: "Harvard LW", institution: "Harvard University", divisionId: "div2", seedPosition: 3 },
+    { id: "crew9", name: "Columbia LW", institution: "Columbia University", divisionId: "div2", seedPosition: 4 },
+    
+    // Women's
+    { id: "crew10", name: "Washington Women", institution: "University of Washington", divisionId: "div3", seedPosition: 1 },
+    { id: "crew11", name: "Stanford Women", institution: "Stanford University", divisionId: "div3", seedPosition: 2 },
+    { id: "crew12", name: "Brown Women", institution: "Brown University", divisionId: "div3", seedPosition: 3 },
+    { id: "crew13", name: "Yale Women", institution: "Yale University", divisionId: "div3", seedPosition: 4 },
+    
+    // Men's 4+
+    { id: "crew14", name: "Harvard 4+", institution: "Harvard University", divisionId: "div4", seedPosition: 1 },
+    { id: "crew15", name: "Yale 4+", institution: "Yale University", divisionId: "div4", seedPosition: 2 },
+    { id: "crew16", name: "Princeton 4+", institution: "Princeton University", divisionId: "div4", seedPosition: 3 },
   ],
 };
 
 const ContestDetail = () => {
   const { id } = useParams();
-  const [selectedCrew, setSelectedCrew] = useState("");
-  const [marginSeconds, setMarginSeconds] = useState("");
+  const [draftPicks, setDraftPicks] = useState<DraftPick[]>([]);
+  const [currentDivision, setCurrentDivision] = useState<string>("");
+  const [currentCrew, setCurrentCrew] = useState<string>("");
+  const [currentFinish, setCurrentFinish] = useState<string>("");
+  const [currentMargin, setCurrentMargin] = useState<string>("");
+
+  const addPick = () => {
+    if (!currentCrew || !currentFinish || !currentMargin) {
+      toast.error("Please fill in all fields");
+      return;
+    }
+
+    const crew = mockContest.crews.find(c => c.id === currentCrew);
+    if (!crew) return;
+
+    // Check if division already picked
+    if (draftPicks.some(p => p.divisionId === crew.divisionId)) {
+      toast.error("You've already picked from this division");
+      return;
+    }
+
+    // Check max picks
+    if (draftPicks.length >= mockContest.maxPicks) {
+      toast.error(`Maximum ${mockContest.maxPicks} picks allowed`);
+      return;
+    }
+
+    const newPick: DraftPick = {
+      crewId: currentCrew,
+      divisionId: crew.divisionId,
+      predictedFinish: parseInt(currentFinish),
+      predictedMargin: parseFloat(currentMargin),
+    };
+
+    setDraftPicks([...draftPicks, newPick]);
+    setCurrentCrew("");
+    setCurrentFinish("");
+    setCurrentMargin("");
+    setCurrentDivision("");
+    toast.success("Pick added to draft");
+  };
+
+  const removePick = (index: number) => {
+    setDraftPicks(draftPicks.filter((_, i) => i !== index));
+    toast.info("Pick removed");
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // TODO: Implement pick submission
-    console.log("Pick submitted:", { selectedCrew, marginSeconds });
+    
+    if (draftPicks.length < mockContest.minPicks) {
+      toast.error(`You must draft at least ${mockContest.minPicks} teams`);
+      return;
+    }
+
+    // TODO: Submit to backend
+    console.log("Draft submitted:", draftPicks);
+    toast.success("Draft submitted successfully!");
+  };
+
+  const availableDivisions = mockContest.divisions.filter(
+    div => !draftPicks.some(p => p.divisionId === div.id)
+  );
+
+  const availableCrews = currentDivision
+    ? mockContest.crews.filter(c => c.divisionId === currentDivision)
+    : [];
+
+  const getCrewName = (crewId: string) => {
+    const crew = mockContest.crews.find(c => c.id === crewId);
+    return crew ? `${crew.name} (${crew.institution})` : "";
+  };
+
+  const getDivisionName = (divisionId: string) => {
+    const div = mockContest.divisions.find(d => d.id === divisionId);
+    return div?.name || "";
   };
 
   return (
@@ -57,11 +152,13 @@ const ContestDetail = () => {
           <div className="mb-8">
             <div className="flex items-start justify-between mb-4">
               <div>
-                <p className="text-muted-foreground mb-1">{mockContest.eventName}</p>
-                <h1 className="text-4xl font-bold mb-2">{mockContest.raceName}</h1>
+                <h1 className="text-4xl font-bold mb-2">{mockContest.regattaName}</h1>
+                <p className="text-lg text-muted-foreground">
+                  Multi-Team Fantasy Draft • Pick {mockContest.minPicks}-{mockContest.maxPicks} crews from different divisions
+                </p>
               </div>
               <Badge className="text-lg px-4 py-2">
-                {mockContest.type === "H2H" ? "Head-to-Head" : "Small Field"}
+                {mockContest.type === "H2H" ? "Head-to-Head" : mockContest.type === "SMALL_FIELD" ? "Small Field" : "Full Regatta"}
               </Badge>
             </div>
 
@@ -111,50 +208,121 @@ const ContestDetail = () => {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Pick Form */}
-            <div className="lg:col-span-2">
+            {/* Draft Form */}
+            <div className="lg:col-span-2 space-y-6">
+              {/* Current Picks */}
+              {draftPicks.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Your Draft ({draftPicks.length}/{mockContest.maxPicks})</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    {draftPicks.map((pick, index) => (
+                      <div key={index} className="flex items-center justify-between p-4 rounded-lg border-2 border-accent/20 bg-accent/5">
+                        <div className="flex-1">
+                          <p className="font-semibold">{getCrewName(pick.crewId)}</p>
+                          <p className="text-sm text-muted-foreground">{getDivisionName(pick.divisionId)}</p>
+                          <p className="text-sm mt-1">
+                            Predicted: <span className="font-medium">{pick.predictedFinish}{pick.predictedFinish === 1 ? 'st' : pick.predictedFinish === 2 ? 'nd' : pick.predictedFinish === 3 ? 'rd' : 'th'} place</span> by <span className="font-medium">{pick.predictedMargin}s</span>
+                          </p>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => removePick(index)}
+                          className="text-destructive hover:text-destructive"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Add Pick Form */}
               <Card>
                 <CardHeader>
-                  <CardTitle>Make Your Pick</CardTitle>
+                  <CardTitle>Add Team to Draft</CardTitle>
+                  <p className="text-sm text-muted-foreground mt-2">
+                    {draftPicks.length < mockContest.minPicks 
+                      ? `You need ${mockContest.minPicks - draftPicks.length} more pick(s)`
+                      : `Optional: Add up to ${mockContest.maxPicks - draftPicks.length} more pick(s)`
+                    }
+                  </p>
                 </CardHeader>
-                <CardContent>
-                  <form onSubmit={handleSubmit} className="space-y-6">
-                    {/* Select Winner */}
-                    <div className="space-y-4">
-                      <Label className="text-lg font-semibold">
-                        Step 1: Pick the Winner
-                      </Label>
-                      <RadioGroup value={selectedCrew} onValueChange={setSelectedCrew}>
-                        <div className="space-y-3">
-                          {mockContest.crews.map((crew) => (
-                            <label
-                              key={crew.id}
-                              className={`flex items-center space-x-3 p-4 rounded-lg border-2 cursor-pointer transition-smooth ${
-                                selectedCrew === crew.id
-                                  ? "border-accent bg-accent/5"
-                                  : "border-border hover:border-accent/50 hover:bg-accent/5"
-                              }`}
-                            >
-                              <RadioGroupItem value={crew.id} id={crew.id} />
-                              <div className="flex-1">
-                                <div className="flex items-center justify-between">
-                                  <div>
-                                    <p className="font-semibold">{crew.name}</p>
-                                    <p className="text-sm text-muted-foreground">{crew.institution}</p>
-                                  </div>
-                                  <Badge variant="outline">Lane {crew.lane}</Badge>
-                                </div>
-                              </div>
-                            </label>
-                          ))}
-                        </div>
-                      </RadioGroup>
-                    </div>
+                <CardContent className="space-y-6">
+                  {/* Step 1: Select Division */}
+                  <div className="space-y-3">
+                    <Label className="text-base font-semibold">
+                      Step 1: Choose Division
+                    </Label>
+                    <Select value={currentDivision} onValueChange={(value) => {
+                      setCurrentDivision(value);
+                      setCurrentCrew("");
+                    }}>
+                      <SelectTrigger className="text-base">
+                        <SelectValue placeholder="Select a division..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableDivisions.map((div) => (
+                          <SelectItem key={div.id} value={div.id} className="text-base">
+                            {div.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-                    {/* Predict Margin */}
-                    <div className="space-y-4">
-                      <Label htmlFor="margin" className="text-lg font-semibold">
-                        Step 2: Predict Margin of Victory
+                  {/* Step 2: Select Crew */}
+                  {currentDivision && (
+                    <div className="space-y-3">
+                      <Label className="text-base font-semibold">
+                        Step 2: Select Crew
+                      </Label>
+                      <Select value={currentCrew} onValueChange={setCurrentCrew}>
+                        <SelectTrigger className="text-base">
+                          <SelectValue placeholder="Select a crew..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {availableCrews.map((crew) => (
+                            <SelectItem key={crew.id} value={crew.id} className="text-base">
+                              {crew.name} - {crew.institution} {crew.seedPosition && `(Seed #${crew.seedPosition})`}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
+                  {/* Step 3: Predict Finish Position */}
+                  {currentCrew && (
+                    <div className="space-y-3">
+                      <Label className="text-base font-semibold">
+                        Step 3: Predict Finish Position
+                      </Label>
+                      <Select value={currentFinish} onValueChange={setCurrentFinish}>
+                        <SelectTrigger className="text-base">
+                          <SelectValue placeholder="Select finish position..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="1">1st Place (100 pts)</SelectItem>
+                          <SelectItem value="2">2nd Place (80 pts)</SelectItem>
+                          <SelectItem value="3">3rd Place (65 pts)</SelectItem>
+                          <SelectItem value="4">4th Place (50 pts)</SelectItem>
+                          <SelectItem value="5">5th Place (35 pts)</SelectItem>
+                          <SelectItem value="6">6th Place (20 pts)</SelectItem>
+                          <SelectItem value="7">7th+ Place (10 pts)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
+                  {/* Step 4: Predict Margin */}
+                  {currentFinish && (
+                    <div className="space-y-3">
+                      <Label htmlFor="margin" className="text-base font-semibold">
+                        Step 4: Predict Winning Margin (Tie-Breaker)
                       </Label>
                       <div className="space-y-2">
                         <div className="flex items-center gap-2">
@@ -163,58 +331,115 @@ const ContestDetail = () => {
                             type="number"
                             step="0.01"
                             min="0.01"
-                            placeholder="1.37"
-                            value={marginSeconds}
-                            onChange={(e) => setMarginSeconds(e.target.value)}
-                            className="text-lg"
-                            required
+                            placeholder="1.42"
+                            value={currentMargin}
+                            onChange={(e) => setCurrentMargin(e.target.value)}
+                            className="text-base"
                           />
                           <span className="text-muted-foreground font-medium">seconds</span>
                         </div>
                         <p className="text-sm text-muted-foreground flex items-start gap-2">
                           <Info className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                          Enter the time difference between 1st and 2nd place (e.g., 1.37 for 1.37 seconds)
+                          Time difference between 1st and 2nd place in this race
                         </p>
                       </div>
                     </div>
+                  )}
 
-                    <Button 
-                      type="submit" 
-                      variant="hero" 
-                      size="lg" 
-                      className="w-full"
-                      disabled={!selectedCrew || !marginSeconds}
-                    >
-                      Submit Pick (${mockContest.entryFee})
-                    </Button>
-                  </form>
+                  <Button 
+                    type="button"
+                    onClick={addPick}
+                    variant="outline" 
+                    size="lg" 
+                    className="w-full"
+                    disabled={!currentCrew || !currentFinish || !currentMargin || draftPicks.length >= mockContest.maxPicks}
+                  >
+                    <Plus className="h-5 w-5 mr-2" />
+                    Add Pick to Draft
+                  </Button>
                 </CardContent>
               </Card>
+
+              {/* Submit Draft */}
+              {draftPicks.length >= mockContest.minPicks && (
+                <Button 
+                  onClick={handleSubmit}
+                  variant="hero" 
+                  size="lg" 
+                  className="w-full text-lg py-6"
+                >
+                  Submit Draft (${mockContest.entryFee})
+                </Button>
+              )}
             </div>
 
             {/* Rules Sidebar */}
             <div className="space-y-6">
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-lg">How Scoring Works</CardTitle>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Trophy className="h-5 w-5 text-accent" />
+                    Finish-Order Scoring
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3 text-sm">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between p-2 rounded bg-accent/5">
+                      <span className="font-medium">1st Place</span>
+                      <span className="font-bold text-accent">100 pts</span>
+                    </div>
+                    <div className="flex items-center justify-between p-2 rounded bg-muted/50">
+                      <span>2nd Place</span>
+                      <span className="font-semibold">80 pts</span>
+                    </div>
+                    <div className="flex items-center justify-between p-2 rounded bg-muted/50">
+                      <span>3rd Place</span>
+                      <span className="font-semibold">65 pts</span>
+                    </div>
+                    <div className="flex items-center justify-between p-2 rounded bg-muted/50">
+                      <span>4th Place</span>
+                      <span className="font-semibold">50 pts</span>
+                    </div>
+                    <div className="flex items-center justify-between p-2 rounded bg-muted/50">
+                      <span>5th Place</span>
+                      <span className="font-semibold">35 pts</span>
+                    </div>
+                    <div className="flex items-center justify-between p-2 rounded bg-muted/50">
+                      <span>6th Place</span>
+                      <span className="font-semibold">20 pts</span>
+                    </div>
+                    <div className="flex items-center justify-between p-2 rounded bg-muted/50">
+                      <span>7th+ Place</span>
+                      <span className="font-semibold">10 pts</span>
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground pt-2 border-t">
+                    Your total score = sum of all your crews' finish points
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">How to Win</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4 text-sm">
                   <div>
-                    <h4 className="font-semibold mb-2">1. Correct Winner</h4>
+                    <h4 className="font-semibold mb-2">1. Finish Points (Primary)</h4>
                     <p className="text-muted-foreground">
-                      Your predicted winner must finish in 1st place
+                      Your crews earn points based on their actual finish positions. Higher total wins.
                     </p>
                   </div>
                   <div>
-                    <h4 className="font-semibold mb-2">2. Closest Margin</h4>
+                    <h4 className="font-semibold mb-2">2. Margin Accuracy (Tie-Breaker)</h4>
                     <p className="text-muted-foreground">
-                      The entry with the smallest absolute error wins
+                      If tied on points, lowest total margin prediction error wins
                     </p>
                   </div>
-                  <div>
-                    <h4 className="font-semibold mb-2">3. Tie Breakers</h4>
-                    <p className="text-muted-foreground">
-                      Closest without going over, then earliest entry time
+                  <div className="p-3 rounded-lg bg-muted/30">
+                    <p className="text-xs font-medium mb-1">Example:</p>
+                    <p className="text-xs text-muted-foreground">
+                      Pick 2 crews: one finishes 1st (100pts), one finishes 2nd (80pts) = 180 total points
                     </p>
                   </div>
                 </CardContent>
@@ -226,7 +451,7 @@ const ContestDetail = () => {
                 </CardHeader>
                 <CardContent>
                   <p className="text-sm text-muted-foreground mb-4">
-                    This contest has a pre-posted, fixed prize. No pooling.
+                    Pre-posted prize. No pooling. Skill-based fantasy contest.
                   </p>
                   <div className="p-4 rounded-lg bg-background border border-border">
                     <p className="text-2xl font-bold text-success text-center">

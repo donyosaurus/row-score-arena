@@ -5,55 +5,59 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Search } from "lucide-react";
 
-// Mock data for demonstration
+// Mock regatta fantasy contests
 const mockContests = [
   {
     id: "1",
-    eventName: "NCAA Championship Final",
-    raceName: "Varsity Men's Eight",
+    regattaName: "IRA National Championship 2025",
     type: "H2H" as const,
-    entryFee: 9,
-    prize: 15,
+    entryFee: 15,
+    prize: 25,
     capacity: 2,
     filled: 1,
-    lockTime: "2h 34m",
-    teams: ["Harvard", "Yale", "Princeton", "+1 more"],
+    lockTime: "2 hours",
+    divisions: ["Men's Heavyweight V8+", "Men's Lightweight V8+", "Women's V8+"],
+    minPicks: 2,
+    maxPicks: 4,
   },
   {
     id: "2",
-    eventName: "IRA National Championships",
-    raceName: "Women's Varsity Four",
-    type: "CAP_N" as const,
-    entryFee: 5,
-    prize: 40,
-    capacity: 10,
-    filled: 7,
-    lockTime: "5h 12m",
-    teams: ["Washington", "Stanford", "Cal", "+1 more"],
+    regattaName: "Head of the Charles 2025",
+    type: "SMALL_FIELD" as const,
+    entryFee: 10,
+    prize: 45,
+    capacity: 5,
+    filled: 3,
+    lockTime: "6 hours",
+    divisions: ["Championship Eights", "Youth Eights", "Masters Eights", "Collegiate Eights"],
+    minPicks: 2,
+    maxPicks: 3,
   },
   {
     id: "3",
-    eventName: "Head of the Charles",
-    raceName: "Championship Eights",
+    regattaName: "Henley Royal Regatta 2025",
     type: "H2H" as const,
     entryFee: 20,
     prize: 35,
     capacity: 2,
     filled: 0,
-    lockTime: "1h 08m",
-    teams: ["Cambridge", "Oxford", "Yale", "+1 more"],
+    lockTime: "1 day",
+    divisions: ["Grand Challenge Cup", "Ladies' Challenge Plate", "Prince of Wales"],
+    minPicks: 2,
+    maxPicks: 3,
   },
   {
     id: "4",
-    eventName: "ACRA Championships",
-    raceName: "Women's Novice Eight",
-    type: "CAP_N" as const,
-    entryFee: 5,
-    prize: 40,
-    capacity: 10,
-    filled: 3,
-    lockTime: "6h 45m",
-    teams: ["Boston University", "Northeastern", "MIT"],
+    regattaName: "Dad Vail Regatta 2025",
+    type: "SMALL_FIELD" as const,
+    entryFee: 12,
+    prize: 80,
+    capacity: 8,
+    filled: 5,
+    lockTime: "12 hours",
+    divisions: ["Men's Varsity 8+", "Women's Varsity 8+", "Men's Novice 8+", "Women's Novice 8+"],
+    minPicks: 2,
+    maxPicks: 4,
   },
 ];
 
@@ -65,9 +69,9 @@ const Lobby = () => {
       <main className="flex-1 bg-background py-16">
         <div className="container mx-auto px-4">
           <div className="mb-12 text-center max-w-3xl mx-auto">
-            <h1 className="text-4xl md:text-5xl font-bold mb-4">Featured Contests</h1>
+            <h1 className="text-4xl md:text-5xl font-bold mb-4">Regatta Fantasy Contests</h1>
             <p className="text-xl text-muted-foreground">
-              Join contests with fixed prizes. Pick the winner and predict the margin.
+              Draft multiple crews, predict finish positions, earn fantasy points. Skill-based, fixed prizes.
             </p>
           </div>
 

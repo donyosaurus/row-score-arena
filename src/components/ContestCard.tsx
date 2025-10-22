@@ -4,34 +4,36 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Users, DollarSign, Trophy, Clock } from "lucide-react";
 
-type ContestType = "H2H" | "CAP_N";
+type ContestType = "H2H" | "CAP_N" | "SMALL_FIELD" | "FULL_REGATTA";
 
 interface ContestCardProps {
   id: string;
-  eventName: string;
-  raceName: string;
+  regattaName: string;
   type: ContestType;
   entryFee: number;
   prize: number;
   capacity: number;
   filled: number;
   lockTime: string;
-  teams?: string[];
+  divisions?: string[];
+  minPicks?: number;
+  maxPicks?: number;
 }
 
 export const ContestCard = ({
   id,
-  eventName,
-  raceName,
+  regattaName,
   type,
   entryFee,
   prize,
   capacity,
   filled,
   lockTime,
-  teams = [],
+  divisions = [],
+  minPicks = 2,
+  maxPicks = 4,
 }: ContestCardProps) => {
-  const contestTypeLabel = type === "H2H" ? "Head-to-Head" : `Cap-${capacity}`;
+  const contestTypeLabel = type === "H2H" ? "H2H" : type === "SMALL_FIELD" ? `Cap-${capacity}` : "Full Regatta";
 
   return (
     <Card className="flex flex-col h-full transition-smooth hover:shadow-md border-border/50">
@@ -39,7 +41,7 @@ export const ContestCard = ({
         {/* Header */}
         <div className="space-y-3">
           <div className="flex items-start justify-between gap-3">
-            <h3 className="font-bold text-xl leading-tight">{eventName}</h3>
+            <h3 className="font-bold text-xl leading-tight">{regattaName}</h3>
             <Badge 
               variant="secondary" 
               className="flex-shrink-0 bg-primary/10 text-primary border-primary/20 font-medium px-3 py-1"
@@ -47,20 +49,27 @@ export const ContestCard = ({
               {contestTypeLabel}
             </Badge>
           </div>
-          <p className="text-muted-foreground">{raceName}</p>
+          <p className="text-sm text-muted-foreground">
+            Multi-Team Fantasy • Pick {minPicks}-{maxPicks} crews
+          </p>
         </div>
 
-        {/* Teams */}
-        {teams.length > 0 && (
-          <div className="flex flex-wrap gap-2 text-sm">
-            {teams.slice(0, 3).map((team, idx) => (
-              <span key={idx} className="text-foreground font-medium">
-                {team}
-              </span>
-            ))}
-            {teams.length > 3 && (
-              <span className="text-muted-foreground">+{teams.length - 3} more</span>
-            )}
+        {/* Divisions */}
+        {divisions.length > 0 && (
+          <div className="space-y-2">
+            <p className="text-xs font-semibold text-muted-foreground uppercase">Available Divisions</p>
+            <div className="flex flex-wrap gap-2 text-sm">
+              {divisions.slice(0, 3).map((division, idx) => (
+                <Badge key={idx} variant="outline" className="font-normal">
+                  {division}
+                </Badge>
+              ))}
+              {divisions.length > 3 && (
+                <Badge variant="outline" className="font-normal text-muted-foreground">
+                  +{divisions.length - 3} more
+                </Badge>
+              )}
+            </div>
           </div>
         )}
 
