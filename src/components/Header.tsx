@@ -19,9 +19,6 @@ export const Header = () => {
             <Link to="/lobby" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-base">
               Contests
             </Link>
-            <Link to="/how-it-works" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-base">
-              How to Play
-            </Link>
             <Link to="/profile" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-base">
               Profile
             </Link>
