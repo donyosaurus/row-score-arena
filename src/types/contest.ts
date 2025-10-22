@@ -1,7 +1,16 @@
 // Contest and Draft Types for Multi-Team Fantasy Format
 
-export type ContestType = "H2H" | "SMALL_FIELD" | "FULL_REGATTA";
+export type ContestType = "H2H" | "5_PERSON";
 export type GenderCategory = "Men's" | "Women's";
+
+export interface EntryTier {
+  id: string;
+  type: ContestType;
+  entryFee: number;
+  prize: number;
+  capacity: number;
+  filled: number;
+}
 
 export interface Division {
   id: string;
@@ -24,20 +33,23 @@ export interface DraftPick {
   predictedMargin: number; // seconds relative to 2nd place (tie-breaker only)
 }
 
-export interface Contest {
+export interface Regatta {
   id: string;
   regattaName: string;
-  type: ContestType;
   genderCategory: GenderCategory; // Men's or Women's only
-  entryFee: number;
-  prize: number;
-  capacity: number;
-  filled: number;
   lockTime: string;
   minPicks: number; // minimum 2
   maxPicks: number; // typically 2-4
   divisions: Division[];
   crews: Crew[];
+  entryTiers: EntryTier[]; // The 5 entry options
+}
+
+export interface Contest {
+  id: string;
+  regattaId: string;
+  tierId: string;
+  userId: string;
 }
 
 export interface ContestEntry {

@@ -7,6 +7,7 @@ import Index from "./pages/Index";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import Lobby from "./pages/Lobby";
+import RegattaDetail from "./pages/RegattaDetail";
 import ContestDetail from "./pages/ContestDetail";
 import Profile from "./pages/Profile";
 import HowItWorks from "./pages/HowItWorks";
@@ -25,7 +26,8 @@ const App = () => (
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
           <Route path="/lobby" element={<Lobby />} />
-          <Route path="/contest/:id" element={<ContestDetail />} />
+          <Route path="/regatta/:id" element={<RegattaDetail />} />
+          <Route path="/contest/:id/:tierId" element={<ContestDetail />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/how-it-works" element={<HowItWorks />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

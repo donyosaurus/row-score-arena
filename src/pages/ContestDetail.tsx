@@ -9,19 +9,14 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft, Clock, DollarSign, Info, Target, Plus, Trash2, Trophy } from "lucide-react";
-import { Contest, DraftPick, FINISH_POINTS } from "@/types/contest";
+import { Regatta, DraftPick, FINISH_POINTS, EntryTier } from "@/types/contest";
 import { toast } from "sonner";
 
-// Mock regatta contest data - Men's only
-const mockContest: Contest = {
+// Mock regatta data
+const mockRegatta: Regatta = {
   id: "1",
   regattaName: "IRA National Championship 2025",
-  type: "H2H",
   genderCategory: "Men's",
-  entryFee: 15,
-  prize: 25,
-  capacity: 2,
-  filled: 1,
   lockTime: "May 30, 2025 at 9:00 AM EST",
   minPicks: 2,
   maxPicks: 3,
@@ -30,27 +25,36 @@ const mockContest: Contest = {
     { id: "div2", name: "Lightweight Varsity 8+", boatClass: "Varsity 8+", category: "Lightweight" },
   ],
   crews: [
-    // Heavyweight
     { id: "crew1", name: "Yale", institution: "Yale University", divisionId: "div1", seedPosition: 1 },
     { id: "crew2", name: "Harvard", institution: "Harvard University", divisionId: "div1", seedPosition: 2 },
     { id: "crew3", name: "Washington", institution: "University of Washington", divisionId: "div1", seedPosition: 3 },
     { id: "crew4", name: "California", institution: "University of California", divisionId: "div1", seedPosition: 4 },
     { id: "crew5", name: "Princeton", institution: "Princeton University", divisionId: "div1", seedPosition: 5 },
-    
-    // Lightweight
     { id: "crew6", name: "Princeton", institution: "Princeton University", divisionId: "div2", seedPosition: 1 },
     { id: "crew7", name: "Yale", institution: "Yale University", divisionId: "div2", seedPosition: 2 },
     { id: "crew8", name: "Harvard", institution: "Harvard University", divisionId: "div2", seedPosition: 3 },
     { id: "crew9", name: "Columbia", institution: "Columbia University", divisionId: "div2", seedPosition: 4 },
   ],
+  entryTiers: [
+    { id: "h2h-10", type: "H2H", entryFee: 10, prize: 18.50, capacity: 2, filled: 0 },
+    { id: "h2h-25", type: "H2H", entryFee: 25, prize: 47.50, capacity: 2, filled: 1 },
+    { id: "h2h-100", type: "H2H", entryFee: 100, prize: 195.50, capacity: 2, filled: 0 },
+    { id: "5p-10", type: "5_PERSON", entryFee: 10, prize: 45, capacity: 5, filled: 2 },
+    { id: "5p-25", type: "5_PERSON", entryFee: 25, prize: 117.50, capacity: 5, filled: 3 },
+  ],
 };
 
 const ContestDetail = () => {
-  const { id } = useParams();
+  const { id, tierId } = useParams();
   const [draftPicks, setDraftPicks] = useState<DraftPick[]>([]);
   const [currentDivision, setCurrentDivision] = useState<string>("");
   const [currentCrew, setCurrentCrew] = useState<string>("");
   const [currentMargin, setCurrentMargin] = useState<string>("");
+
+  const selectedTier = mockRegatta.entryTiers.find(t => t.id === tierId);
+  if (!selectedTier) {
+    return <div>Tier not found</div>;
+  }
 
   const addPick = () => {
     if (!currentCrew || !currentMargin) {
@@ -58,7 +62,7 @@ const ContestDetail = () => {
       return;
     }
 
-    const crew = mockContest.crews.find(c => c.id === currentCrew);
+    const crew = mockRegatta.crews.find(c => c.id === currentCrew);
     if (!crew) return;
 
     // Check if division already picked
@@ -68,8 +72,8 @@ const ContestDetail = () => {
     }
 
     // Check max picks
-    if (draftPicks.length >= mockContest.maxPicks) {
-      toast.error(`Maximum ${mockContest.maxPicks} picks allowed`);
+    if (draftPicks.length >= mockRegatta.maxPicks) {
+      toast.error(`Maximum ${mockRegatta.maxPicks} picks allowed`);
       return;
     }
 
@@ -94,8 +98,8 @@ const ContestDetail = () => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (draftPicks.length < mockContest.minPicks) {
-      toast.error(`You must draft at least ${mockContest.minPicks} teams`);
+    if (draftPicks.length < mockRegatta.minPicks) {
+      toast.error(`You must draft at least ${mockRegatta.minPicks} teams`);
       return;
     }
 
@@ -104,21 +108,21 @@ const ContestDetail = () => {
     toast.success("Draft submitted successfully!");
   };
 
-  const availableDivisions = mockContest.divisions.filter(
+  const availableDivisions = mockRegatta.divisions.filter(
     div => !draftPicks.some(p => p.divisionId === div.id)
   );
 
   const availableCrews = currentDivision
-    ? mockContest.crews.filter(c => c.divisionId === currentDivision)
+    ? mockRegatta.crews.filter(c => c.divisionId === currentDivision)
     : [];
 
   const getCrewName = (crewId: string) => {
-    const crew = mockContest.crews.find(c => c.id === crewId);
+    const crew = mockRegatta.crews.find(c => c.id === crewId);
     return crew ? `${crew.name} (${crew.institution})` : "";
   };
 
   const getDivisionName = (divisionId: string) => {
-    const div = mockContest.divisions.find(d => d.id === divisionId);
+    const div = mockRegatta.divisions.find(d => d.id === divisionId);
     return div?.name || "";
   };
 
@@ -128,22 +132,22 @@ const ContestDetail = () => {
       
       <main className="flex-1 gradient-subtle py-12">
         <div className="container mx-auto px-4 max-w-5xl">
-          <Link to="/lobby" className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground mb-6 transition-base">
+          <Link to={`/regatta/${id}`} className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground mb-6 transition-base">
             <ArrowLeft className="h-4 w-4" />
-            Back to Lobby
+            Back to Entry Options
           </Link>
 
           {/* Contest Header */}
           <div className="mb-8">
             <div className="flex items-start justify-between mb-4">
               <div>
-                <h1 className="text-4xl font-bold mb-2">{mockContest.regattaName}</h1>
+                <h1 className="text-4xl font-bold mb-2">{mockRegatta.regattaName}</h1>
                 <p className="text-lg text-muted-foreground">
-                  {mockContest.genderCategory} Multi-Team Fantasy • Pick {mockContest.minPicks}-{mockContest.maxPicks} crews from different divisions
+                  {mockRegatta.genderCategory} Multi-Team Fantasy • Pick {mockRegatta.minPicks}-{mockRegatta.maxPicks} crews from different divisions
                 </p>
               </div>
               <Badge className="text-lg px-4 py-2">
-                {mockContest.type === "H2H" ? "Head-to-Head" : mockContest.type === "SMALL_FIELD" ? "Small Field" : "Full Regatta"}
+                {selectedTier.type === "H2H" ? "Head-to-Head" : "5-Person"}
               </Badge>
             </div>
 
@@ -156,7 +160,7 @@ const ContestDetail = () => {
                     </div>
                     <div>
                       <p className="text-sm text-muted-foreground">Entry Fee</p>
-                      <p className="text-2xl font-bold">${mockContest.entryFee}</p>
+                      <p className="text-2xl font-bold">${selectedTier.entryFee}</p>
                     </div>
                   </div>
                 </CardContent>
@@ -170,7 +174,7 @@ const ContestDetail = () => {
                     </div>
                     <div>
                       <p className="text-sm text-muted-foreground">Fixed Prize</p>
-                      <p className="text-2xl font-bold text-success">${mockContest.prize}</p>
+                      <p className="text-2xl font-bold text-success">${selectedTier.prize.toFixed(2)}</p>
                     </div>
                   </div>
                 </CardContent>
@@ -184,7 +188,7 @@ const ContestDetail = () => {
                     </div>
                     <div>
                       <p className="text-sm text-muted-foreground">Locks</p>
-                      <p className="text-sm font-semibold">{mockContest.lockTime}</p>
+                      <p className="text-sm font-semibold">{mockRegatta.lockTime}</p>
                     </div>
                   </div>
                 </CardContent>
@@ -199,7 +203,7 @@ const ContestDetail = () => {
               {draftPicks.length > 0 && (
                 <Card>
                   <CardHeader>
-                    <CardTitle>Your Draft ({draftPicks.length}/{mockContest.maxPicks})</CardTitle>
+                    <CardTitle>Your Draft ({draftPicks.length}/{mockRegatta.maxPicks})</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-3">
                     {draftPicks.map((pick, index) => (
@@ -230,9 +234,9 @@ const ContestDetail = () => {
                 <CardHeader>
                   <CardTitle>Add Crew to Draft</CardTitle>
                   <p className="text-sm text-muted-foreground mt-2">
-                    {draftPicks.length < mockContest.minPicks 
-                      ? `You need ${mockContest.minPicks - draftPicks.length} more crew(s)`
-                      : `Optional: Add up to ${mockContest.maxPicks - draftPicks.length} more crew(s)`
+                    {draftPicks.length < mockRegatta.minPicks 
+                      ? `You need ${mockRegatta.minPicks - draftPicks.length} more crew(s)`
+                      : `Optional: Add up to ${mockRegatta.maxPicks - draftPicks.length} more crew(s)`
                     }
                   </p>
                 </CardHeader>
@@ -314,7 +318,7 @@ const ContestDetail = () => {
                     variant="outline" 
                     size="lg" 
                     className="w-full"
-                    disabled={!currentCrew || !currentMargin || draftPicks.length >= mockContest.maxPicks}
+                    disabled={!currentCrew || !currentMargin || draftPicks.length >= mockRegatta.maxPicks}
                   >
                     <Plus className="h-5 w-5 mr-2" />
                     Add Crew to Draft
@@ -323,14 +327,14 @@ const ContestDetail = () => {
               </Card>
 
               {/* Submit Draft */}
-              {draftPicks.length >= mockContest.minPicks && (
+              {draftPicks.length >= mockRegatta.minPicks && (
                 <Button 
                   onClick={handleSubmit}
                   variant="hero" 
                   size="lg" 
                   className="w-full text-lg py-6"
                 >
-                  Submit Draft (${mockContest.entryFee})
+                  Submit Draft (${selectedTier.entryFee})
                 </Button>
               )}
             </div>
@@ -417,7 +421,7 @@ const ContestDetail = () => {
                   </p>
                   <div className="p-4 rounded-lg bg-background border border-border">
                     <p className="text-2xl font-bold text-success text-center">
-                      ${mockContest.prize}
+                      ${selectedTier.prize.toFixed(2)}
                     </p>
                     <p className="text-xs text-center text-muted-foreground mt-1">
                       Winner takes all

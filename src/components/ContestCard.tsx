@@ -2,42 +2,27 @@ import { Link } from "react-router-dom";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Users, DollarSign, Trophy, Clock } from "lucide-react";
+import { Clock, Calendar } from "lucide-react";
 
-type ContestType = "H2H" | "CAP_N" | "SMALL_FIELD" | "FULL_REGATTA";
 type GenderCategory = "Men's" | "Women's";
 
 interface ContestCardProps {
   id: string;
   regattaName: string;
-  type: ContestType;
   genderCategory: GenderCategory;
-  entryFee: number;
-  prize: number;
-  capacity: number;
-  filled: number;
   lockTime: string;
   divisions?: string[];
-  minPicks?: number;
-  maxPicks?: number;
+  entryTiers: number;
 }
 
 export const ContestCard = ({
   id,
   regattaName,
-  type,
   genderCategory,
-  entryFee,
-  prize,
-  capacity,
-  filled,
   lockTime,
   divisions = [],
-  minPicks = 2,
-  maxPicks = 4,
+  entryTiers,
 }: ContestCardProps) => {
-  const contestTypeLabel = type === "H2H" ? "H2H" : type === "SMALL_FIELD" ? `Cap-${capacity}` : "Full Regatta";
-
   return (
     <Card className="flex flex-col h-full transition-smooth hover:shadow-md border-border/50">
       <CardContent className="flex-1 p-6 space-y-4">
@@ -49,11 +34,11 @@ export const ContestCard = ({
               variant="secondary" 
               className="flex-shrink-0 bg-primary/10 text-primary border-primary/20 font-medium px-3 py-1"
             >
-              {contestTypeLabel}
+              {genderCategory}
             </Badge>
           </div>
           <p className="text-sm text-muted-foreground">
-            {genderCategory} • Pick {minPicks}-{maxPicks} crews
+            {entryTiers} Entry Options Available
           </p>
         </div>
 
@@ -76,35 +61,25 @@ export const ContestCard = ({
           </div>
         )}
 
-        {/* Details */}
+        {/* Entry Options */}
         <div className="space-y-3 pt-2">
-          <div className="flex items-center justify-between">
-            <span className="flex items-center gap-2 text-muted-foreground">
-              <DollarSign className="h-4 w-4" />
-              Entry Fee
-            </span>
-            <span className="font-semibold text-lg">${entryFee.toFixed(2)}</span>
+          <div className="p-3 rounded-lg bg-muted/30 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-semibold">Head-to-Head</span>
+              <span className="text-sm text-muted-foreground">3 options</span>
+            </div>
+            <p className="text-xs text-muted-foreground">$10, $25, or $100 entry</p>
+          </div>
+          
+          <div className="p-3 rounded-lg bg-muted/30 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-semibold">5-Person Contest</span>
+              <span className="text-sm text-muted-foreground">2 options</span>
+            </div>
+            <p className="text-xs text-muted-foreground">$10 or $25 entry</p>
           </div>
 
-          <div className="flex items-center justify-between">
-            <span className="flex items-center gap-2 text-muted-foreground">
-              <Trophy className="h-4 w-4 text-accent" />
-              Fixed Prize
-            </span>
-            <span className="font-bold text-lg text-accent">${prize.toFixed(2)}</span>
-          </div>
-
-          <div className="flex items-center justify-between">
-            <span className="flex items-center gap-2 text-muted-foreground">
-              <Users className="h-4 w-4" />
-              Entries
-            </span>
-            <span className="font-semibold">
-              {filled} of {capacity}
-            </span>
-          </div>
-
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between pt-2 border-t">
             <span className="flex items-center gap-2 text-muted-foreground">
               <Clock className="h-4 w-4" />
               Locks in
@@ -115,11 +90,11 @@ export const ContestCard = ({
       </CardContent>
 
       <CardFooter className="p-6 pt-0">
-        <Link to={`/contest/${id}`} className="w-full">
+        <Link to={`/regatta/${id}`} className="w-full">
           <Button 
             className="w-full bg-primary hover:bg-primary/90 text-white font-semibold py-6 rounded-xl"
           >
-            Enter Contest
+            View Entry Options
           </Button>
         </Link>
       </CardFooter>
