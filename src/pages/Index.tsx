@@ -4,7 +4,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { StateAvailabilityMap } from "@/components/StateAvailabilityMap";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Target, TrendingUp, Shield, Clock, Trophy } from "lucide-react";
 import heroRowing from "@/assets/hero-rowing.jpeg";
 
@@ -196,118 +195,58 @@ const Index = () => {
           </div>
         </section>
 
-        {/* More Information */}
+        {/* How to Play */}
         <section className="py-20">
           <div className="container mx-auto px-4 max-w-4xl">
             <div className="text-center mb-12">
-              <h2 className="text-3xl md:text-4xl font-bold mb-4">More Information</h2>
+              <h2 className="text-3xl md:text-4xl font-bold mb-4">How to Play</h2>
               <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-                Everything you need to know about how our platform works
+                Complete guide to competing in fantasy rowing contests
               </p>
             </div>
 
-            <Accordion type="single" collapsible className="space-y-4">
-              <AccordionItem value="deposits" className="border rounded-2xl px-6 bg-card">
-                <AccordionTrigger className="text-xl font-semibold hover:no-underline py-6">
-                  Deposit and Withdrawals
-                </AccordionTrigger>
-                <AccordionContent className="text-muted-foreground pb-6 text-base leading-relaxed">
-                  <p className="mb-4">
-                    Add funds to your wallet securely using credit cards, debit cards, or ACH bank transfers. 
-                    All transactions are processed through industry-leading payment providers with bank-level encryption.
-                  </p>
-                  <p className="mb-4">
-                    <strong>Deposits:</strong> Instant credit to your account. Minimum deposit $10.
-                  </p>
-                  <p>
-                    <strong>Withdrawals:</strong> Request anytime. Processing typically takes 3-5 business days. 
-                    Minimum withdrawal $20. All withdrawals are subject to identity verification.
-                  </p>
-                </AccordionContent>
-              </AccordionItem>
+            <div className="space-y-6">
+              <div className="border rounded-2xl p-8 bg-card">
+                <h3 className="text-2xl font-bold mb-4">Contest Selection</h3>
+                <p className="text-muted-foreground leading-relaxed">
+                  Browse available regattas from the Contests lobby. Each regatta offers multiple entry tiers with different entry fees and prize structures. Choose from Head-to-Head (H2H) contests where you compete against one opponent, or 5-Person contests for small field competition. Entry tiers range from $10 to $100 with corresponding prize payouts.
+                </p>
+              </div>
 
-              <AccordionItem value="matchmaking" className="border rounded-2xl px-6 bg-card">
-                <AccordionTrigger className="text-xl font-semibold hover:no-underline py-6">
-                  Matchmaking
-                </AccordionTrigger>
-                <AccordionContent className="text-muted-foreground pb-6 text-base leading-relaxed">
-                  <p className="mb-4">
-                    Choose from two contest types:
-                  </p>
-                  <ul className="space-y-3 mb-4">
-                    <li>
-                      <strong>Head-to-Head (H2H):</strong> Compete against one other player. 
-                      Winner takes the fixed prize. Fair matching based on entry time.
-                    </li>
-                    <li>
-                      <strong>Small Field (Cap-N):</strong> Join contests with 3-20 players. 
-                      Top performers win fixed prize tiers. Contest locks when full or at race start time.
-                    </li>
-                  </ul>
-                  <p>
-                    All contests display entry fee, prize amount, and lock time upfront. 
-                    No hidden fees or changing payouts.
-                  </p>
-                </AccordionContent>
-              </AccordionItem>
+              <div className="border rounded-2xl p-8 bg-card">
+                <h3 className="text-2xl font-bold mb-4">Drafting Your Lineups</h3>
+                <p className="text-muted-foreground leading-relaxed">
+                  After selecting your entry tier, you must draft at least 2 crews from the competing teams in the regatta. For each crew selection, predict the winner and enter your predicted margin of victory in seconds (to hundredths of a second). Your predictions should be based on crew performance history, current form, racing conditions, and head-to-head records.
+                </p>
+              </div>
 
-              <AccordionItem value="skill-based" className="border rounded-2xl px-6 bg-card">
-                <AccordionTrigger className="text-xl font-semibold hover:no-underline py-6">
-                  Skill-Based Competition
-                </AccordionTrigger>
-                <AccordionContent className="text-muted-foreground pb-6 text-base leading-relaxed">
-                  <p className="mb-4">
-                    RowFantasy contests are skill-based, not games of chance. Your rowing knowledge 
-                    and analytical ability directly impact your success.
-                  </p>
-                  <p className="mb-4">
-                    <strong>What makes it skill-based:</strong>
-                  </p>
-                  <ul className="space-y-2 mb-4">
-                    <li>• Research crew lineups, recent performance, and racing conditions</li>
-                    <li>• Analyze historical race data and head-to-head records</li>
-                    <li>• Make informed predictions about winners and victory margins</li>
-                    <li>• Precision matters - closest prediction to actual margin wins</li>
-                  </ul>
-                  <p>
-                    Outcome is determined by your knowledge of the sport, not random chance or luck.
-                  </p>
-                </AccordionContent>
-              </AccordionItem>
+              <div className="border rounded-2xl p-8 bg-card">
+                <h3 className="text-2xl font-bold mb-4">Time Margins and Lock Times</h3>
+                <p className="text-muted-foreground leading-relaxed">
+                  Victory margins are calculated as the time difference between 1st and 2nd place finishers in each race. Precision matters - the closer your predicted margin to the actual result, the better your score. All entries must be submitted before the contest lock time, which is typically at the scheduled race start. Once locked, no changes can be made to your lineup.
+                </p>
+              </div>
 
-              <AccordionItem value="rules" className="border rounded-2xl px-6 bg-card">
-                <AccordionTrigger className="text-xl font-semibold hover:no-underline py-6">
-                  Rules and Scoring
-                </AccordionTrigger>
-                <AccordionContent className="text-muted-foreground pb-6 text-base leading-relaxed">
-                  <p className="mb-4">
-                    <strong>How to Play:</strong>
-                  </p>
-                  <ol className="space-y-3 mb-4 list-decimal list-inside">
-                    <li>Select the crew you predict will win the race</li>
-                    <li>Enter your predicted margin of victory in seconds (to hundredths)</li>
-                    <li>Submit your pick before the contest locks</li>
-                  </ol>
-                  <p className="mb-4">
-                    <strong>Scoring:</strong>
-                  </p>
-                  <ul className="space-y-2 mb-4">
-                    <li>• You must correctly pick the winner to be eligible for prizes</li>
-                    <li>• Among correct winner picks, closest margin prediction wins</li>
-                    <li>• Margin calculated as time difference between 1st and 2nd place</li>
-                    <li>• In case of ties, earliest entry timestamp wins</li>
-                  </ul>
-                  <p>
-                    <strong>Voids & Refunds:</strong> If a race is canceled or results unavailable, 
-                    contests automatically void and entry fees are refunded to your wallet.
-                  </p>
-                </AccordionContent>
-              </AccordionItem>
-            </Accordion>
+              <div className="border rounded-2xl p-8 bg-card">
+                <h3 className="text-2xl font-bold mb-4">Scoring System</h3>
+                <ul className="space-y-2 text-muted-foreground leading-relaxed">
+                  <li>• You must correctly predict the winning crew to be eligible for prizes</li>
+                  <li>• Among participants who picked the correct winner, the closest margin prediction wins</li>
+                  <li>• If multiple participants have identical predictions, the earliest entry timestamp wins</li>
+                  <li>• Scoring is applied across all your drafted crews for an aggregate score</li>
+                </ul>
+              </div>
 
-            <p className="text-center text-xs text-muted-foreground mt-12 italic">
-              All transactions are processed through trusted 3rd party payment providers with bank-level security and encryption.
-            </p>
+              <div className="border rounded-2xl p-8 bg-card">
+                <h3 className="text-2xl font-bold mb-4">Contest Outcomes</h3>
+                <p className="text-muted-foreground leading-relaxed mb-4">
+                  Results are determined after official race results are posted. In Head-to-Head contests, the winner takes the full prize amount. In 5-Person contests, top finishers split the prize pool according to the tier structure. Prizes are automatically credited to your wallet and available for withdrawal or entry into new contests.
+                </p>
+                <p className="text-muted-foreground leading-relaxed">
+                  <strong>Voids & Refunds:</strong> If a race is canceled, postponed significantly, or results are unavailable, contests automatically void and entry fees are refunded to your wallet within 24 hours.
+                </p>
+              </div>
+            </div>
           </div>
         </section>
 
