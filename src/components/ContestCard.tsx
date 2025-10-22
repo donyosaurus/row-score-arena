@@ -74,9 +74,9 @@ export const ContestCard = ({
           <div className="p-3 rounded-lg bg-muted/30 space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-sm font-semibold">5-Person Contest</span>
-              <span className="text-sm text-muted-foreground">2 options</span>
+              <span className="text-sm text-muted-foreground">1 option</span>
             </div>
-            <p className="text-xs text-muted-foreground">$10 or $25 entry</p>
+            <p className="text-xs text-muted-foreground">$20 entry</p>
           </div>
 
           <div className="flex items-center justify-between pt-2 border-t">

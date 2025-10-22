@@ -13,7 +13,7 @@ const mockRegattas = [
     genderCategory: "Men's" as const,
     lockTime: "2 hours",
     divisions: ["Heavyweight V8+", "Lightweight V8+"],
-    entryTiers: 5,
+    entryTiers: 4,
   },
   {
     id: "2",
@@ -21,7 +21,7 @@ const mockRegattas = [
     genderCategory: "Women's" as const,
     lockTime: "6 hours",
     divisions: ["Varsity 8+", "Second Varsity 8+", "Varsity 4+"],
-    entryTiers: 5,
+    entryTiers: 4,
   },
   {
     id: "3",
@@ -29,7 +29,7 @@ const mockRegattas = [
     genderCategory: "Men's" as const,
     lockTime: "1 day",
     divisions: ["Heavyweight V8+", "Lightweight V8+", "V4+", "Freshman 8+"],
-    entryTiers: 5,
+    entryTiers: 4,
   },
   {
     id: "4",
@@ -37,7 +37,7 @@ const mockRegattas = [
     genderCategory: "Women's" as const,
     lockTime: "12 hours",
     divisions: ["Championship Eights", "Collegiate Eights", "Youth Eights"],
-    entryTiers: 5,
+    entryTiers: 4,
   },
 ];
 
@@ -51,7 +51,7 @@ const Lobby = () => {
           <div className="mb-12 text-center max-w-3xl mx-auto">
             <h1 className="text-4xl md:text-5xl font-bold mb-4">Available Regattas</h1>
             <p className="text-xl text-muted-foreground">
-              Select a regatta and choose from 5 entry options: 3 Head-to-Head ($10, $25, $100) or 2 5-Person ($10, $25) contests
+              Select a regatta and choose from 4 entry options: 3 Head-to-Head ($10, $25, $100) or 1 5-Person ($20) contest
             </p>
           </div>
 
