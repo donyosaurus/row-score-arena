@@ -139,7 +139,7 @@ const Index = () => {
                 </CardHeader>
                 <CardContent>
                   <p className="text-muted-foreground">
-                    Select 2-4 crews from different divisions within a Men's or Women's regatta. Study seedings and past performance.
+                    Select 2-4 crews from different events within a Men's or Women's regatta. Study seedings and past performance.
                   </p>
                 </CardContent>
               </Card>
@@ -220,7 +220,7 @@ const Index = () => {
                   </p>
                   <p className="mb-4">
                     <strong>Why Two Crews Minimum:</strong> To ensure our contests remain skill-based and 
-                    legally compliant, all lineups must draft at least two crews from different divisions. 
+                    legally compliant, all lineups must draft at least two crews from different events. 
                     This requirement reflects the legal framework for fantasy sports and emphasizes strategic 
                     decision-making over simple outcome prediction.
                   </p>

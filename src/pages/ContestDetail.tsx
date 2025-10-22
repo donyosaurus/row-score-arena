@@ -143,7 +143,7 @@ const ContestDetail = () => {
               <div>
                 <h1 className="text-4xl font-bold mb-2">{mockRegatta.regattaName}</h1>
                 <p className="text-lg text-muted-foreground">
-                  {mockRegatta.genderCategory} Multi-Team Fantasy • Pick {mockRegatta.minPicks}-{mockRegatta.maxPicks} crews from different divisions
+                  {mockRegatta.genderCategory} Multi-Team Fantasy • Pick {mockRegatta.minPicks}-{mockRegatta.maxPicks} crews from different events
                 </p>
               </div>
               <Badge className="text-lg px-4 py-2">
