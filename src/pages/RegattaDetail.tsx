@@ -34,8 +34,7 @@ const mockRegatta: Regatta = {
     { id: "h2h-10", type: "H2H", entryFee: 10, prize: 18.50, capacity: 2, filled: 0 },
     { id: "h2h-25", type: "H2H", entryFee: 25, prize: 47.50, capacity: 2, filled: 1 },
     { id: "h2h-100", type: "H2H", entryFee: 100, prize: 195.50, capacity: 2, filled: 0 },
-    { id: "5p-10", type: "5_PERSON", entryFee: 10, prize: 45, capacity: 5, filled: 2 },
-    { id: "5p-25", type: "5_PERSON", entryFee: 25, prize: 117.50, capacity: 5, filled: 3 },
+    { id: "5p-20", type: "5_PERSON", entryFee: 20, prize: 65, capacity: 5, filled: 2 },
   ],
 };
 
@@ -158,9 +157,14 @@ const RegattaDetail = () => {
                         <div className="text-center space-y-2 pt-2 border-t">
                           <div className="flex items-center justify-center gap-2 text-muted-foreground">
                             <Trophy className="h-5 w-5 text-accent" />
-                            <span className="text-sm">Prize</span>
+                            <span className="text-sm">Prizes</span>
                           </div>
-                          <p className="text-3xl font-bold text-accent">${tier.prize.toFixed(2)}</p>
+                          <div className="space-y-1">
+                            <p className="text-2xl font-bold text-accent">${tier.prize.toFixed(2)}</p>
+                            <p className="text-sm text-muted-foreground">1st Place</p>
+                            <p className="text-xl font-semibold text-accent/80">$30.00</p>
+                            <p className="text-sm text-muted-foreground">2nd Place</p>
+                          </div>
                         </div>
 
                         <div className="flex items-center justify-between text-sm pt-2 border-t">
