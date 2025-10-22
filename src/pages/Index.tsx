@@ -164,7 +164,7 @@ const Index = () => {
         <section className="py-20">
           <div className="container mx-auto px-4">
             <div className="text-center mb-16">
-              <h2 className="text-3xl md:text-4xl font-bold mb-4">Why RowLeague?</h2>
+              <h2 className="text-3xl md:text-4xl font-bold mb-4">Why rowfantasy?</h2>
               <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
                 Transparent, skill-based contests designed for rowing fans.
               </p>
@@ -223,7 +223,7 @@ const Index = () => {
           <div className="container mx-auto px-4 text-center">
             <h2 className="text-3xl md:text-4xl font-bold mb-6">Ready to Compete?</h2>
             <p className="text-xl text-primary-foreground/90 mb-8 max-w-2xl mx-auto">
-              Join RowLeague today and put your rowing knowledge to the test.
+              Join rowfantasy today and put your rowing knowledge to the test.
             </p>
             <Link to="/signup">
               <Button size="lg" variant="cta" className="text-lg px-8 py-6">

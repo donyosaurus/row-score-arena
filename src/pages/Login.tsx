@@ -32,7 +32,7 @@ const Login = () => {
             </div>
             <CardTitle className="text-2xl">Welcome back</CardTitle>
             <CardDescription>
-              Log in to your RowLeague account
+              Log in to your rowfantasy account
             </CardDescription>
           </CardHeader>
           

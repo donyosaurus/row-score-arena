@@ -67,7 +67,7 @@ const HowItWorks = () => {
               </AccordionTrigger>
               <AccordionContent className="text-muted-foreground pb-6 text-base leading-relaxed">
                 <p className="mb-4">
-                  RowLeague contests are skill-based, not games of chance. Your rowing knowledge 
+                  rowfantasy contests are skill-based, not games of chance. Your rowing knowledge 
                   and analytical ability directly impact your success.
                 </p>
                 <p className="mb-4">
