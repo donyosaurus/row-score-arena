@@ -5,11 +5,13 @@ import { Badge } from "@/components/ui/badge";
 import { Users, DollarSign, Trophy, Clock } from "lucide-react";
 
 type ContestType = "H2H" | "CAP_N" | "SMALL_FIELD" | "FULL_REGATTA";
+type GenderCategory = "Men's" | "Women's";
 
 interface ContestCardProps {
   id: string;
   regattaName: string;
   type: ContestType;
+  genderCategory: GenderCategory;
   entryFee: number;
   prize: number;
   capacity: number;
@@ -24,6 +26,7 @@ export const ContestCard = ({
   id,
   regattaName,
   type,
+  genderCategory,
   entryFee,
   prize,
   capacity,
@@ -50,7 +53,7 @@ export const ContestCard = ({
             </Badge>
           </div>
           <p className="text-sm text-muted-foreground">
-            Multi-Team Fantasy • Pick {minPicks}-{maxPicks} crews
+            {genderCategory} • Pick {minPicks}-{maxPicks} crews
           </p>
         </div>
 

@@ -5,57 +5,61 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Search } from "lucide-react";
 
-// Mock regatta fantasy contests
+// Mock regatta fantasy contests - separated by gender
 const mockContests = [
   {
     id: "1",
-    regattaName: "IRA National Championship 2025",
+    regattaName: "IRA Men's Championship 2025",
     type: "H2H" as const,
+    genderCategory: "Men's" as const,
     entryFee: 15,
     prize: 25,
     capacity: 2,
     filled: 1,
     lockTime: "2 hours",
-    divisions: ["Men's Heavyweight V8+", "Men's Lightweight V8+", "Women's V8+"],
+    divisions: ["Heavyweight V8+", "Lightweight V8+", "V4+"],
     minPicks: 2,
-    maxPicks: 4,
+    maxPicks: 3,
   },
   {
     id: "2",
-    regattaName: "Head of the Charles 2025",
+    regattaName: "NCAA Women's Championship 2025",
     type: "SMALL_FIELD" as const,
+    genderCategory: "Women's" as const,
     entryFee: 10,
-    prize: 45,
+    prize: 50,
     capacity: 5,
     filled: 3,
     lockTime: "6 hours",
-    divisions: ["Championship Eights", "Youth Eights", "Masters Eights", "Collegiate Eights"],
+    divisions: ["Varsity 8+", "Second Varsity 8+", "Varsity 4+"],
     minPicks: 2,
     maxPicks: 3,
   },
   {
     id: "3",
-    regattaName: "Henley Royal Regatta 2025",
-    type: "H2H" as const,
-    entryFee: 20,
-    prize: 35,
-    capacity: 2,
-    filled: 0,
+    regattaName: "Eastern Sprints Men's 2025",
+    type: "FULL_REGATTA" as const,
+    genderCategory: "Men's" as const,
+    entryFee: 25,
+    prize: 200,
+    capacity: 20,
+    filled: 12,
     lockTime: "1 day",
-    divisions: ["Grand Challenge Cup", "Ladies' Challenge Plate", "Prince of Wales"],
-    minPicks: 2,
-    maxPicks: 3,
+    divisions: ["Heavyweight V8+", "Lightweight V8+", "V4+", "Freshman 8+"],
+    minPicks: 3,
+    maxPicks: 5,
   },
   {
     id: "4",
-    regattaName: "Dad Vail Regatta 2025",
+    regattaName: "Head of the Charles Women's 2025",
     type: "SMALL_FIELD" as const,
+    genderCategory: "Women's" as const,
     entryFee: 12,
     prize: 80,
     capacity: 8,
     filled: 5,
     lockTime: "12 hours",
-    divisions: ["Men's Varsity 8+", "Women's Varsity 8+", "Men's Novice 8+", "Women's Novice 8+"],
+    divisions: ["Championship Eights", "Collegiate Eights", "Youth Eights"],
     minPicks: 2,
     maxPicks: 4,
   },
@@ -71,7 +75,7 @@ const Lobby = () => {
           <div className="mb-12 text-center max-w-3xl mx-auto">
             <h1 className="text-4xl md:text-5xl font-bold mb-4">Regatta Fantasy Contests</h1>
             <p className="text-xl text-muted-foreground">
-              Draft multiple crews, predict finish positions, earn fantasy points. Skill-based, fixed prizes.
+              Draft multiple crews, earn automatic points based on race results. Skill-based, fixed prizes.
             </p>
           </div>
 

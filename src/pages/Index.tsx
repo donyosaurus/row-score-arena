@@ -47,7 +47,7 @@ const Index = () => {
 
               {/* Description */}
               <p className="text-xl md:text-2xl text-white/90 max-w-3xl leading-relaxed">
-                Draft multiple crews across regatta divisions. Predict finish positions. Earn fantasy points. Win fixed prizes based on skill.
+                Draft multiple crews from a single regatta. They automatically earn points based on their actual finish. Win fixed prizes based on skill.
               </p>
 
               {/* CTA Buttons */}
@@ -124,7 +124,7 @@ const Index = () => {
                 </CardHeader>
                 <CardContent>
                   <p className="text-muted-foreground">
-                    Select 2-4 crews from different divisions within a regatta. Study seedings and past performance.
+                    Select 2-4 crews from different divisions within a Men's or Women's regatta. Study seedings and past performance.
                   </p>
                 </CardContent>
               </Card>
@@ -134,11 +134,11 @@ const Index = () => {
                   <div className="w-12 h-12 rounded-lg bg-accent/10 flex items-center justify-center mb-4">
                     <Clock className="h-6 w-6 text-accent" />
                   </div>
-                  <CardTitle>2. Predict Finish Positions</CardTitle>
+                  <CardTitle>2. Automatic Scoring</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <p className="text-muted-foreground">
-                    For each crew, predict their finish position (1st-7th+) and winning margin. Earn points based on accuracy.
+                    Your crews automatically earn points based on their actual finish position. 1st = 100pts down to 7th+ = 10pts. No predictions needed!
                   </p>
                 </CardContent>
               </Card>
@@ -148,11 +148,11 @@ const Index = () => {
                   <div className="w-12 h-12 rounded-lg bg-success/10 flex items-center justify-center mb-4">
                     <TrendingUp className="h-6 w-6 text-success" />
                   </div>
-                  <CardTitle>3. Win with Fantasy Points</CardTitle>
+                  <CardTitle>3. Win Fixed Prizes</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <p className="text-muted-foreground">
-                    Your crews earn points by finish position (100-10 pts). Highest total wins the fixed prize.
+                    Your crews earn points by finish position (100-10 pts). Highest total wins the fixed prize. Margin predictions only break ties.
                   </p>
                 </CardContent>
               </Card>
@@ -197,8 +197,8 @@ const Index = () => {
 
               <div className="p-6 rounded-lg border border-border bg-card transition-smooth hover:shadow-md">
                 <Users className="h-8 w-8 text-accent mb-4" />
-                <h3 className="text-lg font-semibold mb-2">Finish-Order Scoring</h3>
-                <p className="text-muted-foreground">Earn 100-10 points per crew based on finish position. Margin predictions only break ties.</p>
+                <h3 className="text-lg font-semibold mb-2">Automatic Scoring</h3>
+                <p className="text-muted-foreground">Crews earn 100-10 points based on actual finish position. Margin predictions only break ties.</p>
               </div>
 
               <div className="p-6 rounded-lg border border-border bg-card transition-smooth hover:shadow-md">

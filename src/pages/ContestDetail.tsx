@@ -12,11 +12,12 @@ import { ArrowLeft, Clock, DollarSign, Info, Target, Plus, Trash2, Trophy } from
 import { Contest, DraftPick, FINISH_POINTS } from "@/types/contest";
 import { toast } from "sonner";
 
-// Mock regatta contest data with multiple divisions
+// Mock regatta contest data - Men's only
 const mockContest: Contest = {
   id: "1",
   regattaName: "IRA National Championship 2025",
   type: "H2H",
+  genderCategory: "Men's",
   entryFee: 15,
   prize: 25,
   capacity: 2,
@@ -25,35 +26,28 @@ const mockContest: Contest = {
   minPicks: 2,
   maxPicks: 4,
   divisions: [
-    { id: "div1", name: "Men's Heavyweight Varsity 8+", boatClass: "Varsity 8+", category: "Men's Heavyweight" },
-    { id: "div2", name: "Men's Lightweight Varsity 8+", boatClass: "Varsity 8+", category: "Men's Lightweight" },
-    { id: "div3", name: "Women's Varsity 8+", boatClass: "Varsity 8+", category: "Women's" },
-    { id: "div4", name: "Men's Varsity 4+", boatClass: "Varsity 4+", category: "Men's" },
+    { id: "div1", name: "Heavyweight Varsity 8+", boatClass: "Varsity 8+", category: "Heavyweight" },
+    { id: "div2", name: "Lightweight Varsity 8+", boatClass: "Varsity 8+", category: "Lightweight" },
+    { id: "div4", name: "Varsity 4+", boatClass: "Varsity 4+", category: "Heavyweight" },
   ],
   crews: [
-    // Men's Heavyweight
+    // Heavyweight
     { id: "crew1", name: "Yale", institution: "Yale University", divisionId: "div1", seedPosition: 1 },
     { id: "crew2", name: "Harvard", institution: "Harvard University", divisionId: "div1", seedPosition: 2 },
     { id: "crew3", name: "Washington", institution: "University of Washington", divisionId: "div1", seedPosition: 3 },
     { id: "crew4", name: "California", institution: "University of California", divisionId: "div1", seedPosition: 4 },
     { id: "crew5", name: "Princeton", institution: "Princeton University", divisionId: "div1", seedPosition: 5 },
     
-    // Men's Lightweight
-    { id: "crew6", name: "Princeton LW", institution: "Princeton University", divisionId: "div2", seedPosition: 1 },
-    { id: "crew7", name: "Yale LW", institution: "Yale University", divisionId: "div2", seedPosition: 2 },
-    { id: "crew8", name: "Harvard LW", institution: "Harvard University", divisionId: "div2", seedPosition: 3 },
-    { id: "crew9", name: "Columbia LW", institution: "Columbia University", divisionId: "div2", seedPosition: 4 },
+    // Lightweight
+    { id: "crew6", name: "Princeton", institution: "Princeton University", divisionId: "div2", seedPosition: 1 },
+    { id: "crew7", name: "Yale", institution: "Yale University", divisionId: "div2", seedPosition: 2 },
+    { id: "crew8", name: "Harvard", institution: "Harvard University", divisionId: "div2", seedPosition: 3 },
+    { id: "crew9", name: "Columbia", institution: "Columbia University", divisionId: "div2", seedPosition: 4 },
     
-    // Women's
-    { id: "crew10", name: "Washington Women", institution: "University of Washington", divisionId: "div3", seedPosition: 1 },
-    { id: "crew11", name: "Stanford Women", institution: "Stanford University", divisionId: "div3", seedPosition: 2 },
-    { id: "crew12", name: "Brown Women", institution: "Brown University", divisionId: "div3", seedPosition: 3 },
-    { id: "crew13", name: "Yale Women", institution: "Yale University", divisionId: "div3", seedPosition: 4 },
-    
-    // Men's 4+
-    { id: "crew14", name: "Harvard 4+", institution: "Harvard University", divisionId: "div4", seedPosition: 1 },
-    { id: "crew15", name: "Yale 4+", institution: "Yale University", divisionId: "div4", seedPosition: 2 },
-    { id: "crew16", name: "Princeton 4+", institution: "Princeton University", divisionId: "div4", seedPosition: 3 },
+    // 4+
+    { id: "crew14", name: "Harvard", institution: "Harvard University", divisionId: "div4", seedPosition: 1 },
+    { id: "crew15", name: "Yale", institution: "Yale University", divisionId: "div4", seedPosition: 2 },
+    { id: "crew16", name: "Princeton", institution: "Princeton University", divisionId: "div4", seedPosition: 3 },
   ],
 };
 
@@ -62,11 +56,10 @@ const ContestDetail = () => {
   const [draftPicks, setDraftPicks] = useState<DraftPick[]>([]);
   const [currentDivision, setCurrentDivision] = useState<string>("");
   const [currentCrew, setCurrentCrew] = useState<string>("");
-  const [currentFinish, setCurrentFinish] = useState<string>("");
   const [currentMargin, setCurrentMargin] = useState<string>("");
 
   const addPick = () => {
-    if (!currentCrew || !currentFinish || !currentMargin) {
+    if (!currentCrew || !currentMargin) {
       toast.error("Please fill in all fields");
       return;
     }
@@ -89,16 +82,14 @@ const ContestDetail = () => {
     const newPick: DraftPick = {
       crewId: currentCrew,
       divisionId: crew.divisionId,
-      predictedFinish: parseInt(currentFinish),
       predictedMargin: parseFloat(currentMargin),
     };
 
     setDraftPicks([...draftPicks, newPick]);
     setCurrentCrew("");
-    setCurrentFinish("");
     setCurrentMargin("");
     setCurrentDivision("");
-    toast.success("Pick added to draft");
+    toast.success("Crew added to draft");
   };
 
   const removePick = (index: number) => {
@@ -154,7 +145,7 @@ const ContestDetail = () => {
               <div>
                 <h1 className="text-4xl font-bold mb-2">{mockContest.regattaName}</h1>
                 <p className="text-lg text-muted-foreground">
-                  Multi-Team Fantasy Draft • Pick {mockContest.minPicks}-{mockContest.maxPicks} crews from different divisions
+                  {mockContest.genderCategory} Multi-Team Fantasy • Pick {mockContest.minPicks}-{mockContest.maxPicks} crews from different divisions
                 </p>
               </div>
               <Badge className="text-lg px-4 py-2">
@@ -223,7 +214,7 @@ const ContestDetail = () => {
                           <p className="font-semibold">{getCrewName(pick.crewId)}</p>
                           <p className="text-sm text-muted-foreground">{getDivisionName(pick.divisionId)}</p>
                           <p className="text-sm mt-1">
-                            Predicted: <span className="font-medium">{pick.predictedFinish}{pick.predictedFinish === 1 ? 'st' : pick.predictedFinish === 2 ? 'nd' : pick.predictedFinish === 3 ? 'rd' : 'th'} place</span> by <span className="font-medium">{pick.predictedMargin}s</span>
+                            Margin prediction (tie-breaker): <span className="font-medium">{pick.predictedMargin}s</span>
                           </p>
                         </div>
                         <Button
@@ -243,11 +234,11 @@ const ContestDetail = () => {
               {/* Add Pick Form */}
               <Card>
                 <CardHeader>
-                  <CardTitle>Add Team to Draft</CardTitle>
+                  <CardTitle>Add Crew to Draft</CardTitle>
                   <p className="text-sm text-muted-foreground mt-2">
                     {draftPicks.length < mockContest.minPicks 
-                      ? `You need ${mockContest.minPicks - draftPicks.length} more pick(s)`
-                      : `Optional: Add up to ${mockContest.maxPicks - draftPicks.length} more pick(s)`
+                      ? `You need ${mockContest.minPicks - draftPicks.length} more crew(s)`
+                      : `Optional: Add up to ${mockContest.maxPicks - draftPicks.length} more crew(s)`
                     }
                   </p>
                 </CardHeader>
@@ -295,34 +286,11 @@ const ContestDetail = () => {
                     </div>
                   )}
 
-                  {/* Step 3: Predict Finish Position */}
+                  {/* Step 3: Predict Margin */}
                   {currentCrew && (
                     <div className="space-y-3">
-                      <Label className="text-base font-semibold">
-                        Step 3: Predict Finish Position
-                      </Label>
-                      <Select value={currentFinish} onValueChange={setCurrentFinish}>
-                        <SelectTrigger className="text-base">
-                          <SelectValue placeholder="Select finish position..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="1">1st Place (100 pts)</SelectItem>
-                          <SelectItem value="2">2nd Place (80 pts)</SelectItem>
-                          <SelectItem value="3">3rd Place (65 pts)</SelectItem>
-                          <SelectItem value="4">4th Place (50 pts)</SelectItem>
-                          <SelectItem value="5">5th Place (35 pts)</SelectItem>
-                          <SelectItem value="6">6th Place (20 pts)</SelectItem>
-                          <SelectItem value="7">7th+ Place (10 pts)</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
-
-                  {/* Step 4: Predict Margin */}
-                  {currentFinish && (
-                    <div className="space-y-3">
                       <Label htmlFor="margin" className="text-base font-semibold">
-                        Step 4: Predict Winning Margin (Tie-Breaker)
+                        Step 3: Predict Winning Margin (Tie-Breaker)
                       </Label>
                       <div className="space-y-2">
                         <div className="flex items-center gap-2">
@@ -340,7 +308,7 @@ const ContestDetail = () => {
                         </div>
                         <p className="text-sm text-muted-foreground flex items-start gap-2">
                           <Info className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                          Time difference between 1st and 2nd place in this race
+                          Time difference between 1st and 2nd place. Used only as a tie-breaker if users have equal points.
                         </p>
                       </div>
                     </div>
@@ -352,10 +320,10 @@ const ContestDetail = () => {
                     variant="outline" 
                     size="lg" 
                     className="w-full"
-                    disabled={!currentCrew || !currentFinish || !currentMargin || draftPicks.length >= mockContest.maxPicks}
+                    disabled={!currentCrew || !currentMargin || draftPicks.length >= mockContest.maxPicks}
                   >
                     <Plus className="h-5 w-5 mr-2" />
-                    Add Pick to Draft
+                    Add Crew to Draft
                   </Button>
                 </CardContent>
               </Card>
@@ -425,9 +393,9 @@ const ContestDetail = () => {
                 </CardHeader>
                 <CardContent className="space-y-4 text-sm">
                   <div>
-                    <h4 className="font-semibold mb-2">1. Finish Points (Primary)</h4>
+                    <h4 className="font-semibold mb-2">1. Automatic Finish Points</h4>
                     <p className="text-muted-foreground">
-                      Your crews earn points based on their actual finish positions. Higher total wins.
+                      Your drafted crews automatically earn points based on their actual finish positions. No prediction needed!
                     </p>
                   </div>
                   <div>
@@ -439,7 +407,7 @@ const ContestDetail = () => {
                   <div className="p-3 rounded-lg bg-muted/30">
                     <p className="text-xs font-medium mb-1">Example:</p>
                     <p className="text-xs text-muted-foreground">
-                      Pick 2 crews: one finishes 1st (100pts), one finishes 2nd (80pts) = 180 total points
+                      Draft Yale and Harvard. Yale finishes 1st (100pts), Harvard finishes 3rd (65pts) = 165 total points
                     </p>
                   </div>
                 </CardContent>
