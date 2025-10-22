@@ -13,23 +13,21 @@ export const Header = () => {
           </Link>
           
           <nav className="hidden md:flex items-center gap-6">
+            <Link to="/" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-base">
+              Home
+            </Link>
             <Link to="/lobby" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-base">
               Contests
             </Link>
             <Link to="/how-it-works" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-base">
-              How It Works
+              How to Play
             </Link>
-            <Link to="/rules" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-base">
-              Rules
+            <Link to="/profile" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-base">
+              Profile
             </Link>
           </nav>
 
           <div className="flex items-center gap-3">
-            <Link to="/profile">
-              <Button variant="ghost" size="sm">
-                Profile
-              </Button>
-            </Link>
             <Link to="/login">
               <Button variant="ghost" size="sm">
                 Log In
