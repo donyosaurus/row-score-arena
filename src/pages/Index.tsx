@@ -6,6 +6,7 @@ import { Footer } from "@/components/Footer";
 import { StateAvailabilityMap } from "@/components/StateAvailabilityMap";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Target, TrendingUp, Shield, Clock, Trophy } from "lucide-react";
+import heroRowing from "@/assets/hero-rowing.jpeg";
 
 const Index = () => {
   return (
@@ -15,6 +16,18 @@ const Index = () => {
       <main className="flex-1">
         {/* Hero Section */}
         <section className="relative bg-primary text-white py-20 md:py-32 overflow-hidden">
+          {/* Background Image */}
+          <div 
+            className="absolute inset-0 bg-cover bg-center opacity-15"
+            style={{
+              backgroundImage: `url(${heroRowing})`,
+              backgroundPosition: 'center',
+            }}
+          />
+          
+          {/* Overlay gradient for better text readability */}
+          <div className="absolute inset-0 bg-gradient-to-b from-primary/80 via-primary/70 to-primary/90" />
+          
           {/* Background Pattern */}
           <div className="absolute inset-0 opacity-10">
             <div
