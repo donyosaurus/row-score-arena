@@ -29,9 +29,9 @@ const STATE_ABBR: Record<string, string> = {
 };
 
 const statusColors: Record<string, string> = {
-  permitted: "hsl(var(--success))",
-  restricted: "hsl(var(--warning))",
-  banned: "hsl(var(--muted))",
+  permitted: "#86efac",
+  restricted: "#fcd34d",
+  banned: "#d1d5db",
 };
 
 export const StateAvailabilityMap = () => {
@@ -61,7 +61,7 @@ export const StateAvailabilityMap = () => {
   };
 
   return (
-    <div className="w-full max-w-5xl mx-auto">
+    <div className="w-full max-w-3xl mx-auto">
       <div className="relative">
         <ComposableMap
           projection="geoAlbersUsa"
@@ -137,6 +137,10 @@ export const StateAvailabilityMap = () => {
 
       <p className="text-center text-sm text-muted-foreground mt-4">
         Click any state to copy its status to clipboard
+      </p>
+      
+      <p className="text-center text-xs text-muted-foreground mt-6 italic">
+        The use of VPNs to bypass geofencing regulations is unethical and heavily discouraged.
       </p>
     </div>
   );
