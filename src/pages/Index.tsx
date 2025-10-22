@@ -207,6 +207,32 @@ const Index = () => {
             </div>
 
             <Accordion type="single" collapsible className="space-y-4">
+              <AccordionItem value="fantasy-contests" className="border rounded-2xl px-6 bg-card">
+                <AccordionTrigger className="text-xl font-semibold hover:no-underline py-6">
+                  Fantasy Contests
+                </AccordionTrigger>
+                <AccordionContent className="text-muted-foreground pb-6 text-base leading-relaxed">
+                  <p className="mb-4">
+                    Fantasy sports contests are classified as skill-based competitions under federal law, 
+                    making them exempt from federal gambling regulations. This designation recognizes that 
+                    success depends primarily on a player's knowledge, skill, and analytical ability rather 
+                    than chance.
+                  </p>
+                  <p className="mb-4">
+                    <strong>Why Two Crews Minimum:</strong> To ensure our contests remain skill-based and 
+                    legally compliant, all lineups must draft at least two crews from different divisions. 
+                    This requirement reflects the legal framework for fantasy sports and emphasizes strategic 
+                    decision-making over simple outcome prediction.
+                  </p>
+                  <p>
+                    <strong>State Regulations:</strong> While federally unregulated, individual states maintain 
+                    their own laws governing fantasy sports contests. Some states have explicitly legalized and 
+                    regulated fantasy sports, while others restrict or prohibit certain types of contests. 
+                    Please review our State Availability Map to confirm whether contests are available in your location.
+                  </p>
+                </AccordionContent>
+              </AccordionItem>
+
               <AccordionItem value="deposits" className="border rounded-2xl px-6 bg-card">
                 <AccordionTrigger className="text-xl font-semibold hover:no-underline py-6">
                   Deposit and Withdrawals
@@ -247,30 +273,6 @@ const Index = () => {
                   <p>
                     All contests display entry fee, prize amount, and lock time upfront. 
                     No hidden fees or changing payouts.
-                  </p>
-                </AccordionContent>
-              </AccordionItem>
-
-              <AccordionItem value="skill-based" className="border rounded-2xl px-6 bg-card">
-                <AccordionTrigger className="text-xl font-semibold hover:no-underline py-6">
-                  Skill-Based Competition
-                </AccordionTrigger>
-                <AccordionContent className="text-muted-foreground pb-6 text-base leading-relaxed">
-                  <p className="mb-4">
-                    RowFantasy contests are skill-based, not games of chance. Your rowing knowledge 
-                    and analytical ability directly impact your success.
-                  </p>
-                  <p className="mb-4">
-                    <strong>What makes it skill-based:</strong>
-                  </p>
-                  <ul className="space-y-2 mb-4">
-                    <li>• Research crew lineups, recent performance, and racing conditions</li>
-                    <li>• Analyze historical race data and head-to-head records</li>
-                    <li>• Make informed predictions about winners and victory margins</li>
-                    <li>• Precision matters - closest prediction to actual margin wins</li>
-                  </ul>
-                  <p>
-                    Outcome is determined by your knowledge of the sport, not random chance or luck.
                   </p>
                 </AccordionContent>
               </AccordionItem>
