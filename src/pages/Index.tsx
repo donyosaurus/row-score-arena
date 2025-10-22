@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
+import { StateAvailabilityMap } from "@/components/StateAvailabilityMap";
 import { Target, TrendingUp, Shield, Clock, DollarSign, Users, Trophy } from "lucide-react";
 
 const Index = () => {
@@ -157,6 +158,19 @@ const Index = () => {
                 </CardContent>
               </Card>
             </div>
+          </div>
+        </section>
+
+        {/* State Availability */}
+        <section className="py-20">
+          <div className="container mx-auto px-4">
+            <div className="text-center mb-16">
+              <h2 className="text-3xl md:text-4xl font-bold mb-4">State Availability</h2>
+              <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+                Check if RowFantasy contests are available in your state
+              </p>
+            </div>
+            <StateAvailabilityMap />
           </div>
         </section>
 
