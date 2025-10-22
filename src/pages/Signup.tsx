@@ -35,7 +35,7 @@ const Signup = () => {
             </div>
             <CardTitle className="text-2xl">Create your account</CardTitle>
             <CardDescription>
-              Join rowfantasy and start competing
+              Join RowFantasy and start competing
             </CardDescription>
           </CardHeader>
           

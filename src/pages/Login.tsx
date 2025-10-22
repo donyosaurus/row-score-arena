@@ -32,7 +32,7 @@ const Login = () => {
             </div>
             <CardTitle className="text-2xl">Welcome back</CardTitle>
             <CardDescription>
-              Log in to your rowfantasy account
+              Log in to your RowFantasy account
             </CardDescription>
           </CardHeader>
           

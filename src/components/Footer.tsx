@@ -9,7 +9,7 @@ export const Footer = () => {
           <div>
             <div className="flex items-center gap-2 mb-4">
               <Waves className="h-6 w-6 text-accent" />
-              <span className="text-xl font-bold text-primary">rowfantasy</span>
+              <span className="text-xl font-bold text-primary">RowFantasy</span>
             </div>
             <p className="text-sm text-muted-foreground">
               Skill-based rowing contests. Fixed prizes. No pools.
@@ -77,7 +77,7 @@ export const Footer = () => {
 
         <div className="border-t border-border mt-8 pt-8 text-center">
           <p className="text-sm text-muted-foreground">
-            © {new Date().getFullYear()} rowfantasy. Age 18+. Skill-based contests. Fixed prizes, no pooling.
+            © {new Date().getFullYear()} RowFantasy. Age 18+. Skill-based contests. Fixed prizes, no pooling.
             <Link to="/eligibility" className="ml-1 underline hover:text-foreground transition-base">
               State restrictions apply.
             </Link>
