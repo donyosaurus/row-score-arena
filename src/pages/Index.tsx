@@ -18,7 +18,7 @@ const Index = () => {
         <section className="relative bg-primary text-white py-20 md:py-32 overflow-hidden">
           {/* Background Image */}
           <div 
-            className="absolute inset-0 bg-cover bg-center opacity-15"
+            className="absolute inset-0 bg-cover bg-center opacity-30"
             style={{
               backgroundImage: `url(${heroRowing})`,
               backgroundPosition: 'center',
@@ -26,7 +26,7 @@ const Index = () => {
           />
           
           {/* Overlay gradient for better text readability */}
-          <div className="absolute inset-0 bg-gradient-to-b from-primary/80 via-primary/70 to-primary/90" />
+          <div className="absolute inset-0 bg-gradient-to-b from-primary/75 via-primary/65 to-primary/85" />
           
           {/* Background Pattern */}
           <div className="absolute inset-0 opacity-10">
