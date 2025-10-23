@@ -129,17 +129,31 @@ const Index = () => {
               </p>
             </div>
 
-            <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
-                <Card className="transition-smooth hover:shadow-lg">
+            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8 max-w-7xl mx-auto">
+              <Card className="transition-smooth hover:shadow-lg">
                 <CardHeader>
                   <div className="w-12 h-12 rounded-lg bg-accent/10 flex items-center justify-center mb-4">
                     <Target className="h-6 w-6 text-accent" />
                   </div>
-                  <CardTitle>1. Draft Multiple Crews</CardTitle>
+                  <CardTitle>1. Enter a Contest</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <p className="text-muted-foreground">
-                    Select 2-4 crews from different events within a Men's or Women's regatta. Study seedings and past performance.
+                    Choose from available contests across international and national competitions. Select the tier of contest that best suits you.
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card className="transition-smooth hover:shadow-lg">
+                <CardHeader>
+                  <div className="w-12 h-12 rounded-lg bg-accent/10 flex items-center justify-center mb-4">
+                    <Trophy className="h-6 w-6 text-accent" />
+                  </div>
+                  <CardTitle>2. Draft Your Crews</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-muted-foreground">
+                    Draft at least 2 crews from different events and predict their margin to victory (tie-breaker). Match up against other users entered in the same contest.
                   </p>
                 </CardContent>
               </Card>
@@ -149,11 +163,11 @@ const Index = () => {
                   <div className="w-12 h-12 rounded-lg bg-accent/10 flex items-center justify-center mb-4">
                     <Clock className="h-6 w-6 text-accent" />
                   </div>
-                  <CardTitle>2. Automatic Scoring</CardTitle>
+                  <CardTitle>3. Automatic Scoring</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <p className="text-muted-foreground">
-                    Your crews automatically earn points based on their actual finish position. 1st = 100pts down to 7th+ = 10pts. No predictions needed!
+                    Earn points based on your draft picks' finish placement. The user with the most points wins the contest, ties are decided using most accurate margin to victory.
                   </p>
                 </CardContent>
               </Card>
@@ -163,11 +177,11 @@ const Index = () => {
                   <div className="w-12 h-12 rounded-lg bg-success/10 flex items-center justify-center mb-4">
                     <TrendingUp className="h-6 w-6 text-success" />
                   </div>
-                  <CardTitle>3. Win Fixed Prizes</CardTitle>
+                  <CardTitle>4. Win Prizes</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <p className="text-muted-foreground">
-                    Your crews earn points by finish position (100-10 pts). Highest total wins the fixed prize. Margin predictions only break ties.
+                    Contest winners will have pre-posted payouts automatically deposited into their account. All transactions are made through secure 3rd party payment processors.
                   </p>
                 </CardContent>
               </Card>
