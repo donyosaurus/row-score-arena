@@ -13,6 +13,7 @@ import { toast } from "sonner";
 
 const Signup = () => {
   const [fullName, setFullName] = useState("");
+  const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -37,6 +38,29 @@ const Signup = () => {
       return;
     }
     
+    if (!username.trim()) {
+      toast.error("Please enter a username");
+      return;
+    }
+    
+    // Username validation
+    if (username.length < 3 || username.length > 20) {
+      toast.error("Username must be between 3 and 20 characters");
+      return;
+    }
+    
+    if (!/^[a-zA-Z0-9_]+$/.test(username)) {
+      toast.error("Username can only contain letters, numbers, and underscores");
+      return;
+    }
+    
+    // Basic inappropriate content check
+    const inappropriateWords = ['admin', 'moderator', 'support', 'official', 'staff'];
+    if (inappropriateWords.some(word => username.toLowerCase().includes(word))) {
+      toast.error("This username is not allowed");
+      return;
+    }
+    
     if (password.length < 6) {
       toast.error("Password must be at least 6 characters");
       return;
@@ -53,7 +77,7 @@ const Signup = () => {
     }
     
     setIsLoading(true);
-    await signUp(email, password, fullName);
+    await signUp(email, password, fullName, username);
     setIsLoading(false);
   };
 
@@ -87,6 +111,23 @@ const Signup = () => {
                   onChange={(e) => setFullName(e.target.value)}
                   required
                 />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="username">Username</Label>
+                <Input
+                  id="username"
+                  type="text"
+                  placeholder="johndoe123"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value.toLowerCase())}
+                  required
+                  minLength={3}
+                  maxLength={20}
+                />
+                <p className="text-xs text-muted-foreground">
+                  3-20 characters, letters, numbers, and underscores only
+                </p>
               </div>
               
               <div className="space-y-2">
