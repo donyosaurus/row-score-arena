@@ -5,10 +5,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { DollarSign, TrendingUp, Trophy, User } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { DollarSign, TrendingUp, Trophy, User, Edit2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
+import { z } from "zod";
 
 // Mock user data for stats (to be replaced with real data later)
 const mockUser = {
@@ -42,12 +46,23 @@ const mockHistory = [
   },
 ];
 
+const usernameSchema = z.string()
+  .min(3, "Username must be at least 3 characters")
+  .max(20, "Username must be less than 20 characters")
+  .regex(/^[a-zA-Z0-9_]+$/, "Username can only contain letters, numbers, and underscores");
+
+const inappropriateWords = ['admin', 'moderator', 'fuck', 'shit', 'damn', 'ass', 'bitch'];
+
 const Profile = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [profile, setProfile] = useState<{ username: string; email: string } | null>(null);
+  const [profile, setProfile] = useState<{ username: string; email: string; username_last_changed_at: string } | null>(null);
   const [balance, setBalance] = useState<number>(0);
   const [loading, setLoading] = useState(true);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [newUsername, setNewUsername] = useState("");
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [canChangeUsername, setCanChangeUsername] = useState(false);
 
   useEffect(() => {
     if (!user) {
@@ -60,12 +75,23 @@ const Profile = () => {
         // Fetch profile data
         const { data: profileData, error: profileError } = await supabase
           .from("profiles")
-          .select("username, email")
+          .select("username, email, username_last_changed_at")
           .eq("id", user.id)
           .single();
 
         if (profileError) throw profileError;
         setProfile(profileData);
+        setNewUsername(profileData.username || "");
+
+        // Check if user can change username (3 months = 90 days)
+        if (profileData.username_last_changed_at) {
+          const lastChanged = new Date(profileData.username_last_changed_at);
+          const threeMonthsAgo = new Date();
+          threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+          setCanChangeUsername(lastChanged <= threeMonthsAgo);
+        } else {
+          setCanChangeUsername(true);
+        }
 
         // Fetch wallet balance
         const { data: walletData, error: walletError } = await supabase
@@ -85,6 +111,81 @@ const Profile = () => {
 
     fetchProfileData();
   }, [user, navigate]);
+
+  const handleUsernameChange = async () => {
+    if (!user || !profile) return;
+
+    try {
+      // Validate username format
+      usernameSchema.parse(newUsername);
+
+      // Check for inappropriate words
+      const lowerUsername = newUsername.toLowerCase();
+      const hasInappropriateWord = inappropriateWords.some(word => 
+        lowerUsername.includes(word)
+      );
+
+      if (hasInappropriateWord) {
+        toast.error("Username contains inappropriate content");
+        return;
+      }
+
+      // Check if username is different
+      if (newUsername === profile.username) {
+        toast.error("New username must be different from current username");
+        return;
+      }
+
+      setIsUpdating(true);
+
+      // Check if username is already taken
+      const { data: existingUser } = await supabase
+        .from("profiles")
+        .select("username")
+        .eq("username", newUsername)
+        .neq("id", user.id)
+        .single();
+
+      if (existingUser) {
+        toast.error("Username is already taken");
+        setIsUpdating(false);
+        return;
+      }
+
+      // Update username
+      const { error } = await supabase
+        .from("profiles")
+        .update({ 
+          username: newUsername,
+          username_last_changed_at: new Date().toISOString()
+        })
+        .eq("id", user.id);
+
+      if (error) throw error;
+
+      toast.success("Username updated successfully!");
+      setProfile({ ...profile, username: newUsername, username_last_changed_at: new Date().toISOString() });
+      setCanChangeUsername(false);
+      setDialogOpen(false);
+    } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        toast.error(error.errors[0].message);
+      } else {
+        toast.error("Failed to update username");
+        console.error(error);
+      }
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const getNextChangeDate = () => {
+    if (!profile?.username_last_changed_at) return null;
+    const lastChanged = new Date(profile.username_last_changed_at);
+    const nextChange = new Date(lastChanged);
+    nextChange.setMonth(nextChange.getMonth() + 3);
+    return nextChange.toLocaleDateString();
+  };
 
   if (loading) {
     return (
@@ -117,10 +218,69 @@ const Profile = () => {
                     <div className="w-20 h-20 rounded-full bg-accent/10 flex items-center justify-center">
                       <User className="h-10 w-10 text-accent" />
                     </div>
-                    <div>
-                      <h2 className="text-xl font-bold">{profile?.username || "Loading..."}</h2>
+                    <div className="w-full">
+                      <div className="flex items-center justify-center gap-2 mb-1">
+                        <h2 className="text-xl font-bold">{profile?.username || "Loading..."}</h2>
+                        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+                          <DialogTrigger asChild>
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              className="h-6 w-6 p-0"
+                              disabled={!canChangeUsername}
+                            >
+                              <Edit2 className="h-3 w-3" />
+                            </Button>
+                          </DialogTrigger>
+                          <DialogContent>
+                            <DialogHeader>
+                              <DialogTitle>Change Username</DialogTitle>
+                              <DialogDescription>
+                                {canChangeUsername 
+                                  ? "You can change your username once every 3 months."
+                                  : `You can change your username again on ${getNextChangeDate()}`
+                                }
+                              </DialogDescription>
+                            </DialogHeader>
+                            <div className="space-y-4 py-4">
+                              <div className="space-y-2">
+                                <label className="text-sm font-medium">New Username</label>
+                                <Input
+                                  value={newUsername}
+                                  onChange={(e) => setNewUsername(e.target.value)}
+                                  placeholder="Enter new username"
+                                  disabled={isUpdating}
+                                />
+                                <p className="text-xs text-muted-foreground">
+                                  3-20 characters, letters, numbers, and underscores only
+                                </p>
+                              </div>
+                            </div>
+                            <DialogFooter>
+                              <Button
+                                variant="outline"
+                                onClick={() => setDialogOpen(false)}
+                                disabled={isUpdating}
+                              >
+                                Cancel
+                              </Button>
+                              <Button
+                                onClick={handleUsernameChange}
+                                disabled={isUpdating || !newUsername}
+                              >
+                                {isUpdating ? "Updating..." : "Update Username"}
+                              </Button>
+                            </DialogFooter>
+                          </DialogContent>
+                        </Dialog>
+                      </div>
                       <p className="text-sm text-muted-foreground">{profile?.email || "Loading..."}</p>
                       <p className="text-xs text-muted-foreground mt-1">Member since {mockUser.joined}</p>
+                      {!canChangeUsername && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Next username change: {getNextChangeDate()}
+                        </p>
+                      )}
                     </div>
                   </div>
                 </CardContent>
