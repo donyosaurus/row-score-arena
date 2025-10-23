@@ -7,8 +7,10 @@ import { StateAvailabilityMap } from "@/components/StateAvailabilityMap";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Target, TrendingUp, Shield, Clock, Trophy } from "lucide-react";
 import heroRowing from "@/assets/hero-rowing.jpeg";
+import { useAuth } from "@/hooks/useAuth";
 
 const Index = () => {
+  const { user } = useAuth();
   return (
     <div className="flex flex-col min-h-screen">
       <Header />
@@ -328,19 +330,21 @@ const Index = () => {
         </section>
 
         {/* CTA Section */}
-        <section className="gradient-hero text-white py-20">
-          <div className="container mx-auto px-4 text-center">
-            <h2 className="text-3xl md:text-4xl font-bold mb-6">Ready to Compete?</h2>
-            <p className="text-xl text-primary-foreground/90 mb-8 max-w-2xl mx-auto">
-              Join RowFantasy today and put your rowing knowledge to the test.
-            </p>
-            <Link to="/signup">
-              <Button size="lg" variant="cta" className="text-lg px-8 py-6">
-                Sign Up Now
-              </Button>
-            </Link>
-          </div>
-        </section>
+        {!user && (
+          <section className="gradient-hero text-white py-20">
+            <div className="container mx-auto px-4 text-center">
+              <h2 className="text-3xl md:text-4xl font-bold mb-6">Ready to Compete?</h2>
+              <p className="text-xl text-primary-foreground/90 mb-8 max-w-2xl mx-auto">
+                Join RowFantasy today and put your rowing knowledge to the test.
+              </p>
+              <Link to="/signup">
+                <Button size="lg" variant="cta" className="text-lg px-8 py-6">
+                  Sign Up Now
+                </Button>
+              </Link>
+            </div>
+          </section>
+        )}
       </main>
 
       <Footer />
