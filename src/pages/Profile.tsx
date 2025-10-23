@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -5,15 +6,15 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DollarSign, TrendingUp, Trophy, User } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
+import { useNavigate } from "react-router-dom";
 
-// Mock user data
+// Mock user data for stats (to be replaced with real data later)
 const mockUser = {
-  name: "John Rower",
-  email: "john@example.com",
   joined: "March 2025",
   contests: 12,
   wins: 5,
-  balance: 47.50,
 };
 
 const mockTransactions = [
@@ -42,6 +43,63 @@ const mockHistory = [
 ];
 
 const Profile = () => {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const [profile, setProfile] = useState<{ username: string; email: string } | null>(null);
+  const [balance, setBalance] = useState<number>(0);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!user) {
+      navigate("/login");
+      return;
+    }
+
+    const fetchProfileData = async () => {
+      try {
+        // Fetch profile data
+        const { data: profileData, error: profileError } = await supabase
+          .from("profiles")
+          .select("username, email")
+          .eq("id", user.id)
+          .single();
+
+        if (profileError) throw profileError;
+        setProfile(profileData);
+
+        // Fetch wallet balance
+        const { data: walletData, error: walletError } = await supabase
+          .from("wallets")
+          .select("available_balance")
+          .eq("user_id", user.id)
+          .single();
+
+        if (walletError) throw walletError;
+        setBalance(Number(walletData.available_balance) || 0);
+      } catch (error) {
+        console.error("Error fetching profile data:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProfileData();
+  }, [user, navigate]);
+
+  if (loading) {
+    return (
+      <div className="flex flex-col min-h-screen">
+        <Header />
+        <main className="flex-1 gradient-subtle py-12">
+          <div className="container mx-auto px-4 max-w-6xl">
+            <p className="text-center">Loading...</p>
+          </div>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col min-h-screen">
       <Header />
@@ -60,8 +118,8 @@ const Profile = () => {
                       <User className="h-10 w-10 text-accent" />
                     </div>
                     <div>
-                      <h2 className="text-xl font-bold">{mockUser.name}</h2>
-                      <p className="text-sm text-muted-foreground">{mockUser.email}</p>
+                      <h2 className="text-xl font-bold">{profile?.username || "Loading..."}</h2>
+                      <p className="text-sm text-muted-foreground">{profile?.email || "Loading..."}</p>
                       <p className="text-xs text-muted-foreground mt-1">Member since {mockUser.joined}</p>
                     </div>
                   </div>
@@ -76,7 +134,7 @@ const Profile = () => {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <p className="text-3xl font-bold text-success">${mockUser.balance.toFixed(2)}</p>
+                  <p className="text-3xl font-bold text-success">${balance.toFixed(2)}</p>
                   <div className="space-y-2">
                     <Button variant="hero" className="w-full">
                       Deposit Funds
