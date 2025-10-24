@@ -34,7 +34,7 @@ const mockRegatta: Regatta = {
     { id: "h2h-10", type: "H2H", entryFee: 10, prize: 18.50, capacity: 2, filled: 0 },
     { id: "h2h-25", type: "H2H", entryFee: 25, prize: 47.50, capacity: 2, filled: 1 },
     { id: "h2h-100", type: "H2H", entryFee: 100, prize: 195.50, capacity: 2, filled: 0 },
-    { id: "5p-20", type: "5_PERSON", entryFee: 20, prize: 65, capacity: 5, filled: 2 },
+    { id: "5p-20", type: "5_PERSON", entryFee: 20, prize: 62.50, capacity: 5, filled: 2 },
   ],
 };
 
