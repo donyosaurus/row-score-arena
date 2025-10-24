@@ -169,11 +169,24 @@ const ContestDetail = () => {
                 <CardContent className="pt-6">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-lg bg-success/10 flex items-center justify-center">
-                      <Target className="h-5 w-5 text-success" />
+                      <Trophy className="h-5 w-5 text-success" />
                     </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">Fixed Prize</p>
-                      <p className="text-2xl font-bold text-success">${selectedTier.prize.toFixed(2)}</p>
+                    <div className="flex-1">
+                      <p className="text-sm text-muted-foreground mb-2">Prize Payouts</p>
+                      {selectedTier.type === "5_PERSON" ? (
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-medium">1st Place:</span>
+                            <span className="text-xl font-bold text-success">${selectedTier.prize.toFixed(2)}</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-medium">2nd Place:</span>
+                            <span className="text-lg font-bold text-success/80">$30.00</span>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-2xl font-bold text-success">${selectedTier.prize.toFixed(2)}</p>
+                      )}
                     </div>
                   </div>
                 </CardContent>
