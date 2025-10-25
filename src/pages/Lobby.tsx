@@ -131,17 +131,19 @@ const Lobby = () => {
 
           {/* Regatta Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {mockRegattas.map((regatta) => (
-              <ContestCard 
-                key={regatta.id} 
-                id={regatta.id}
-                regattaName={regatta.regattaName}
-                genderCategory={regatta.genderCategory}
-                lockTime={regatta.lockTime}
-                divisions={regatta.divisions}
-                entryTiers={regatta.entryTiers}
-              />
-            ))}
+            {mockRegattas
+              .filter(regatta => regatta.id !== "1" && regatta.id !== "3") // Temporarily hide Eastern Sprints and Women's NCAA
+              .map((regatta) => (
+                <ContestCard 
+                  key={regatta.id} 
+                  id={regatta.id}
+                  regattaName={regatta.regattaName}
+                  genderCategory={regatta.genderCategory}
+                  lockTime={regatta.lockTime}
+                  divisions={regatta.divisions}
+                  entryTiers={regatta.entryTiers}
+                />
+              ))}
           </div>
 
           {/* Empty State (hidden when contests exist) */}
