@@ -8,6 +8,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { Target, TrendingUp, Shield, Clock, Trophy } from "lucide-react";
 import heroRowing from "@/assets/hero-rowing.jpeg";
 import heroContestPhones from "@/assets/hero-contest-phones.png";
+import heroRowingPhones from "@/assets/hero-rowing-phones-overlapping.png";
 import { useAuth } from "@/hooks/useAuth";
 
 const Index = () => {
@@ -223,15 +224,16 @@ const Index = () => {
               {/* Left Content */}
               <div className="space-y-8">
                 <h2 className="text-5xl md:text-6xl lg:text-7xl font-bold leading-tight">
-                  <span className="text-white">PLAY </span>
-                  <span className="text-accent">BIG REGATTAS</span>
+                  <span className="text-white">BRINGING </span>
+                  <span className="text-white">FANTASY </span>
+                  <span className="text-white">SPORTS </span>
                   <br />
-                  <span className="text-white">& WIN BIG </span>
-                  <span className="text-accent">MONEY</span>
+                  <span className="text-white">TO </span>
+                  <span className="bg-gradient-to-r from-cyan-400 via-blue-400 to-purple-400 bg-clip-text text-transparent">ROWING</span>
                 </h2>
 
                 <p className="text-lg md:text-xl text-gray-300 max-w-xl">
-                  Win real money playing the games you know: Survivor, Daily Fantasy Contests, Pick'Em, Confidence, and more. Play in Guaranteed Contests or against your friends.
+                  Join cash fantasy contests for every popular regatta. Select your crews and put your knowledge to the test.
                 </p>
 
                 <div className="flex flex-col sm:flex-row gap-4">
@@ -249,7 +251,7 @@ const Index = () => {
                       variant="outline"
                       className="text-lg px-8 py-6 border-2 border-white/30 text-white hover:bg-white/10 rounded-xl bg-transparent w-full sm:w-auto"
                     >
-                      Download and Play
+                      Learn More
                     </Button>
                   </Link>
                 </div>
@@ -258,8 +260,8 @@ const Index = () => {
               {/* Right Content - Phone Image */}
               <div className="relative">
                 <img 
-                  src={heroContestPhones} 
-                  alt="RowFantasy app interface showing contest selection and crew drafting"
+                  src={heroRowingPhones} 
+                  alt="RowFantasy app interface showing overlapping phone mockups with contest selection and crew drafting"
                   className="w-full h-auto max-w-2xl mx-auto drop-shadow-2xl"
                 />
               </div>
