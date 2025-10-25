@@ -8,7 +8,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { Target, TrendingUp, Shield, Clock, Trophy } from "lucide-react";
 import heroRowing from "@/assets/hero-rowing.jpeg";
 import heroContestPhones from "@/assets/hero-contest-phones.png";
-import heroRowingPhones from "@/assets/hero-rowing-phones-overlapping.png";
+import heroRowingPhones from "@/assets/hero-contest-phones-updated.png";
 import { useAuth } from "@/hooks/useAuth";
 
 const Index = () => {
@@ -261,7 +261,7 @@ const Index = () => {
               <div className="relative">
                 <img 
                   src={heroRowingPhones} 
-                  alt="RowFantasy app interface showing overlapping phone mockups with contest selection and crew drafting"
+                  alt="RowFantasy app interface showing IRA National Championship 2026 contest with entry options and crew drafting"
                   className="w-full h-auto max-w-2xl mx-auto drop-shadow-2xl"
                 />
               </div>
