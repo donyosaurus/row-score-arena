@@ -7,6 +7,7 @@ import { StateAvailabilityMap } from "@/components/StateAvailabilityMap";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Target, TrendingUp, Shield, Clock, Trophy } from "lucide-react";
 import heroRowing from "@/assets/hero-rowing.jpeg";
+import heroContestPhones from "@/assets/hero-contest-phones.png";
 import { useAuth } from "@/hooks/useAuth";
 
 const Index = () => {
@@ -212,7 +213,40 @@ const Index = () => {
           </div>
         </section>
 
-        {/* More Information */}
+        {/* Marketing Hero Section */}
+        <section className="relative py-20 md:py-32 overflow-hidden bg-gradient-to-br from-primary via-primary/95 to-primary/90">
+          <div className="container mx-auto px-4">
+            <div className="max-w-7xl mx-auto">
+              <img 
+                src={heroContestPhones} 
+                alt="Play Big Regattas & Win Real Prizes - RowFantasy contest interface showing contest selection and crew drafting on mobile devices"
+                className="w-full h-auto rounded-2xl shadow-2xl shadow-accent/20 hover:shadow-accent/30 transition-smooth"
+              />
+              
+              {/* Overlay Content */}
+              <div className="mt-12 text-center">
+                <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                  <Link to="/signup">
+                    <Button size="lg" variant="cta" className="text-lg px-8 py-6">
+                      Play Now
+                    </Button>
+                  </Link>
+                  <Link to="/lobby">
+                    <Button 
+                      size="lg" 
+                      variant="outline"
+                      className="text-lg px-8 py-6 border-2 border-white/30 text-white hover:bg-white/10 bg-transparent"
+                    >
+                      Learn More
+                    </Button>
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* How It Works */}
         <section className="py-20 bg-background border-t border-border">
           <div className="container mx-auto px-4 max-w-4xl">
             <div className="text-center mb-12">
