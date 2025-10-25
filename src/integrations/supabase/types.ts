@@ -53,10 +53,50 @@ export type Database = {
         }
         Relationships: []
       }
+      compliance_audit_logs: {
+        Row: {
+          admin_id: string | null
+          created_at: string
+          description: string
+          event_type: string
+          id: string
+          ip_address: unknown
+          metadata: Json | null
+          severity: string
+          state_code: string | null
+          user_id: string | null
+        }
+        Insert: {
+          admin_id?: string | null
+          created_at?: string
+          description: string
+          event_type: string
+          id?: string
+          ip_address?: unknown
+          metadata?: Json | null
+          severity: string
+          state_code?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          admin_id?: string | null
+          created_at?: string
+          description?: string
+          event_type?: string
+          id?: string
+          ip_address?: unknown
+          metadata?: Json | null
+          severity?: string
+          state_code?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       geofence_logs: {
         Row: {
           action_type: string
           blocked_reason: string | null
+          contest_id: string | null
           created_at: string
           gps_latitude: number | null
           gps_longitude: number | null
@@ -66,11 +106,13 @@ export type Database = {
           metadata: Json | null
           state_detected: string | null
           user_id: string
+          verification_method: string | null
           zip_code: string | null
         }
         Insert: {
           action_type: string
           blocked_reason?: string | null
+          contest_id?: string | null
           created_at?: string
           gps_latitude?: number | null
           gps_longitude?: number | null
@@ -80,11 +122,13 @@ export type Database = {
           metadata?: Json | null
           state_detected?: string | null
           user_id: string
+          verification_method?: string | null
           zip_code?: string | null
         }
         Update: {
           action_type?: string
           blocked_reason?: string | null
+          contest_id?: string | null
           created_at?: string
           gps_latitude?: number | null
           gps_longitude?: number | null
@@ -94,6 +138,7 @@ export type Database = {
           metadata?: Json | null
           state_detected?: string | null
           user_id?: string
+          verification_method?: string | null
           zip_code?: string | null
         }
         Relationships: []
@@ -140,20 +185,82 @@ export type Database = {
         }
         Relationships: []
       }
+      license_registry: {
+        Row: {
+          created_at: string
+          expiry_date: string | null
+          filing_fee: number | null
+          id: string
+          issued_date: string | null
+          license_number: string | null
+          license_type: string
+          notes: string | null
+          renewal_link: string | null
+          report_due_date: string | null
+          state_code: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          expiry_date?: string | null
+          filing_fee?: number | null
+          id?: string
+          issued_date?: string | null
+          license_number?: string | null
+          license_type?: string
+          notes?: string | null
+          renewal_link?: string | null
+          report_due_date?: string | null
+          state_code: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          expiry_date?: string | null
+          filing_fee?: number | null
+          id?: string
+          issued_date?: string | null
+          license_number?: string | null
+          license_type?: string
+          notes?: string | null
+          renewal_link?: string | null
+          report_due_date?: string | null
+          state_code?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "license_registry_state_code_fkey"
+            columns: ["state_code"]
+            isOneToOne: false
+            referencedRelation: "state_regulation_rules"
+            referencedColumns: ["state_code"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           address_line1: string | null
           address_line2: string | null
           city: string | null
+          contest_count: number
           created_at: string
           date_of_birth: string | null
+          deposit_limit_monthly: number | null
           email: string
           full_name: string | null
           id: string
           is_active: boolean
+          is_beginner: boolean | null
+          is_employee: boolean
           kyc_status: string
           kyc_verified_at: string | null
           phone: string | null
+          self_exclusion_type: string | null
+          self_exclusion_until: string | null
           state: string | null
           updated_at: string
           username: string | null
@@ -164,15 +271,21 @@ export type Database = {
           address_line1?: string | null
           address_line2?: string | null
           city?: string | null
+          contest_count?: number
           created_at?: string
           date_of_birth?: string | null
+          deposit_limit_monthly?: number | null
           email: string
           full_name?: string | null
           id: string
           is_active?: boolean
+          is_beginner?: boolean | null
+          is_employee?: boolean
           kyc_status?: string
           kyc_verified_at?: string | null
           phone?: string | null
+          self_exclusion_type?: string | null
+          self_exclusion_until?: string | null
           state?: string | null
           updated_at?: string
           username?: string | null
@@ -183,20 +296,83 @@ export type Database = {
           address_line1?: string | null
           address_line2?: string | null
           city?: string | null
+          contest_count?: number
           created_at?: string
           date_of_birth?: string | null
+          deposit_limit_monthly?: number | null
           email?: string
           full_name?: string | null
           id?: string
           is_active?: boolean
+          is_beginner?: boolean | null
+          is_employee?: boolean
           kyc_status?: string
           kyc_verified_at?: string | null
           phone?: string | null
+          self_exclusion_type?: string | null
+          self_exclusion_until?: string | null
           state?: string | null
           updated_at?: string
           username?: string | null
           username_last_changed_at?: string | null
           zip_code?: string | null
+        }
+        Relationships: []
+      }
+      state_regulation_rules: {
+        Row: {
+          created_at: string
+          head_to_head_allowed: boolean
+          id: string
+          last_verified_at: string
+          license_required: boolean
+          min_age: number
+          min_contestants: number
+          notes: string | null
+          parlay_allowed: boolean
+          pickem_allowed: boolean
+          requires_skill_predominance: boolean
+          state_code: string
+          state_name: string
+          status: string
+          tax_rate: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          head_to_head_allowed?: boolean
+          id?: string
+          last_verified_at?: string
+          license_required?: boolean
+          min_age?: number
+          min_contestants?: number
+          notes?: string | null
+          parlay_allowed?: boolean
+          pickem_allowed?: boolean
+          requires_skill_predominance?: boolean
+          state_code: string
+          state_name: string
+          status: string
+          tax_rate?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          head_to_head_allowed?: boolean
+          id?: string
+          last_verified_at?: string
+          license_required?: boolean
+          min_age?: number
+          min_contestants?: number
+          notes?: string | null
+          parlay_allowed?: boolean
+          pickem_allowed?: boolean
+          requires_skill_predominance?: boolean
+          state_code?: string
+          state_name?: string
+          status?: string
+          tax_rate?: number
+          updated_at?: string
         }
         Relationships: []
       }
@@ -208,10 +384,13 @@ export type Database = {
           created_by: string | null
           description: string | null
           id: string
+          is_taxable: boolean
           metadata: Json | null
           reference_id: string | null
           reference_type: string | null
+          state_code: string | null
           status: Database["public"]["Enums"]["transaction_status"]
+          tax_year: number | null
           type: Database["public"]["Enums"]["transaction_type"]
           user_id: string
           wallet_id: string
@@ -223,10 +402,13 @@ export type Database = {
           created_by?: string | null
           description?: string | null
           id?: string
+          is_taxable?: boolean
           metadata?: Json | null
           reference_id?: string | null
           reference_type?: string | null
+          state_code?: string | null
           status?: Database["public"]["Enums"]["transaction_status"]
+          tax_year?: number | null
           type: Database["public"]["Enums"]["transaction_type"]
           user_id: string
           wallet_id: string
@@ -238,10 +420,13 @@ export type Database = {
           created_by?: string | null
           description?: string | null
           id?: string
+          is_taxable?: boolean
           metadata?: Json | null
           reference_id?: string | null
           reference_type?: string | null
+          state_code?: string | null
           status?: Database["public"]["Enums"]["transaction_status"]
+          tax_year?: number | null
           type?: Database["public"]["Enums"]["transaction_type"]
           user_id?: string
           wallet_id?: string
