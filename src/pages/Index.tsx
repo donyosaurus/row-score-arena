@@ -200,6 +200,73 @@ const Index = () => {
           </div>
         </section>
 
+        {/* Marketing Hero Section */}
+        <section className="relative py-20 md:py-32 overflow-hidden bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950">
+          {/* Dark pattern background */}
+          <div className="absolute inset-0 opacity-30">
+            <div
+              className="absolute inset-0"
+              style={{
+                backgroundImage: `repeating-linear-gradient(
+                  45deg,
+                  transparent,
+                  transparent 10px,
+                  rgba(255,255,255,0.02) 10px,
+                  rgba(255,255,255,0.02) 11px
+                )`,
+              }}
+            />
+          </div>
+
+          <div className="container mx-auto px-4 relative z-10">
+            <div className="grid lg:grid-cols-2 gap-12 items-center max-w-7xl mx-auto">
+              {/* Left Content */}
+              <div className="space-y-8">
+                <h2 className="text-5xl md:text-6xl lg:text-7xl font-bold leading-tight">
+                  <span className="text-white">PLAY </span>
+                  <span className="text-accent">BIG REGATTAS</span>
+                  <br />
+                  <span className="text-white">& WIN BIG </span>
+                  <span className="text-accent">MONEY</span>
+                </h2>
+
+                <p className="text-lg md:text-xl text-gray-300 max-w-xl">
+                  Win real money playing the games you know: Survivor, Daily Fantasy Contests, Pick'Em, Confidence, and more. Play in Guaranteed Contests or against your friends.
+                </p>
+
+                <div className="flex flex-col sm:flex-row gap-4">
+                  <Link to="/signup">
+                    <Button 
+                      size="lg" 
+                      className="text-lg px-8 py-6 bg-white text-black hover:bg-gray-100 rounded-xl font-semibold w-full sm:w-auto"
+                    >
+                      Play Now
+                    </Button>
+                  </Link>
+                  <Link to="/lobby">
+                    <Button 
+                      size="lg" 
+                      variant="outline"
+                      className="text-lg px-8 py-6 border-2 border-white/30 text-white hover:bg-white/10 rounded-xl bg-transparent w-full sm:w-auto"
+                    >
+                      Download and Play
+                    </Button>
+                  </Link>
+                </div>
+              </div>
+
+              {/* Right Content - Phone Image */}
+              <div className="relative">
+                <img 
+                  src={heroContestPhones} 
+                  alt="RowFantasy app interface showing contest selection and crew drafting"
+                  className="w-full h-auto max-w-2xl mx-auto drop-shadow-2xl"
+                />
+              </div>
+            </div>
+          </div>
+        </section>
+
         {/* State Availability */}
         <section className="py-20 bg-muted border-t border-border">
           <div className="container mx-auto px-4">
