@@ -241,6 +241,54 @@ export type Database = {
           },
         ]
       }
+      payment_sessions: {
+        Row: {
+          amount_cents: number
+          checkout_url: string | null
+          client_token: string | null
+          completed_at: string | null
+          created_at: string
+          expires_at: string | null
+          id: string
+          metadata: Json | null
+          provider: string
+          provider_session_id: string | null
+          state_code: string | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          amount_cents: number
+          checkout_url?: string | null
+          client_token?: string | null
+          completed_at?: string | null
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          metadata?: Json | null
+          provider: string
+          provider_session_id?: string | null
+          state_code?: string | null
+          status?: string
+          user_id: string
+        }
+        Update: {
+          amount_cents?: number
+          checkout_url?: string | null
+          client_token?: string | null
+          completed_at?: string | null
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          metadata?: Json | null
+          provider?: string
+          provider_session_id?: string | null
+          state_code?: string | null
+          status?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           address_line1: string | null
@@ -384,6 +432,7 @@ export type Database = {
           created_by: string | null
           description: string | null
           id: string
+          idempotency_key: string | null
           is_taxable: boolean
           metadata: Json | null
           reference_id: string | null
@@ -402,6 +451,7 @@ export type Database = {
           created_by?: string | null
           description?: string | null
           id?: string
+          idempotency_key?: string | null
           is_taxable?: boolean
           metadata?: Json | null
           reference_id?: string | null
@@ -420,6 +470,7 @@ export type Database = {
           created_by?: string | null
           description?: string | null
           id?: string
+          idempotency_key?: string | null
           is_taxable?: boolean
           metadata?: Json | null
           reference_id?: string | null
@@ -527,6 +578,11 @@ export type Database = {
         | "payout"
         | "bonus"
         | "adjustment"
+        | "entry_fee_hold"
+        | "entry_fee_release"
+        | "provider_fee"
+        | "platform_fee"
+        | "tax"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -670,6 +726,11 @@ export const Constants = {
         "payout",
         "bonus",
         "adjustment",
+        "entry_fee_hold",
+        "entry_fee_release",
+        "provider_fee",
+        "platform_fee",
+        "tax",
       ],
     },
   },
