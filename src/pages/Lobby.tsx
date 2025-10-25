@@ -5,38 +5,78 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Search } from "lucide-react";
 
-// Mock regattas - each has 5 entry tiers
+// 2026 Season Regattas
 const mockRegattas = [
   {
     id: "1",
-    regattaName: "IRA Men's Championship 2025",
+    regattaName: "Eastern Sprints Regatta 2026",
     genderCategory: "Men's" as const,
-    lockTime: "2 hours",
-    divisions: ["Heavyweight V8+", "Lightweight V8+"],
+    lockTime: "May 17, 2026 at 8:00 AM",
+    divisions: ["Heavyweight Varsity 8+", "Lightweight Varsity 8+", "Varsity 4+"],
     entryTiers: 4,
   },
   {
     id: "2",
-    regattaName: "NCAA Women's Championship 2025",
-    genderCategory: "Women's" as const,
-    lockTime: "6 hours",
-    divisions: ["Varsity 8+", "Second Varsity 8+", "Varsity 4+"],
+    regattaName: "IRA National Championship 2026",
+    genderCategory: "Men's" as const,
+    lockTime: "May 29, 2026 at 9:00 AM",
+    divisions: ["Heavyweight Varsity 8+", "Lightweight Varsity 8+", "Second Varsity 8+"],
     entryTiers: 4,
   },
   {
     id: "3",
-    regattaName: "Eastern Sprints Men's 2025",
-    genderCategory: "Men's" as const,
-    lockTime: "1 day",
-    divisions: ["Heavyweight V8+", "Lightweight V8+", "V4+", "Freshman 8+"],
+    regattaName: "Women's NCAA Championship 2026",
+    genderCategory: "Women's" as const,
+    lockTime: "May 30, 2026 at 10:00 AM",
+    divisions: ["Varsity 8+", "Second Varsity 8+", "Varsity 4+"],
     entryTiers: 4,
   },
   {
     id: "4",
-    regattaName: "Head of the Charles Women's 2025",
+    regattaName: "World Rowing Cup II 2026",
+    genderCategory: "Men's" as const,
+    lockTime: "June 13, 2026 at 3:00 AM",
+    divisions: ["Men's Eight", "Men's Four", "Men's Pair", "Men's Single Sculls"],
+    entryTiers: 4,
+  },
+  {
+    id: "5",
+    regattaName: "U23 World Rowing Championships 2026",
+    genderCategory: "Men's" as const,
+    lockTime: "June 24, 2026 at 4:00 AM",
+    divisions: ["Men's Eight", "Men's Four", "Men's Pair", "Men's Double Sculls"],
+    entryTiers: 4,
+  },
+  {
+    id: "6",
+    regattaName: "World Rowing Cup III 2026",
     genderCategory: "Women's" as const,
-    lockTime: "12 hours",
-    divisions: ["Championship Eights", "Collegiate Eights", "Youth Eights"],
+    lockTime: "June 27, 2026 at 3:00 AM",
+    divisions: ["Women's Eight", "Women's Four", "Women's Pair", "Women's Single Sculls"],
+    entryTiers: 4,
+  },
+  {
+    id: "7",
+    regattaName: "European Rowing Championships 2026",
+    genderCategory: "Men's" as const,
+    lockTime: "July 31, 2026 at 3:00 AM",
+    divisions: ["Men's Eight", "Men's Four", "Men's Pair", "Men's Quad Sculls"],
+    entryTiers: 4,
+  },
+  {
+    id: "8",
+    regattaName: "U19 World Rowing Championships 2026",
+    genderCategory: "Women's" as const,
+    lockTime: "August 7, 2026 at 3:00 AM",
+    divisions: ["Women's Eight", "Women's Four", "Women's Pair", "Women's Quad Sculls"],
+    entryTiers: 4,
+  },
+  {
+    id: "9",
+    regattaName: "World Rowing Championships 2026",
+    genderCategory: "Men's" as const,
+    lockTime: "August 25, 2026 at 3:00 AM",
+    divisions: ["Men's Eight", "Men's Four", "Men's Pair", "Men's Single Sculls", "Men's Quad Sculls"],
     entryTiers: 4,
   },
 ];
@@ -51,7 +91,7 @@ const Lobby = () => {
           <div className="mb-12 text-center max-w-3xl mx-auto">
             <h1 className="text-4xl md:text-5xl font-bold mb-4">Available Regattas</h1>
             <p className="text-xl text-muted-foreground">
-              Select a regatta and choose from 4 entry options: 3 Head-to-Head ($10, $25, $100) or 1 5-Person ($20) contest
+              2026 Season • Select a regatta and choose from 4 entry options: 3 Head-to-Head ($10, $25, $100) or 1 5-Person ($20) contest
             </p>
           </div>
 

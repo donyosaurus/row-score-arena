@@ -12,35 +12,124 @@ import { ArrowLeft, Clock, DollarSign, Info, Target, Plus, Trash2, Trophy } from
 import { Regatta, DraftPick, FINISH_POINTS, EntryTier } from "@/types/contest";
 import { toast } from "sonner";
 
-// Mock regatta data
-const mockRegatta: Regatta = {
-  id: "1",
-  regattaName: "IRA National Championship 2025",
-  genderCategory: "Men's",
-  lockTime: "May 30, 2025 at 9:00 AM EST",
-  minPicks: 2,
-  maxPicks: 3,
-  divisions: [
-    { id: "div1", name: "Heavyweight Varsity 8+", boatClass: "Varsity 8+", category: "Heavyweight" },
-    { id: "div2", name: "Lightweight Varsity 8+", boatClass: "Varsity 8+", category: "Lightweight" },
-  ],
-  crews: [
-    { id: "crew1", name: "Yale", institution: "Yale University", divisionId: "div1", seedPosition: 1 },
-    { id: "crew2", name: "Harvard", institution: "Harvard University", divisionId: "div1", seedPosition: 2 },
-    { id: "crew3", name: "Washington", institution: "University of Washington", divisionId: "div1", seedPosition: 3 },
-    { id: "crew4", name: "California", institution: "University of California", divisionId: "div1", seedPosition: 4 },
-    { id: "crew5", name: "Princeton", institution: "Princeton University", divisionId: "div1", seedPosition: 5 },
-    { id: "crew6", name: "Princeton", institution: "Princeton University", divisionId: "div2", seedPosition: 1 },
-    { id: "crew7", name: "Yale", institution: "Yale University", divisionId: "div2", seedPosition: 2 },
-    { id: "crew8", name: "Harvard", institution: "Harvard University", divisionId: "div2", seedPosition: 3 },
-    { id: "crew9", name: "Columbia", institution: "Columbia University", divisionId: "div2", seedPosition: 4 },
-  ],
-  entryTiers: [
-    { id: "h2h-10", type: "H2H", entryFee: 10, prize: 18.50, capacity: 2, filled: 0 },
-    { id: "h2h-25", type: "H2H", entryFee: 25, prize: 47.50, capacity: 2, filled: 1 },
-    { id: "h2h-100", type: "H2H", entryFee: 100, prize: 195.50, capacity: 2, filled: 0 },
-    { id: "5p-20", type: "5_PERSON", entryFee: 20, prize: 62.50, capacity: 5, filled: 2 },
-  ],
+// Mock regatta data - must match RegattaDetail data
+const mockRegattas: Record<string, Regatta> = {
+  "1": {
+    id: "1",
+    regattaName: "Eastern Sprints Regatta 2026",
+    genderCategory: "Men's",
+    lockTime: "May 17, 2026 at 8:00 AM EST",
+    minPicks: 2,
+    maxPicks: 3,
+    divisions: [
+      { id: "div1", name: "Heavyweight Varsity 8+", boatClass: "Varsity 8+", category: "Heavyweight" },
+      { id: "div2", name: "Lightweight Varsity 8+", boatClass: "Varsity 8+", category: "Lightweight" },
+      { id: "div3", name: "Varsity 4+", boatClass: "Four", category: "Heavyweight" },
+    ],
+    crews: [
+      { id: "crew1", name: "Harvard", institution: "Harvard University", divisionId: "div1", seedPosition: 1 },
+      { id: "crew2", name: "Yale", institution: "Yale University", divisionId: "div1", seedPosition: 2 },
+      { id: "crew3", name: "Princeton", institution: "Princeton University", divisionId: "div1", seedPosition: 3 },
+      { id: "crew4", name: "Brown", institution: "Brown University", divisionId: "div1", seedPosition: 4 },
+      { id: "crew5", name: "Cornell", institution: "Cornell University", divisionId: "div2", seedPosition: 1 },
+      { id: "crew6", name: "Columbia", institution: "Columbia University", divisionId: "div2", seedPosition: 2 },
+      { id: "crew7", name: "Princeton", institution: "Princeton University", divisionId: "div2", seedPosition: 3 },
+      { id: "crew8", name: "Harvard", institution: "Harvard University", divisionId: "div3", seedPosition: 1 },
+    ],
+    entryTiers: [
+      { id: "h2h-10", type: "H2H", entryFee: 10, prize: 18.50, capacity: 2, filled: 0 },
+      { id: "h2h-25", type: "H2H", entryFee: 25, prize: 47.50, capacity: 2, filled: 1 },
+      { id: "h2h-100", type: "H2H", entryFee: 100, prize: 195.50, capacity: 2, filled: 0 },
+      { id: "5p-20", type: "5_PERSON", entryFee: 20, prize: 62.50, capacity: 5, filled: 2 },
+    ],
+  },
+  "2": {
+    id: "2",
+    regattaName: "IRA National Championship 2026",
+    genderCategory: "Men's",
+    lockTime: "May 29, 2026 at 9:00 AM PST",
+    minPicks: 2,
+    maxPicks: 4,
+    divisions: [
+      { id: "div1", name: "Heavyweight Varsity 8+", boatClass: "Varsity 8+", category: "Heavyweight" },
+      { id: "div2", name: "Lightweight Varsity 8+", boatClass: "Varsity 8+", category: "Lightweight" },
+      { id: "div3", name: "Second Varsity 8+", boatClass: "Second Varsity 8+", category: "Heavyweight" },
+    ],
+    crews: [
+      { id: "crew1", name: "Washington", institution: "University of Washington", divisionId: "div1", seedPosition: 1 },
+      { id: "crew2", name: "Yale", institution: "Yale University", divisionId: "div1", seedPosition: 2 },
+      { id: "crew3", name: "California", institution: "University of California", divisionId: "div1", seedPosition: 3 },
+      { id: "crew4", name: "Harvard", institution: "Harvard University", divisionId: "div1", seedPosition: 4 },
+      { id: "crew5", name: "Princeton", institution: "Princeton University", divisionId: "div2", seedPosition: 1 },
+      { id: "crew6", name: "Yale", institution: "Yale University", divisionId: "div2", seedPosition: 2 },
+      { id: "crew7", name: "Harvard", institution: "Harvard University", divisionId: "div2", seedPosition: 3 },
+      { id: "crew8", name: "Washington", institution: "University of Washington", divisionId: "div3", seedPosition: 1 },
+    ],
+    entryTiers: [
+      { id: "h2h-10", type: "H2H", entryFee: 10, prize: 18.50, capacity: 2, filled: 0 },
+      { id: "h2h-25", type: "H2H", entryFee: 25, prize: 47.50, capacity: 2, filled: 1 },
+      { id: "h2h-100", type: "H2H", entryFee: 100, prize: 195.50, capacity: 2, filled: 0 },
+      { id: "5p-20", type: "5_PERSON", entryFee: 20, prize: 62.50, capacity: 5, filled: 3 },
+    ],
+  },
+  "3": {
+    id: "3",
+    regattaName: "Women's NCAA Championship 2026",
+    genderCategory: "Women's",
+    lockTime: "May 30, 2026 at 10:00 AM EST",
+    minPicks: 2,
+    maxPicks: 3,
+    divisions: [
+      { id: "div1", name: "Varsity 8+", boatClass: "Varsity 8+", category: "Open" },
+      { id: "div2", name: "Second Varsity 8+", boatClass: "Second Varsity 8+", category: "Open" },
+      { id: "div3", name: "Varsity 4+", boatClass: "Four", category: "Open" },
+    ],
+    crews: [
+      { id: "crew1", name: "Texas", institution: "University of Texas", divisionId: "div1", seedPosition: 1 },
+      { id: "crew2", name: "Stanford", institution: "Stanford University", divisionId: "div1", seedPosition: 2 },
+      { id: "crew3", name: "Washington", institution: "University of Washington", divisionId: "div1", seedPosition: 3 },
+      { id: "crew4", name: "Brown", institution: "Brown University", divisionId: "div1", seedPosition: 4 },
+      { id: "crew5", name: "Stanford", institution: "Stanford University", divisionId: "div2", seedPosition: 1 },
+      { id: "crew6", name: "Washington", institution: "University of Washington", divisionId: "div2", seedPosition: 2 },
+      { id: "crew7", name: "Texas", institution: "University of Texas", divisionId: "div3", seedPosition: 1 },
+    ],
+    entryTiers: [
+      { id: "h2h-10", type: "H2H", entryFee: 10, prize: 18.50, capacity: 2, filled: 1 },
+      { id: "h2h-25", type: "H2H", entryFee: 25, prize: 47.50, capacity: 2, filled: 0 },
+      { id: "h2h-100", type: "H2H", entryFee: 100, prize: 195.50, capacity: 2, filled: 0 },
+      { id: "5p-20", type: "5_PERSON", entryFee: 20, prize: 62.50, capacity: 5, filled: 2 },
+    ],
+  },
+  "9": {
+    id: "9",
+    regattaName: "World Rowing Championships 2026",
+    genderCategory: "Men's",
+    lockTime: "August 25, 2026 at 3:00 AM EST",
+    minPicks: 2,
+    maxPicks: 5,
+    divisions: [
+      { id: "div1", name: "Men's Eight", boatClass: "Eight", category: "Open" },
+      { id: "div2", name: "Men's Four", boatClass: "Four", category: "Open" },
+      { id: "div3", name: "Men's Pair", boatClass: "Pair", category: "Open" },
+      { id: "div4", name: "Men's Single Sculls", boatClass: "Single Sculls", category: "Open" },
+      { id: "div5", name: "Men's Quad Sculls", boatClass: "Quad Sculls", category: "Open" },
+    ],
+    crews: [
+      { id: "crew1", name: "Great Britain", institution: "Great Britain", divisionId: "div1", seedPosition: 1 },
+      { id: "crew2", name: "Netherlands", institution: "Netherlands", divisionId: "div1", seedPosition: 2 },
+      { id: "crew3", name: "Australia", institution: "Australia", divisionId: "div2", seedPosition: 1 },
+      { id: "crew4", name: "New Zealand", institution: "New Zealand", divisionId: "div2", seedPosition: 2 },
+      { id: "crew5", name: "Croatia", institution: "Croatia", divisionId: "div3", seedPosition: 1 },
+      { id: "crew6", name: "Oliver Zeidler", institution: "Germany", divisionId: "div4", seedPosition: 1 },
+      { id: "crew7", name: "Netherlands", institution: "Netherlands", divisionId: "div5", seedPosition: 1 },
+    ],
+    entryTiers: [
+      { id: "h2h-10", type: "H2H", entryFee: 10, prize: 18.50, capacity: 2, filled: 1 },
+      { id: "h2h-25", type: "H2H", entryFee: 25, prize: 47.50, capacity: 2, filled: 2 },
+      { id: "h2h-100", type: "H2H", entryFee: 100, prize: 195.50, capacity: 2, filled: 0 },
+      { id: "5p-20", type: "5_PERSON", entryFee: 20, prize: 62.50, capacity: 5, filled: 3 },
+    ],
+  },
 };
 
 const ContestDetail = () => {
@@ -49,6 +138,8 @@ const ContestDetail = () => {
   const [currentDivision, setCurrentDivision] = useState<string>("");
   const [currentCrew, setCurrentCrew] = useState<string>("");
   const [currentMargin, setCurrentMargin] = useState<string>("");
+
+  const mockRegatta = mockRegattas[id || "1"] || mockRegattas["1"];
 
   const selectedTier = mockRegatta.entryTiers.find(t => t.id === tierId);
   if (!selectedTier) {
