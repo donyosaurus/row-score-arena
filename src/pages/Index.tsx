@@ -8,7 +8,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { Target, TrendingUp, Shield, Clock, Trophy } from "lucide-react";
 import heroRowing from "@/assets/hero-rowing.jpeg";
 import heroContestPhones from "@/assets/hero-contest-phones.png";
-import heroRowingPhones from "@/assets/hero-contest-phones-updated.png";
+import heroRowingPhones from "@/assets/phones-contest-mockup.png";
 import { useAuth } from "@/hooks/useAuth";
 const Index = () => {
   const {
@@ -238,8 +238,12 @@ const Index = () => {
               </div>
 
               {/* Right Content - Phone Image */}
-              <div className="relative">
-                
+              <div className="relative flex justify-end items-end">
+                <img 
+                  src={heroRowingPhones} 
+                  alt="RowFantasy app preview on mobile devices" 
+                  className="w-full max-w-2xl object-contain"
+                />
               </div>
             </div>
           </div>
