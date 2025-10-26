@@ -9,6 +9,7 @@ import { Target, TrendingUp, Shield, Clock, Trophy } from "lucide-react";
 import heroRowing from "@/assets/hero-rowing.jpeg";
 import heroContestPhones from "@/assets/hero-contest-phones.png";
 import heroRowingPhones from "@/assets/hero-contest-phones-updated.png";
+import phonesMockup from "@/assets/phones-mockup.png";
 import { useAuth } from "@/hooks/useAuth";
 
 const Index = () => {
@@ -257,6 +258,14 @@ const Index = () => {
                 </div>
               </div>
 
+              {/* Right Content - Phone Mockups */}
+              <div className="relative flex justify-center items-center">
+                <img 
+                  src={phonesMockup} 
+                  alt="RowFantasy app interface on mobile phones"
+                  className="w-full h-auto max-w-2xl mx-auto"
+                />
+              </div>
             </div>
           </div>
         </section>
