@@ -38,7 +38,7 @@ export const ContestCard = ({
             </Badge>
           </div>
           <p className="text-sm text-muted-foreground">
-            {entryTiers} Entry Options Available
+            4 entry options available regatta
           </p>
         </div>
 
