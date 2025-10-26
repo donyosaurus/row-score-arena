@@ -257,14 +257,6 @@ const Index = () => {
                 </div>
               </div>
 
-              {/* Right Content - Phone Image */}
-              <div className="relative">
-                <img 
-                  src={heroRowingPhones} 
-                  alt="RowFantasy app interface showing IRA National Championship 2026 contest with entry options and crew drafting"
-                  className="w-full h-auto max-w-2xl mx-auto drop-shadow-2xl"
-                />
-              </div>
             </div>
           </div>
         </section>
