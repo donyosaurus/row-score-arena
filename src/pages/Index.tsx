@@ -9,44 +9,37 @@ import { Target, TrendingUp, Shield, Clock, Trophy } from "lucide-react";
 import heroRowing from "@/assets/hero-rowing.jpeg";
 import heroContestPhones from "@/assets/hero-contest-phones.png";
 import heroRowingPhones from "@/assets/hero-contest-phones-updated.png";
-import phonesMockup from "@/assets/phones-mockup.png";
 import { useAuth } from "@/hooks/useAuth";
-
 const Index = () => {
-  const { user } = useAuth();
-  return (
-    <div className="flex flex-col min-h-screen">
+  const {
+    user
+  } = useAuth();
+  return <div className="flex flex-col min-h-screen">
       <Header />
 
       <main className="flex-1">
         {/* Hero Section */}
         <section className="relative bg-primary text-white py-20 md:py-32 overflow-hidden">
           {/* Background Image */}
-          <div 
-            className="absolute inset-0 bg-cover bg-center opacity-30"
-            style={{
-              backgroundImage: `url(${heroRowing})`,
-              backgroundPosition: 'center',
-            }}
-          />
+          <div className="absolute inset-0 bg-cover bg-center opacity-30" style={{
+          backgroundImage: `url(${heroRowing})`,
+          backgroundPosition: 'center'
+        }} />
           
           {/* Overlay gradient for better text readability */}
           <div className="absolute inset-0 bg-gradient-to-b from-primary/75 via-primary/65 to-primary/85" />
           
           {/* Background Pattern */}
           <div className="absolute inset-0 opacity-10">
-            <div
-              className="absolute inset-0"
-              style={{
-                backgroundImage: `repeating-linear-gradient(
+            <div className="absolute inset-0" style={{
+            backgroundImage: `repeating-linear-gradient(
                 90deg,
                 transparent,
                 transparent 50px,
                 rgba(255,255,255,0.03) 50px,
                 rgba(255,255,255,0.03) 51px
-              )`,
-              }}
-            />
+              )`
+          }} />
           </div>
 
           <div className="container mx-auto px-4 relative z-10">
@@ -78,11 +71,7 @@ const Index = () => {
                   </Button>
                 </Link>
                 <Link to="/how-it-works">
-                  <Button
-                    size="lg"
-                    variant="outline"
-                    className="text-lg px-8 py-6 border-2 border-white/30 text-white hover:bg-white/10 rounded-xl bg-transparent"
-                  >
+                  <Button size="lg" variant="outline" className="text-lg px-8 py-6 border-2 border-white/30 text-white hover:bg-white/10 rounded-xl bg-transparent">
                     How It Works
                   </Button>
                 </Link>
@@ -203,21 +192,18 @@ const Index = () => {
         </section>
 
         {/* Marketing Hero Section */}
-        <section className="relative py-20 md:py-32 overflow-hidden bg-gradient-to-br from-primary via-primary/95 to-primary">
-          {/* Pattern background */}
-          <div className="absolute inset-0 opacity-20">
-            <div
-              className="absolute inset-0"
-              style={{
-                backgroundImage: `repeating-linear-gradient(
+        <section className="relative py-20 md:py-32 overflow-hidden bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950">
+          {/* Dark pattern background */}
+          <div className="absolute inset-0 opacity-30">
+            <div className="absolute inset-0" style={{
+            backgroundImage: `repeating-linear-gradient(
                   45deg,
                   transparent,
                   transparent 10px,
-                  rgba(255,255,255,0.03) 10px,
-                  rgba(255,255,255,0.03) 11px
-                )`,
-              }}
-            />
+                  rgba(255,255,255,0.02) 10px,
+                  rgba(255,255,255,0.02) 11px
+                )`
+          }} />
           </div>
 
           <div className="container mx-auto px-4 relative z-10">
@@ -225,46 +211,35 @@ const Index = () => {
               {/* Left Content */}
               <div className="space-y-8">
                 <h2 className="text-5xl md:text-6xl lg:text-7xl font-bold leading-tight">
-                  <span className="text-primary-foreground">BRINGING </span>
-                  <span className="text-primary-foreground">FANTASY </span>
-                  <span className="text-primary-foreground">SPORTS </span>
+                  <span className="text-white">BRINGING </span>
+                  <span className="text-white">FANTASY </span>
+                  <span className="text-white">SPORTS </span>
                   <br />
-                  <span className="text-primary-foreground">TO </span>
-                  <span className="text-accent">ROWING</span>
+                  <span className="text-white">TO </span>
+                  <span className="bg-gradient-to-r from-cyan-400 via-blue-400 to-purple-400 bg-clip-text text-transparent">ROWING</span>
                 </h2>
 
-                <p className="text-lg md:text-xl text-primary-foreground/80 max-w-xl">
+                <p className="text-lg md:text-xl text-gray-300 max-w-xl">
                   Join cash fantasy contests for every popular regatta. Select your crews and put your knowledge to the test.
                 </p>
 
                 <div className="flex flex-col sm:flex-row gap-4">
                   <Link to="/signup">
-                    <Button 
-                      size="lg" 
-                      className="text-lg px-8 py-6 bg-accent text-accent-foreground hover:bg-accent/90 rounded-xl font-semibold w-full sm:w-auto"
-                    >
+                    <Button size="lg" className="text-lg px-8 py-6 bg-white text-black hover:bg-gray-100 rounded-xl font-semibold w-full sm:w-auto">
                       Play Now
                     </Button>
                   </Link>
                   <Link to="/lobby">
-                    <Button 
-                      size="lg" 
-                      variant="outline"
-                      className="text-lg px-8 py-6 border-2 border-primary-foreground/30 text-primary-foreground hover:bg-primary-foreground/10 rounded-xl bg-transparent w-full sm:w-auto"
-                    >
+                    <Button size="lg" variant="outline" className="text-lg px-8 py-6 border-2 border-white/30 text-white hover:bg-white/10 rounded-xl bg-transparent w-full sm:w-auto">
                       Learn More
                     </Button>
                   </Link>
                 </div>
               </div>
 
-              {/* Right Content - Phone Mockups */}
-              <div className="relative flex justify-center items-end h-full">
-                <img 
-                  src={phonesMockup} 
-                  alt="RowFantasy app interface on mobile phones"
-                  className="w-full h-auto max-w-2xl mx-auto object-bottom"
-                />
+              {/* Right Content - Phone Image */}
+              <div className="relative">
+                
               </div>
             </div>
           </div>
@@ -285,35 +260,7 @@ const Index = () => {
 
         {/* Marketing Hero Section */}
         <section className="relative py-20 md:py-32 overflow-hidden bg-gradient-to-br from-primary via-primary/95 to-primary/90">
-          <div className="container mx-auto px-4">
-            <div className="max-w-7xl mx-auto">
-              <img 
-                src={heroContestPhones} 
-                alt="Play Big Regattas & Win Real Prizes - RowFantasy contest interface showing contest selection and crew drafting on mobile devices"
-                className="w-full h-auto rounded-2xl shadow-2xl shadow-accent/20 hover:shadow-accent/30 transition-smooth"
-              />
-              
-              {/* Overlay Content */}
-              <div className="mt-12 text-center">
-                <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                  <Link to="/signup">
-                    <Button size="lg" variant="cta" className="text-lg px-8 py-6">
-                      Play Now
-                    </Button>
-                  </Link>
-                  <Link to="/lobby">
-                    <Button 
-                      size="lg" 
-                      variant="outline"
-                      className="text-lg px-8 py-6 border-2 border-white/30 text-white hover:bg-white/10 bg-transparent"
-                    >
-                      Learn More
-                    </Button>
-                  </Link>
-                </div>
-              </div>
-            </div>
-          </div>
+          
         </section>
 
         {/* How It Works */}
@@ -434,8 +381,7 @@ const Index = () => {
         </section>
 
         {/* CTA Section */}
-        {!user && (
-          <section className="gradient-hero text-white py-20">
+        {!user && <section className="gradient-hero text-white py-20">
             <div className="container mx-auto px-4 text-center">
               <h2 className="text-3xl md:text-4xl font-bold mb-6">Ready to Compete?</h2>
               <p className="text-xl text-primary-foreground/90 mb-8 max-w-2xl mx-auto">
@@ -447,13 +393,10 @@ const Index = () => {
                 </Button>
               </Link>
             </div>
-          </section>
-        )}
+          </section>}
       </main>
 
       <Footer />
-    </div>
-  );
+    </div>;
 };
-
 export default Index;
