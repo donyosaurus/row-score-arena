@@ -259,11 +259,11 @@ const Index = () => {
               </div>
 
               {/* Right Content - Phone Mockups */}
-              <div className="relative flex justify-center items-center">
+              <div className="relative flex justify-center items-end h-full">
                 <img 
                   src={phonesMockup} 
                   alt="RowFantasy app interface on mobile phones"
-                  className="w-full h-auto max-w-2xl mx-auto"
+                  className="w-full h-auto max-w-2xl mx-auto object-bottom"
                 />
               </div>
             </div>
