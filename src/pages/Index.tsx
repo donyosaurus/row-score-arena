@@ -203,9 +203,9 @@ const Index = () => {
         </section>
 
         {/* Marketing Hero Section */}
-        <section className="relative py-20 md:py-32 overflow-hidden bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950">
-          {/* Dark pattern background */}
-          <div className="absolute inset-0 opacity-30">
+        <section className="relative py-20 md:py-32 overflow-hidden bg-gradient-to-br from-primary via-primary/95 to-primary">
+          {/* Pattern background */}
+          <div className="absolute inset-0 opacity-20">
             <div
               className="absolute inset-0"
               style={{
@@ -213,8 +213,8 @@ const Index = () => {
                   45deg,
                   transparent,
                   transparent 10px,
-                  rgba(255,255,255,0.02) 10px,
-                  rgba(255,255,255,0.02) 11px
+                  rgba(255,255,255,0.03) 10px,
+                  rgba(255,255,255,0.03) 11px
                 )`,
               }}
             />
@@ -225,15 +225,15 @@ const Index = () => {
               {/* Left Content */}
               <div className="space-y-8">
                 <h2 className="text-5xl md:text-6xl lg:text-7xl font-bold leading-tight">
-                  <span className="text-white">BRINGING </span>
-                  <span className="text-white">FANTASY </span>
-                  <span className="text-white">SPORTS </span>
+                  <span className="text-primary-foreground">BRINGING </span>
+                  <span className="text-primary-foreground">FANTASY </span>
+                  <span className="text-primary-foreground">SPORTS </span>
                   <br />
-                  <span className="text-white">TO </span>
-                  <span className="bg-gradient-to-r from-cyan-400 via-blue-400 to-purple-400 bg-clip-text text-transparent">ROWING</span>
+                  <span className="text-primary-foreground">TO </span>
+                  <span className="text-accent">ROWING</span>
                 </h2>
 
-                <p className="text-lg md:text-xl text-gray-300 max-w-xl">
+                <p className="text-lg md:text-xl text-primary-foreground/80 max-w-xl">
                   Join cash fantasy contests for every popular regatta. Select your crews and put your knowledge to the test.
                 </p>
 
@@ -241,7 +241,7 @@ const Index = () => {
                   <Link to="/signup">
                     <Button 
                       size="lg" 
-                      className="text-lg px-8 py-6 bg-white text-black hover:bg-gray-100 rounded-xl font-semibold w-full sm:w-auto"
+                      className="text-lg px-8 py-6 bg-accent text-accent-foreground hover:bg-accent/90 rounded-xl font-semibold w-full sm:w-auto"
                     >
                       Play Now
                     </Button>
@@ -250,7 +250,7 @@ const Index = () => {
                     <Button 
                       size="lg" 
                       variant="outline"
-                      className="text-lg px-8 py-6 border-2 border-white/30 text-white hover:bg-white/10 rounded-xl bg-transparent w-full sm:w-auto"
+                      className="text-lg px-8 py-6 border-2 border-primary-foreground/30 text-primary-foreground hover:bg-primary-foreground/10 rounded-xl bg-transparent w-full sm:w-auto"
                     >
                       Learn More
                     </Button>
