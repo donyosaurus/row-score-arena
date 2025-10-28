@@ -152,15 +152,20 @@ async function handlePaymentSucceeded(supabase: any, event: any) {
     return;
   }
 
-  // Update wallet balance
-  const depositAmount = session.amount_cents / 100;
-  await supabase
-    .from('wallets')
-    .update({
-      available_balance: Number(wallet.available_balance) + depositAmount,
-      lifetime_deposits: Number(wallet.lifetime_deposits) + depositAmount,
+  // Update wallet balance using atomic function
+  const { data: walletUpdate, error: walletError } = await supabase
+    .rpc('update_wallet_balance', {
+      _wallet_id: wallet.id,
+      _available_delta: depositAmount,
+      _pending_delta: 0,
+      _lifetime_deposits_delta: depositAmount
     })
-    .eq('id', wallet.id);
+    .single();
+
+  if (walletError) {
+    console.error('[payments-webhook] Error updating wallet:', walletError);
+    return;
+  }
 
   // Log compliance event
   await supabase.from('compliance_audit_logs').insert({

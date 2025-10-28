@@ -1,6 +1,7 @@
 // Wallet Withdrawal - Initiate payout with compliance checks
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.76.1';
+import { z } from 'https://deno.land/x/zod@v3.22.4/mod.ts';
 import { getPaymentProvider } from '../shared/payment-providers/factory.ts';
 import { performComplianceChecks } from '../shared/compliance-checks.ts';
 
@@ -29,14 +30,30 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { amountCents, destinationToken, stateCode, idempotencyKey } = await req.json();
+    // Validate input with Zod schema
+    const withdrawSchema = z.object({
+      amountCents: z.number().int().positive().min(1000).max(5000000), // $10 - $50k
+      destinationToken: z.string().min(1),
+      stateCode: z.string().regex(/^[A-Z]{2}$/).optional(),
+      idempotencyKey: z.string().uuid().optional()
+    });
 
-    if (!amountCents || amountCents < 1000) {
+    let body;
+    try {
+      const rawBody = await req.json();
+      body = withdrawSchema.parse(rawBody);
+    } catch (error) {
+      console.error('[wallet-withdraw] Validation error:', error);
       return new Response(
-        JSON.stringify({ error: 'Minimum withdrawal is $10.00' }),
+        JSON.stringify({ 
+          error: 'Invalid input parameters',
+          details: error instanceof z.ZodError ? error.errors : 'Validation failed'
+        }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    const { amountCents, destinationToken, stateCode, idempotencyKey } = body;
 
     // Check for duplicate withdrawal (idempotency)
     if (idempotencyKey) {
@@ -139,18 +156,22 @@ Deno.serve(async (req) => {
       throw txnError;
     }
 
-    // Deduct from available balance (move to pending)
-    const { error: updateError } = await supabase
-      .from('wallets')
-      .update({
-        available_balance: Number(wallet.available_balance) - (amountCents / 100),
-        pending_balance: Number(wallet.pending_balance) + (amountCents / 100),
+    // Use atomic wallet update to prevent race conditions
+    const { data: walletUpdate, error: updateError } = await supabase
+      .rpc('update_wallet_balance', {
+        _wallet_id: wallet.id,
+        _available_delta: -(amountCents / 100),
+        _pending_delta: amountCents / 100,
+        _lifetime_withdrawals_delta: amountCents / 100
       })
-      .eq('id', wallet.id);
+      .single();
 
-    if (updateError) {
-      console.error('[wallet-withdraw] Error updating wallet:', updateError);
-      throw updateError;
+    if (updateError || !walletUpdate || !(walletUpdate as any).success) {
+      console.error('[wallet-withdraw] Error updating wallet:', updateError || 'Insufficient balance');
+      return new Response(
+        JSON.stringify({ error: 'Failed to process withdrawal - insufficient balance or concurrent operation' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     console.log('[wallet-withdraw] Withdrawal initiated:', transaction.id);

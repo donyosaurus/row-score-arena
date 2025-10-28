@@ -788,6 +788,21 @@ export type Database = {
         }
         Returns: boolean
       }
+      update_wallet_balance: {
+        Args: {
+          _available_delta: number
+          _lifetime_deposits_delta?: number
+          _lifetime_winnings_delta?: number
+          _lifetime_withdrawals_delta?: number
+          _pending_delta: number
+          _wallet_id: string
+        }
+        Returns: {
+          available_balance: number
+          pending_balance: number
+          success: boolean
+        }[]
+      }
     }
     Enums: {
       app_role: "admin" | "user"

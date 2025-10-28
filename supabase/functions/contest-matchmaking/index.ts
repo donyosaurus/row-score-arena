@@ -11,6 +11,18 @@ Deno.serve(async (req) => {
   }
 
   try {
+    // Verify authorization - require worker token
+    const authHeader = req.headers.get('Authorization');
+    const expectedToken = Deno.env.get('MATCHMAKING_WORKER_TOKEN');
+    
+    if (!authHeader || !expectedToken || authHeader !== `Bearer ${expectedToken}`) {
+      console.error('[contest-matchmaking] Unauthorized access attempt');
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized - worker token required' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''

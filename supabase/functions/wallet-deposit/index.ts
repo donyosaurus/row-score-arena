@@ -1,6 +1,7 @@
 // Wallet Deposit - Create payment session and return checkout URL
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.76.1';
+import { z } from 'https://deno.land/x/zod@v3.22.4/mod.ts';
 import { getPaymentProvider } from '../shared/payment-providers/factory.ts';
 import { performComplianceChecks } from '../shared/compliance-checks.ts';
 
@@ -29,21 +30,30 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { amountCents, stateCode, returnUrl, idempotencyKey } = await req.json();
+    // Validate input with Zod schema
+    const depositSchema = z.object({
+      amountCents: z.number().int().positive().min(500).max(1000000), // $5 - $10k
+      stateCode: z.string().regex(/^[A-Z]{2}$/, 'Invalid state code format'),
+      returnUrl: z.string().url().optional(),
+      idempotencyKey: z.string().uuid().optional()
+    });
 
-    if (!amountCents || amountCents < 500) {
+    let body;
+    try {
+      const rawBody = await req.json();
+      body = depositSchema.parse(rawBody);
+    } catch (error) {
+      console.error('[wallet-deposit] Validation error:', error);
       return new Response(
-        JSON.stringify({ error: 'Minimum deposit is $5.00' }),
+        JSON.stringify({ 
+          error: 'Invalid input parameters',
+          details: error instanceof z.ZodError ? error.errors : 'Validation failed'
+        }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    if (!stateCode) {
-      return new Response(
-        JSON.stringify({ error: 'State code required' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+    const { amountCents, stateCode, returnUrl, idempotencyKey } = body;
 
     // Check for existing session with idempotency key
     if (idempotencyKey) {

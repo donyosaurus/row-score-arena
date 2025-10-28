@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.76.1';
+import { z } from 'https://deno.land/x/zod@v3.22.4/mod.ts';
 import { performComplianceChecks } from '../shared/compliance-checks.ts';
 
 const corsHeaders = {
@@ -40,18 +41,35 @@ Deno.serve(async (req) => {
       });
     }
 
-    const body: EntryRequest = await req.json();
-    const { contestTemplateId, tierId, picks } = body;
+    // Validate input with Zod schema
+    const entrySchema = z.object({
+      contestTemplateId: z.string().uuid('Invalid contest ID'),
+      tierId: z.string().min(1, 'Tier ID required'),
+      picks: z.array(z.object({
+        crewId: z.string().uuid('Invalid crew ID'),
+        divisionId: z.string().min(1, 'Division ID required'),
+        predictedMargin: z.number()
+      })).min(2, 'Minimum 2 picks required').max(10, 'Maximum 10 picks allowed')
+    });
 
-    console.log('Contest entry request:', { userId: user.id, contestTemplateId, tierId });
-
-    // Validate picks
-    if (!picks || picks.length < 2) {
+    let body;
+    try {
+      const rawBody = await req.json();
+      body = entrySchema.parse(rawBody);
+    } catch (error) {
+      console.error('[contest-enter] Validation error:', error);
       return new Response(
-        JSON.stringify({ error: 'Minimum 2 picks required' }),
+        JSON.stringify({ 
+          error: 'Invalid input parameters',
+          details: error instanceof z.ZodError ? error.errors : 'Validation failed'
+        }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    const { contestTemplateId, tierId, picks } = body;
+
+    console.log('Contest entry request:', { userId: user.id, contestTemplateId, tierId });
 
     // Get contest template
     const { data: template, error: templateError } = await supabase
@@ -192,20 +210,20 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Update wallet balances
-    const { error: walletUpdateError } = await supabase
-      .from('wallets')
-      .update({
-        available_balance: availableBalance - entryFee,
-        pending_balance: parseFloat(wallet.pending_balance) + entryFee,
+    // Use atomic wallet update to prevent race conditions
+    const { data: walletUpdate, error: walletUpdateError } = await supabase
+      .rpc('update_wallet_balance', {
+        _wallet_id: wallet.id,
+        _available_delta: -entryFee,
+        _pending_delta: entryFee
       })
-      .eq('id', wallet.id);
+      .single();
 
-    if (walletUpdateError) {
-      console.error('Error updating wallet:', walletUpdateError);
+    if (walletUpdateError || !walletUpdate || !(walletUpdate as any).success) {
+      console.error('Error updating wallet:', walletUpdateError || 'Insufficient balance');
       return new Response(
-        JSON.stringify({ error: 'Failed to update wallet' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: 'Failed to update wallet - insufficient balance or concurrent operation' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
