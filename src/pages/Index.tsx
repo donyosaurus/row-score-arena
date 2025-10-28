@@ -238,12 +238,14 @@ const Index = () => {
               </div>
 
               {/* Right Content - Phone Image */}
-              <div className="relative flex justify-end items-end">
-                <img 
-                  src={heroRowingPhones} 
-                  alt="RowFantasy app preview on mobile devices" 
-                  className="w-full max-w-2xl object-contain"
-                />
+              <div className="relative flex justify-end items-end h-full">
+                <div className="absolute bottom-0 right-0 flex justify-end">
+                  <img 
+                    src={heroRowingPhones} 
+                    alt="RowFantasy app preview on mobile devices" 
+                    className="w-full max-w-2xl object-contain scale-110"
+                  />
+                </div>
               </div>
             </div>
           </div>
