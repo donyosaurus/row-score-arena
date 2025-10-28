@@ -92,6 +92,176 @@ export type Database = {
         }
         Relationships: []
       }
+      contest_entries: {
+        Row: {
+          contest_template_id: string
+          created_at: string
+          entry_fee_cents: number
+          id: string
+          margin_error: number | null
+          payout_cents: number | null
+          picks: Json
+          pool_id: string
+          rank: number | null
+          state_code: string | null
+          status: string
+          total_points: number | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          contest_template_id: string
+          created_at?: string
+          entry_fee_cents: number
+          id?: string
+          margin_error?: number | null
+          payout_cents?: number | null
+          picks: Json
+          pool_id: string
+          rank?: number | null
+          state_code?: string | null
+          status?: string
+          total_points?: number | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          contest_template_id?: string
+          created_at?: string
+          entry_fee_cents?: number
+          id?: string
+          margin_error?: number | null
+          payout_cents?: number | null
+          picks?: Json
+          pool_id?: string
+          rank?: number | null
+          state_code?: string | null
+          status?: string
+          total_points?: number | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contest_entries_contest_template_id_fkey"
+            columns: ["contest_template_id"]
+            isOneToOne: false
+            referencedRelation: "contest_templates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contest_entries_pool_id_fkey"
+            columns: ["pool_id"]
+            isOneToOne: false
+            referencedRelation: "contest_pools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contest_pools: {
+        Row: {
+          contest_template_id: string
+          created_at: string
+          current_entries: number
+          entry_fee_cents: number
+          id: string
+          lock_time: string
+          max_entries: number
+          prize_pool_cents: number
+          prize_structure: Json | null
+          settled_at: string | null
+          status: string
+          tier_id: string
+          winner_ids: string[] | null
+        }
+        Insert: {
+          contest_template_id: string
+          created_at?: string
+          current_entries?: number
+          entry_fee_cents: number
+          id?: string
+          lock_time: string
+          max_entries: number
+          prize_pool_cents: number
+          prize_structure?: Json | null
+          settled_at?: string | null
+          status?: string
+          tier_id: string
+          winner_ids?: string[] | null
+        }
+        Update: {
+          contest_template_id?: string
+          created_at?: string
+          current_entries?: number
+          entry_fee_cents?: number
+          id?: string
+          lock_time?: string
+          max_entries?: number
+          prize_pool_cents?: number
+          prize_structure?: Json | null
+          settled_at?: string | null
+          status?: string
+          tier_id?: string
+          winner_ids?: string[] | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contest_pools_contest_template_id_fkey"
+            columns: ["contest_template_id"]
+            isOneToOne: false
+            referencedRelation: "contest_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contest_templates: {
+        Row: {
+          created_at: string
+          crews: Json
+          divisions: Json
+          entry_tiers: Json
+          gender_category: string
+          id: string
+          lock_time: string
+          max_picks: number
+          min_picks: number
+          regatta_name: string
+          results: Json | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          crews?: Json
+          divisions?: Json
+          entry_tiers?: Json
+          gender_category: string
+          id?: string
+          lock_time: string
+          max_picks?: number
+          min_picks?: number
+          regatta_name: string
+          results?: Json | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          crews?: Json
+          divisions?: Json
+          entry_tiers?: Json
+          gender_category?: string
+          id?: string
+          lock_time?: string
+          max_picks?: number
+          min_picks?: number
+          regatta_name?: string
+          results?: Json | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       geofence_logs: {
         Row: {
           action_type: string
@@ -238,6 +408,63 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "state_regulation_rules"
             referencedColumns: ["state_code"]
+          },
+        ]
+      }
+      match_queue: {
+        Row: {
+          contest_template_id: string
+          entry_fee_cents: number
+          id: string
+          joined_at: string
+          matched_at: string | null
+          picks: Json
+          pool_id: string | null
+          state_code: string
+          status: string
+          tier_id: string
+          user_id: string
+        }
+        Insert: {
+          contest_template_id: string
+          entry_fee_cents: number
+          id?: string
+          joined_at?: string
+          matched_at?: string | null
+          picks: Json
+          pool_id?: string | null
+          state_code: string
+          status?: string
+          tier_id: string
+          user_id: string
+        }
+        Update: {
+          contest_template_id?: string
+          entry_fee_cents?: number
+          id?: string
+          joined_at?: string
+          matched_at?: string | null
+          picks?: Json
+          pool_id?: string | null
+          state_code?: string
+          status?: string
+          tier_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "match_queue_contest_template_id_fkey"
+            columns: ["contest_template_id"]
+            isOneToOne: false
+            referencedRelation: "contest_templates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "match_queue_pool_id_fkey"
+            columns: ["pool_id"]
+            isOneToOne: false
+            referencedRelation: "contest_pools"
+            referencedColumns: ["id"]
           },
         ]
       }
