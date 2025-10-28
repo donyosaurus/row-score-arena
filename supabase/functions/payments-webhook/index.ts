@@ -152,6 +152,9 @@ async function handlePaymentSucceeded(supabase: any, event: any) {
     return;
   }
 
+  // Calculate deposit amount
+  const depositAmount = session.amount_cents / 100;
+
   // Update wallet balance using atomic function
   const { data: walletUpdate, error: walletError } = await supabase
     .rpc('update_wallet_balance', {
