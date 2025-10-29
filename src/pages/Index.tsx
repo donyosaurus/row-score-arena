@@ -8,38 +8,43 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { Target, TrendingUp, Shield, Clock, Trophy } from "lucide-react";
 import heroRowing from "@/assets/hero-rowing.jpeg";
 import heroContestPhones from "@/assets/hero-contest-phones.png";
-import heroRowingPhones from "@/assets/hero-contest-phones-v3.png";
+import heroRowingPhones from "@/assets/phones-contest-mockup.png";
 import { useAuth } from "@/hooks/useAuth";
 const Index = () => {
-  const {
-    user
-  } = useAuth();
-  return <div className="flex flex-col min-h-screen">
+  const { user } = useAuth();
+  return (
+    <div className="flex flex-col min-h-screen">
       <Header />
 
       <main className="flex-1">
         {/* Hero Section */}
         <section className="relative bg-primary text-white py-20 md:py-32 overflow-hidden">
           {/* Background Image */}
-          <div className="absolute inset-0 bg-cover bg-center opacity-30" style={{
-          backgroundImage: `url(${heroRowing})`,
-          backgroundPosition: 'center'
-        }} />
-          
+          <div
+            className="absolute inset-0 bg-cover bg-center opacity-30"
+            style={{
+              backgroundImage: `url(${heroRowing})`,
+              backgroundPosition: "center",
+            }}
+          />
+
           {/* Overlay gradient for better text readability */}
           <div className="absolute inset-0 bg-gradient-to-b from-primary/75 via-primary/65 to-primary/85" />
-          
+
           {/* Background Pattern */}
           <div className="absolute inset-0 opacity-10">
-            <div className="absolute inset-0" style={{
-            backgroundImage: `repeating-linear-gradient(
+            <div
+              className="absolute inset-0"
+              style={{
+                backgroundImage: `repeating-linear-gradient(
                 90deg,
                 transparent,
                 transparent 50px,
                 rgba(255,255,255,0.03) 50px,
                 rgba(255,255,255,0.03) 51px
-              )`
-          }} />
+              )`,
+              }}
+            />
           </div>
 
           <div className="container mx-auto px-4 relative z-10">
@@ -60,7 +65,8 @@ const Index = () => {
 
               {/* Description */}
               <p className="text-xl md:text-2xl text-white/90 max-w-3xl leading-relaxed">
-                Draft multiple crews from a single regatta. They automatically earn points based on their actual finish. Win fixed prizes based on skill.
+                Draft multiple crews from a single regatta. They automatically earn points based on their actual finish.
+                Win fixed prizes based on skill.
               </p>
 
               {/* CTA Buttons */}
@@ -71,7 +77,11 @@ const Index = () => {
                   </Button>
                 </Link>
                 <Link to="/how-it-works">
-                  <Button size="lg" variant="outline" className="text-lg px-8 py-6 border-2 border-white/30 text-white hover:bg-white/10 rounded-xl bg-transparent">
+                  <Button
+                    size="lg"
+                    variant="outline"
+                    className="text-lg px-8 py-6 border-2 border-white/30 text-white hover:bg-white/10 rounded-xl bg-transparent"
+                  >
                     How It Works
                   </Button>
                 </Link>
@@ -133,7 +143,8 @@ const Index = () => {
                 </CardHeader>
                 <CardContent>
                   <p className="text-muted-foreground">
-                    Choose from available contests across international and national competitions. Select the tier of contest that best suits you.
+                    Choose from available contests across international and national competitions. Select the tier of
+                    contest that best suits you.
                   </p>
                 </CardContent>
               </Card>
@@ -147,7 +158,8 @@ const Index = () => {
                 </CardHeader>
                 <CardContent>
                   <p className="text-muted-foreground">
-                    Draft at least 2 crews from different events and predict their margin to victory (tie-breaker). Match up against other users entered in the same contest.
+                    Draft at least 2 crews from different events and predict their margin to victory (tie-breaker).
+                    Match up against other users entered in the same contest.
                   </p>
                 </CardContent>
               </Card>
@@ -161,7 +173,8 @@ const Index = () => {
                 </CardHeader>
                 <CardContent>
                   <p className="text-muted-foreground">
-                    Earn points based on your draft picks' finish placement. The user with the most points wins the contest, ties are decided using most accurate margin to victory.
+                    Earn points based on your draft picks' finish placement. The user with the most points wins the
+                    contest, ties are decided using most accurate margin to victory.
                   </p>
                 </CardContent>
               </Card>
@@ -175,7 +188,8 @@ const Index = () => {
                 </CardHeader>
                 <CardContent>
                   <p className="text-muted-foreground">
-                    Contest winners will have pre-posted payouts automatically deposited into their account. All transactions are made through secure 3rd party payment processors.
+                    Contest winners will have pre-posted payouts automatically deposited into their account. All
+                    transactions are made through secure 3rd party payment processors.
                   </p>
                 </CardContent>
               </Card>
@@ -192,18 +206,21 @@ const Index = () => {
         </section>
 
         {/* Marketing Hero Section */}
-        <section className="relative py-20 md:py-32 pb-0 overflow-visible" style={{ backgroundColor: '#030712' }}>
+        <section className="relative py-20 md:py-32 pb-0 overflow-visible bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950">
           {/* Dark pattern background */}
           <div className="absolute inset-0 opacity-30">
-            <div className="absolute inset-0" style={{
-            backgroundImage: `repeating-linear-gradient(
+            <div
+              className="absolute inset-0"
+              style={{
+                backgroundImage: `repeating-linear-gradient(
                   45deg,
                   transparent,
                   transparent 10px,
                   rgba(255,255,255,0.02) 10px,
                   rgba(255,255,255,0.02) 11px
-                )`
-          }} />
+                )`,
+              }}
+            />
           </div>
 
           <div className="container mx-auto px-4 relative z-10">
@@ -216,21 +233,31 @@ const Index = () => {
                   <span className="text-white">SPORTS </span>
                   <br />
                   <span className="text-white">TO </span>
-                  <span className="bg-gradient-to-r from-cyan-400 via-blue-400 to-purple-400 bg-clip-text text-transparent">ROWING</span>
+                  <span className="bg-gradient-to-r from-cyan-400 via-blue-400 to-purple-400 bg-clip-text text-transparent">
+                    ROWING
+                  </span>
                 </h2>
 
                 <p className="text-lg md:text-xl text-gray-300 max-w-xl">
-                  Join cash fantasy contests for every popular regatta. Select your crews and put your knowledge to the test.
+                  Join cash fantasy contests for every popular regatta. Select your crews and put your knowledge to the
+                  test.
                 </p>
 
                 <div className="flex flex-col sm:flex-row gap-4">
                   <Link to="/signup">
-                    <Button size="lg" className="text-lg px-8 py-6 bg-white text-black hover:bg-gray-100 rounded-xl font-semibold w-full sm:w-auto">
+                    <Button
+                      size="lg"
+                      className="text-lg px-8 py-6 bg-white text-black hover:bg-gray-100 rounded-xl font-semibold w-full sm:w-auto"
+                    >
                       Play Now
                     </Button>
                   </Link>
                   <Link to="/lobby">
-                    <Button size="lg" variant="outline" className="text-lg px-8 py-6 border-2 border-white/30 text-white hover:bg-white/10 rounded-xl bg-transparent w-full sm:w-auto">
+                    <Button
+                      size="lg"
+                      variant="outline"
+                      className="text-lg px-8 py-6 border-2 border-white/30 text-white hover:bg-white/10 rounded-xl bg-transparent w-full sm:w-auto"
+                    >
                       Learn More
                     </Button>
                   </Link>
@@ -239,10 +266,10 @@ const Index = () => {
 
               {/* Right Content - Phone Image */}
               <div className="relative flex justify-end items-end h-full pb-0">
-                <div className="absolute right-0 bottom-0" style={{ transform: 'translateY(21.5%)' }}>
-                  <img 
-                    src={heroRowingPhones} 
-                    alt="RowFantasy app preview on mobile devices" 
+                <div className="absolute right-0 bottom-0" style={{ transform: "translateY(21%)" }}>
+                  <img
+                    src={heroRowingPhones}
+                    alt="RowFantasy app preview on mobile devices"
                     className="w-full max-w-2xl object-contain object-bottom scale-[0.99]"
                   />
                 </div>
@@ -265,9 +292,7 @@ const Index = () => {
         </section>
 
         {/* Marketing Hero Section */}
-        <section className="relative py-20 md:py-32 overflow-hidden bg-gradient-to-br from-primary via-primary/95 to-primary/90">
-          
-        </section>
+        <section className="relative py-20 md:py-32 overflow-hidden bg-gradient-to-br from-primary via-primary/95 to-primary/90"></section>
 
         {/* How It Works */}
         <section className="py-20 bg-background border-t border-border">
@@ -286,22 +311,21 @@ const Index = () => {
                 </AccordionTrigger>
                 <AccordionContent className="text-muted-foreground pb-6 text-base leading-relaxed">
                   <p className="mb-4">
-                    Fantasy sports contests are classified as skill-based competitions under federal law, 
-                    making them exempt from federal gambling regulations. This designation recognizes that 
-                    success depends primarily on a player's knowledge, skill, and analytical ability rather 
-                    than chance.
+                    Fantasy sports contests are classified as skill-based competitions under federal law, making them
+                    exempt from federal gambling regulations. This designation recognizes that success depends primarily
+                    on a player's knowledge, skill, and analytical ability rather than chance.
                   </p>
                   <p className="mb-4">
-                    <strong>Why Two Crews Minimum:</strong> To ensure our contests remain skill-based and 
-                    legally compliant, all lineups must draft at least two crews from different events. 
-                    This requirement reflects the legal framework for fantasy sports and emphasizes strategic 
-                    decision-making over simple outcome prediction.
+                    <strong>Why Two Crews Minimum:</strong> To ensure our contests remain skill-based and legally
+                    compliant, all lineups must draft at least two crews from different events. This requirement
+                    reflects the legal framework for fantasy sports and emphasizes strategic decision-making over simple
+                    outcome prediction.
                   </p>
                   <p>
-                    <strong>State Regulations:</strong> While federally unregulated, individual states maintain 
-                    their own laws governing fantasy sports contests. Some states have explicitly legalized and 
-                    regulated fantasy sports, while others restrict or prohibit certain types of contests. 
-                    Please review our State Availability Map to confirm whether contests are available in your location.
+                    <strong>State Regulations:</strong> While federally unregulated, individual states maintain their
+                    own laws governing fantasy sports contests. Some states have explicitly legalized and regulated
+                    fantasy sports, while others restrict or prohibit certain types of contests. Please review our State
+                    Availability Map to confirm whether contests are available in your location.
                   </p>
                 </AccordionContent>
               </AccordionItem>
@@ -312,15 +336,15 @@ const Index = () => {
                 </AccordionTrigger>
                 <AccordionContent className="text-muted-foreground pb-6 text-base leading-relaxed">
                   <p className="mb-4">
-                    Add funds to your wallet securely using credit cards, debit cards, or ACH bank transfers. 
-                    All transactions are processed through industry-leading payment providers with bank-level encryption.
+                    Add funds to your wallet securely using credit cards, debit cards, or ACH bank transfers. All
+                    transactions are processed through industry-leading payment providers with bank-level encryption.
                   </p>
                   <p className="mb-4">
                     <strong>Deposits:</strong> Instant credit to your account. Minimum deposit $10.
                   </p>
                   <p>
-                    <strong>Withdrawals:</strong> Request anytime. Processing typically takes 3-5 business days. 
-                    Minimum withdrawal $20. All withdrawals are subject to identity verification.
+                    <strong>Withdrawals:</strong> Request anytime. Processing typically takes 3-5 business days. Minimum
+                    withdrawal $20. All withdrawals are subject to identity verification.
                   </p>
                 </AccordionContent>
               </AccordionItem>
@@ -330,22 +354,20 @@ const Index = () => {
                   Matchmaking
                 </AccordionTrigger>
                 <AccordionContent className="text-muted-foreground pb-6 text-base leading-relaxed">
-                  <p className="mb-4">
-                    Choose from two contest types:
-                  </p>
+                  <p className="mb-4">Choose from two contest types:</p>
                   <ul className="space-y-3 mb-4">
                     <li>
-                      <strong>Head-to-Head (H2H):</strong> Compete against one other player. 
-                      Winner takes the fixed prize. Fair matching based on entry time.
+                      <strong>Head-to-Head (H2H):</strong> Compete against one other player. Winner takes the fixed
+                      prize. Fair matching based on entry time.
                     </li>
                     <li>
-                      <strong>Small Field (Cap-N):</strong> Join contests with 3-20 players. 
-                      Top performers win fixed prize tiers. Contest locks when full or at race start time.
+                      <strong>Small Field (Cap-N):</strong> Join contests with 3-20 players. Top performers win fixed
+                      prize tiers. Contest locks when full or at race start time.
                     </li>
                   </ul>
                   <p>
-                    All contests display entry fee, prize amount, and lock time upfront. 
-                    No hidden fees or changing payouts.
+                    All contests display entry fee, prize amount, and lock time upfront. No hidden fees or changing
+                    payouts.
                   </p>
                 </AccordionContent>
               </AccordionItem>
@@ -373,21 +395,23 @@ const Index = () => {
                     <li>• In case of ties, earliest entry timestamp wins</li>
                   </ul>
                   <p>
-                    <strong>Voids & Refunds:</strong> If a race is canceled or results unavailable, 
-                    contests automatically void and entry fees are refunded to your wallet.
+                    <strong>Voids & Refunds:</strong> If a race is canceled or results unavailable, contests
+                    automatically void and entry fees are refunded to your wallet.
                   </p>
                 </AccordionContent>
               </AccordionItem>
             </Accordion>
 
             <p className="text-center text-xs text-muted-foreground mt-12 italic">
-              All transactions are processed through trusted 3rd party payment providers with bank-level security and encryption.
+              All transactions are processed through trusted 3rd party payment providers with bank-level security and
+              encryption.
             </p>
           </div>
         </section>
 
         {/* CTA Section */}
-        {!user && <section className="gradient-hero text-white py-20">
+        {!user && (
+          <section className="gradient-hero text-white py-20">
             <div className="container mx-auto px-4 text-center">
               <h2 className="text-3xl md:text-4xl font-bold mb-6">Ready to Compete?</h2>
               <p className="text-xl text-primary-foreground/90 mb-8 max-w-2xl mx-auto">
@@ -399,10 +423,12 @@ const Index = () => {
                 </Button>
               </Link>
             </div>
-          </section>}
+          </section>
+        )}
       </main>
 
       <Footer />
-    </div>;
+    </div>
+  );
 };
 export default Index;
