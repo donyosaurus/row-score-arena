@@ -71,20 +71,40 @@ const Index = () => {
 
               {/* CTA Buttons */}
               <div className="flex flex-col sm:flex-row gap-4 items-start">
-                <Link to="/signup">
-                  <Button size="lg" className="text-lg px-8 py-6 bg-accent hover:bg-accent/90 text-white rounded-xl">
-                    Get Started →
-                  </Button>
-                </Link>
-                <Link to="/how-it-works">
-                  <Button
-                    size="lg"
-                    variant="outline"
-                    className="text-lg px-8 py-6 border-2 border-white/30 text-white hover:bg-white/10 rounded-xl bg-transparent"
-                  >
-                    How It Works
-                  </Button>
-                </Link>
+                {user ? (
+                  <>
+                    <Link to="/lobby">
+                      <Button size="lg" className="text-lg px-8 py-6 bg-accent hover:bg-accent/90 text-white rounded-xl">
+                        Play Now →
+                      </Button>
+                    </Link>
+                    <Link to="/profile">
+                      <Button
+                        size="lg"
+                        variant="outline"
+                        className="text-lg px-8 py-6 border-2 border-white/30 text-white hover:bg-white/10 rounded-xl bg-transparent"
+                      >
+                        My Profile
+                      </Button>
+                    </Link>
+                  </>
+                ) : (
+                  <>
+                    <Link to="/signup">
+                      <Button size="lg" className="text-lg px-8 py-6 bg-accent hover:bg-accent/90 text-white rounded-xl">
+                        Get Started →
+                      </Button>
+                    </Link>
+                    <Button
+                      size="lg"
+                      variant="outline"
+                      className="text-lg px-8 py-6 border-2 border-white/30 text-white hover:bg-white/10 rounded-xl bg-transparent"
+                      onClick={() => document.getElementById('how-it-works')?.scrollIntoView({ behavior: 'smooth' })}
+                    >
+                      How It Works
+                    </Button>
+                  </>
+                )}
               </div>
 
               {/* Feature Pills */}
@@ -124,7 +144,7 @@ const Index = () => {
         </section>
 
         {/* How It Works */}
-        <section className="py-20 gradient-subtle">
+        <section id="how-it-works" className="py-20 gradient-subtle">
           <div className="container mx-auto px-4">
             <div className="text-center mb-16">
               <h2 className="text-3xl md:text-4xl font-bold mb-4">How it Works</h2>
@@ -244,7 +264,7 @@ const Index = () => {
                 </p>
 
                 <div className="flex flex-col sm:flex-row gap-4">
-                  <Link to="/signup">
+                  <Link to="/lobby">
                     <Button
                       size="lg"
                       className="text-lg px-8 py-6 bg-white text-black hover:bg-gray-100 rounded-xl font-semibold w-full sm:w-auto"
@@ -252,15 +272,14 @@ const Index = () => {
                       Play Now
                     </Button>
                   </Link>
-                  <Link to="/lobby">
-                    <Button
-                      size="lg"
-                      variant="outline"
-                      className="text-lg px-8 py-6 border-2 border-white/30 text-white hover:bg-white/10 rounded-xl bg-transparent w-full sm:w-auto"
-                    >
-                      Learn More
-                    </Button>
-                  </Link>
+                  <Button
+                    size="lg"
+                    variant="outline"
+                    className="text-lg px-8 py-6 border-2 border-white/30 text-white hover:bg-white/10 rounded-xl bg-transparent w-full sm:w-auto"
+                    onClick={() => document.getElementById('more-information')?.scrollIntoView({ behavior: 'smooth' })}
+                  >
+                    Learn More
+                  </Button>
                 </div>
               </div>
 
@@ -295,7 +314,7 @@ const Index = () => {
         <section className="relative py-20 md:py-32 overflow-hidden bg-gradient-to-br from-primary via-primary/95 to-primary/90"></section>
 
         {/* How It Works */}
-        <section className="py-20 bg-background border-t border-border">
+        <section id="more-information" className="py-20 bg-background border-t border-border">
           <div className="container mx-auto px-4 max-w-4xl">
             <div className="text-center mb-12">
               <h2 className="text-3xl md:text-4xl font-bold mb-4">More Information</h2>
