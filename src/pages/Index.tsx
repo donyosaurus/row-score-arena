@@ -8,7 +8,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { Target, TrendingUp, Shield, Clock, Trophy } from "lucide-react";
 import heroRowing from "@/assets/hero-rowing.jpeg";
 import heroContestPhones from "@/assets/hero-contest-phones.png";
-import heroRowingPhones from "@/assets/hero-contest-phones-v2.png";
+import heroRowingPhones from "@/assets/hero-contest-phones-v3.png";
 import { useAuth } from "@/hooks/useAuth";
 const Index = () => {
   const {
