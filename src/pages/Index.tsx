@@ -192,7 +192,7 @@ const Index = () => {
         </section>
 
         {/* Marketing Hero Section */}
-        <section className="relative py-20 md:py-32 overflow-hidden bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950">
+        <section className="relative py-20 md:py-32 pb-0 overflow-visible bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950">
           {/* Dark pattern background */}
           <div className="absolute inset-0 opacity-30">
             <div className="absolute inset-0" style={{
@@ -238,12 +238,14 @@ const Index = () => {
               </div>
 
               {/* Right Content - Phone Image */}
-              <div className="relative flex justify-end items-end h-full">
-                <img 
-                  src={heroRowingPhones} 
-                  alt="RowFantasy app preview on mobile devices" 
-                  className="absolute bottom-0 right-0 w-full max-w-2xl object-contain object-bottom scale-110"
-                />
+              <div className="relative flex justify-end items-end h-full pb-0">
+                <div className="absolute right-0 bottom-0" style={{ transform: 'translateY(6%)' }}>
+                  <img 
+                    src={heroRowingPhones} 
+                    alt="RowFantasy app preview on mobile devices" 
+                    className="w-full max-w-2xl object-contain object-bottom scale-110"
+                  />
+                </div>
               </div>
             </div>
           </div>
