@@ -192,20 +192,7 @@ const Index = () => {
         </section>
 
         {/* Marketing Hero Section */}
-        <section className="relative py-20 md:py-32 pb-0 overflow-visible bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950">
-          {/* Dark pattern background */}
-          <div className="absolute inset-0 opacity-30">
-            <div className="absolute inset-0" style={{
-            backgroundImage: `repeating-linear-gradient(
-                  45deg,
-                  transparent,
-                  transparent 10px,
-                  rgba(255,255,255,0.02) 10px,
-                  rgba(255,255,255,0.02) 11px
-                )`
-          }} />
-          </div>
-
+        <section className="relative py-20 md:py-32 pb-0 overflow-visible" style={{ backgroundColor: '#1a202c' }}>
           <div className="container mx-auto px-4 relative z-10">
             <div className="grid lg:grid-cols-2 gap-12 items-center max-w-7xl mx-auto">
               {/* Left Content */}
