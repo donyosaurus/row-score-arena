@@ -239,7 +239,7 @@ const Index = () => {
 
               {/* Right Content - Phone Image */}
               <div className="relative flex justify-end items-end h-full pb-0">
-                <div className="absolute right-0 bottom-0" style={{ transform: 'translateY(21%)' }}>
+                <div className="absolute right-0 bottom-0" style={{ transform: 'translateY(14%)' }}>
                   <img 
                     src={heroRowingPhones} 
                     alt="RowFantasy app preview on mobile devices" 
