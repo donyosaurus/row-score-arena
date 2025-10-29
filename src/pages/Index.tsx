@@ -192,7 +192,7 @@ const Index = () => {
         </section>
 
         {/* Marketing Hero Section */}
-        <section className="relative py-20 md:py-32 pb-0 overflow-visible bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950">
+        <section className="relative py-20 md:py-32 pb-0 overflow-visible" style={{ backgroundColor: '#1e293b' }}>
           {/* Dark pattern background */}
           <div className="absolute inset-0 opacity-30">
             <div className="absolute inset-0" style={{
