@@ -243,7 +243,7 @@ const Index = () => {
                   <img 
                     src={heroRowingPhones} 
                     alt="RowFantasy app preview on mobile devices" 
-                    className="w-full max-w-2xl object-contain object-bottom scale-110"
+                    className="w-full max-w-2xl object-contain object-bottom scale-[0.99]"
                   />
                 </div>
               </div>
