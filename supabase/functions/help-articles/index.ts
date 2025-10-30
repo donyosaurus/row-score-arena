@@ -17,10 +17,22 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_ANON_KEY') ?? ''
     );
 
-    const url = new URL(req.url);
-    const slug = url.searchParams.get('slug');
-    const query = url.searchParams.get('query');
-    const category = url.searchParams.get('category');
+    // Handle both GET and POST requests
+    let slug: string | null = null;
+    let query: string | null = null;
+    let category: string | null = null;
+
+    if (req.method === 'GET') {
+      const url = new URL(req.url);
+      slug = url.searchParams.get('slug');
+      query = url.searchParams.get('query');
+      category = url.searchParams.get('category');
+    } else {
+      const body = await req.json();
+      slug = body.slug;
+      query = body.query;
+      category = body.category;
+    }
 
     // Get specific article
     if (slug) {
@@ -29,7 +41,7 @@ serve(async (req) => {
         .select('*')
         .eq('slug', slug)
         .not('published_at', 'is', null)
-        .single();
+        .maybeSingle();
 
       if (error) {
         console.error('Error fetching help article:', error);

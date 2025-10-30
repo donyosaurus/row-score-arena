@@ -70,7 +70,15 @@ serve(async (req) => {
     }
 
     // GET - check consent status
-    const docSlug = new URL(req.url).searchParams.get('doc_slug');
+    let docSlug: string | null = null;
+    
+    if (req.method === 'GET') {
+      docSlug = new URL(req.url).searchParams.get('doc_slug');
+    } else {
+      const body = await req.json();
+      docSlug = body.doc_slug;
+    }
+
     if (!docSlug) {
       return new Response(
         JSON.stringify({ error: 'doc_slug parameter required' }),
@@ -85,7 +93,7 @@ serve(async (req) => {
       .eq('doc_slug', docSlug)
       .order('consented_at', { ascending: false })
       .limit(1)
-      .single();
+      .maybeSingle();
 
     return new Response(
       JSON.stringify({ consent }),

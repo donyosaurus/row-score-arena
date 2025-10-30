@@ -17,9 +17,19 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_ANON_KEY') ?? ''
     );
 
-    const url = new URL(req.url);
-    const slug = url.searchParams.get('slug');
-    const includeVersions = url.searchParams.get('versions') === 'true';
+    // Handle both GET and POST requests
+    let slug: string | null = null;
+    let includeVersions = false;
+
+    if (req.method === 'GET') {
+      const url = new URL(req.url);
+      slug = url.searchParams.get('slug');
+      includeVersions = url.searchParams.get('versions') === 'true';
+    } else {
+      const body = await req.json();
+      slug = body.slug;
+      includeVersions = body.versions === true;
+    }
 
     if (!slug) {
       return new Response(
@@ -36,7 +46,7 @@ serve(async (req) => {
       .not('published_at', 'is', null)
       .order('version', { ascending: false })
       .limit(1)
-      .single();
+      .maybeSingle();
 
     if (error) {
       console.error('Error fetching CMS page:', error);

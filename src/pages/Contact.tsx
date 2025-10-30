@@ -41,7 +41,7 @@ export default function Contact() {
           .from('profiles')
           .select('email')
           .eq('id', user.id)
-          .single();
+          .maybeSingle();
         
         if (profile) {
           setUserProfile(profile);

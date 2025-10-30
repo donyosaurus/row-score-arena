@@ -44,7 +44,7 @@ export default function Legal() {
           .from('profiles')
           .select('state')
           .eq('id', user.id)
-          .single();
+          .maybeSingle();
         
         if (profile?.state) {
           setUserState(profile.state);

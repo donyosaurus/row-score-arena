@@ -17,8 +17,16 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_ANON_KEY') ?? ''
     );
 
-    const url = new URL(req.url);
-    const stateCode = url.searchParams.get('state');
+    // Handle both GET and POST requests
+    let stateCode: string | null = null;
+
+    if (req.method === 'GET') {
+      const url = new URL(req.url);
+      stateCode = url.searchParams.get('state');
+    } else {
+      const body = await req.json();
+      stateCode = body.state;
+    }
 
     if (!stateCode) {
       return new Response(
@@ -32,7 +40,7 @@ serve(async (req) => {
       .from('state_regulation_rules')
       .select('*')
       .eq('state_code', stateCode.toUpperCase())
-      .single();
+      .maybeSingle();
 
     if (stateError) {
       console.error('Error fetching state rules:', stateError);
@@ -52,7 +60,7 @@ serve(async (req) => {
         .eq('status', 'active')
         .order('issued_date', { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle();
       
       license = licenseData;
     }
