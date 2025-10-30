@@ -32,6 +32,7 @@ serve(async (req) => {
       );
     }
 
+    // Handle POST - create consent
     if (req.method === 'POST') {
       const body = consentSchema.parse(await req.json());
 
@@ -73,14 +74,20 @@ serve(async (req) => {
       );
     }
 
-    // GET - check consent status
+    // Handle GET - check consent status
     let docSlug: string | null = null;
     
-    if (req.method === 'GET') {
-      docSlug = new URL(req.url).searchParams.get('doc_slug');
-    } else {
-      const body = await req.json();
-      docSlug = body.doc_slug;
+    const url = new URL(req.url);
+    docSlug = url.searchParams.get('doc_slug');
+    
+    if (!docSlug) {
+      // Try to get from body if it's a POST-like request
+      try {
+        const body = await req.json();
+        docSlug = body.doc_slug;
+      } catch {
+        // Not JSON, that's ok
+      }
     }
 
     if (!docSlug) {
