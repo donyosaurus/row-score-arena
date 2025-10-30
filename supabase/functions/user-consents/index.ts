@@ -35,6 +35,10 @@ serve(async (req) => {
     if (req.method === 'POST') {
       const body = consentSchema.parse(await req.json());
 
+      // Get first IP from x-forwarded-for header
+      const forwardedFor = req.headers.get('x-forwarded-for');
+      const ipAddress = forwardedFor ? forwardedFor.split(',')[0].trim() : null;
+
       // Record consent
       const { error: insertError } = await supabase
         .from('user_consents')
@@ -42,7 +46,7 @@ serve(async (req) => {
           user_id: user.id,
           doc_slug: body.doc_slug,
           version: body.version,
-          ip_address: req.headers.get('x-forwarded-for') || null,
+          ip_address: ipAddress,
           user_agent: req.headers.get('user-agent') || null
         });
 
