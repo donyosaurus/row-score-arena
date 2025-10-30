@@ -53,6 +53,42 @@ export type Database = {
         }
         Relationships: []
       }
+      cms_pages: {
+        Row: {
+          body_md: string
+          created_at: string
+          id: string
+          metadata: Json | null
+          published_at: string | null
+          slug: string
+          title: string
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          body_md: string
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+          published_at?: string | null
+          slug: string
+          title: string
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          body_md?: string
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+          published_at?: string | null
+          slug?: string
+          title?: string
+          updated_at?: string
+          version?: number
+        }
+        Relationships: []
+      }
       compliance_audit_logs: {
         Row: {
           admin_id: string | null
@@ -313,6 +349,48 @@ export type Database = {
         }
         Relationships: []
       }
+      help_articles: {
+        Row: {
+          body_md: string
+          category: string
+          created_at: string
+          id: string
+          metadata: Json | null
+          published_at: string | null
+          slug: string
+          tags: string[] | null
+          title: string
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          body_md: string
+          category: string
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+          published_at?: string | null
+          slug: string
+          tags?: string[] | null
+          title: string
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          body_md?: string
+          category?: string
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+          published_at?: string | null
+          slug?: string
+          tags?: string[] | null
+          title?: string
+          updated_at?: string
+          version?: number
+        }
+        Relationships: []
+      }
       kyc_verifications: {
         Row: {
           created_at: string
@@ -516,6 +594,36 @@ export type Database = {
         }
         Relationships: []
       }
+      privacy_requests: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          id: string
+          metadata: Json | null
+          status: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+          status?: string
+          type: string
+          user_id: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+          status?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           address_line1: string | null
@@ -651,6 +759,51 @@ export type Database = {
         }
         Relationships: []
       }
+      support_tickets: {
+        Row: {
+          assigned_to: string | null
+          created_at: string
+          email: string
+          id: string
+          message: string
+          metadata: Json | null
+          priority: string
+          status: string
+          subject: string
+          topic: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          assigned_to?: string | null
+          created_at?: string
+          email: string
+          id?: string
+          message: string
+          metadata?: Json | null
+          priority?: string
+          status?: string
+          subject: string
+          topic: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          assigned_to?: string | null
+          created_at?: string
+          email?: string
+          id?: string
+          message?: string
+          metadata?: Json | null
+          priority?: string
+          status?: string
+          subject?: string
+          topic?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       transactions: {
         Row: {
           amount: number
@@ -718,6 +871,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      user_consents: {
+        Row: {
+          consented_at: string
+          doc_slug: string
+          id: string
+          ip_address: unknown
+          user_agent: string | null
+          user_id: string
+          version: number
+        }
+        Insert: {
+          consented_at?: string
+          doc_slug: string
+          id?: string
+          ip_address?: unknown
+          user_agent?: string | null
+          user_id: string
+          version: number
+        }
+        Update: {
+          consented_at?: string
+          doc_slug?: string
+          id?: string
+          ip_address?: unknown
+          user_agent?: string | null
+          user_id?: string
+          version?: number
+        }
+        Relationships: []
       }
       user_roles: {
         Row: {

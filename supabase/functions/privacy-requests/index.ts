@@ -1,0 +1,96 @@
+import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.76.1";
+import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
+const requestSchema = z.object({
+  type: z.enum(['access', 'export', 'delete'])
+});
+
+serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      { global: { headers: { Authorization: req.headers.get('Authorization')! } } }
+    );
+
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (req.method === 'POST') {
+      const body = requestSchema.parse(await req.json());
+
+      // Create privacy request
+      const { data: request, error: insertError } = await supabase
+        .from('privacy_requests')
+        .insert({
+          user_id: user.id,
+          type: body.type
+        })
+        .select()
+        .single();
+
+      if (insertError) {
+        console.error('Error creating privacy request:', insertError);
+        return new Response(
+          JSON.stringify({ error: 'Failed to create request' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Log to compliance audit
+      await supabase.from('compliance_audit_logs').insert({
+        user_id: user.id,
+        event_type: 'privacy_request_submitted',
+        description: `User submitted ${body.type} request`,
+        severity: 'info',
+        metadata: { request_id: request.id, type: body.type }
+      });
+
+      return new Response(
+        JSON.stringify({ request }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // GET - list user's privacy requests
+    const { data: requests, error: fetchError } = await supabase
+      .from('privacy_requests')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false });
+
+    if (fetchError) {
+      console.error('Error fetching privacy requests:', fetchError);
+      return new Response(
+        JSON.stringify({ error: 'Failed to fetch requests' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    return new Response(
+      JSON.stringify({ requests }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  } catch (error) {
+    console.error('Error in privacy-requests:', error);
+    return new Response(
+      JSON.stringify({ error: 'Internal server error' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+});

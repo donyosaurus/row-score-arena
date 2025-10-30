@@ -25,13 +25,8 @@ export const Footer = () => {
                 </Link>
               </li>
               <li>
-                <Link to="/how-it-works" className="text-sm text-muted-foreground hover:text-foreground transition-base">
-                  How It Works
-                </Link>
-              </li>
-              <li>
-                <Link to="/rules" className="text-sm text-muted-foreground hover:text-foreground transition-base">
-                  Rules
+                <Link to="/support/help-center" className="text-sm text-muted-foreground hover:text-foreground transition-base">
+                  Help Center
                 </Link>
               </li>
             </ul>
@@ -41,17 +36,17 @@ export const Footer = () => {
             <h3 className="font-semibold mb-4 text-foreground">Legal</h3>
             <ul className="space-y-2">
               <li>
-                <Link to="/terms" className="text-sm text-muted-foreground hover:text-foreground transition-base">
+                <Link to="/legal/terms" className="text-sm text-muted-foreground hover:text-foreground transition-base">
                   Terms of Use
                 </Link>
               </li>
               <li>
-                <Link to="/privacy" className="text-sm text-muted-foreground hover:text-foreground transition-base">
+                <Link to="/legal/privacy" className="text-sm text-muted-foreground hover:text-foreground transition-base">
                   Privacy Policy
                 </Link>
               </li>
               <li>
-                <Link to="/responsible-play" className="text-sm text-muted-foreground hover:text-foreground transition-base">
+                <Link to="/legal/responsible-play" className="text-sm text-muted-foreground hover:text-foreground transition-base">
                   Responsible Play
                 </Link>
               </li>
@@ -62,12 +57,12 @@ export const Footer = () => {
             <h3 className="font-semibold mb-4 text-foreground">Support</h3>
             <ul className="space-y-2">
               <li>
-                <Link to="/help" className="text-sm text-muted-foreground hover:text-foreground transition-base">
+                <Link to="/support/help-center" className="text-sm text-muted-foreground hover:text-foreground transition-base">
                   Help Center
                 </Link>
               </li>
               <li>
-                <Link to="/contact" className="text-sm text-muted-foreground hover:text-foreground transition-base">
+                <Link to="/support/contact" className="text-sm text-muted-foreground hover:text-foreground transition-base">
                   Contact Us
                 </Link>
               </li>
@@ -78,7 +73,7 @@ export const Footer = () => {
         <div className="border-t border-border mt-8 pt-8 text-center">
           <p className="text-sm text-muted-foreground">
             © {new Date().getFullYear()} RowFantasy. Age 18+. Skill-based contests. Fixed prizes, no pooling.
-            <Link to="/eligibility" className="ml-1 underline hover:text-foreground transition-base">
+            <Link to="/legal" className="ml-1 underline hover:text-foreground transition-base">
               State restrictions apply.
             </Link>
           </p>
