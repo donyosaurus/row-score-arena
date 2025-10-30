@@ -43,21 +43,28 @@ export default function Terms() {
         }
 
         // Check if user has consented to current version
-        const { data: consentData } = await supabase.functions.invoke('user-consents', {
-          body: { doc_slug: 'terms' }
-        });
+        let latestConsentVersion: string | null = null;
+        const { data: existingConsent } = await supabase
+          .from('user_consents')
+          .select('version, consented_at')
+          .eq('doc_slug', 'terms')
+          .order('consented_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
 
-        if (consentData?.consent) {
-          setUserConsent(consentData.consent);
-          
-          // Show modal if version changed
-          if (cmsData?.page && consentData.consent.version < cmsData.page.version) {
-            setShowConsentModal(true);
-          }
-        } else if (cmsData?.page) {
-          // First time user, show modal
+        if (existingConsent) {
+          latestConsentVersion = String(existingConsent.version);
+          setUserConsent(existingConsent);
+        }
+
+        const currentVersionString = `v${(cmsData?.page?.version ?? '').toString()}`;
+        const currentVersionAlt = (cmsData?.page?.version ?? '').toString();
+
+        // Show consent modal if no consent for current version
+        if (!latestConsentVersion || (latestConsentVersion !== currentVersionString && latestConsentVersion !== currentVersionAlt)) {
           setShowConsentModal(true);
         }
+
 
         // Log view
         supabase.from('compliance_audit_logs').insert({
