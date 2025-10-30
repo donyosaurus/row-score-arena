@@ -32,7 +32,16 @@ serve(async (req) => {
     }
 
     if (req.method === 'POST') {
-      const body = requestSchema.parse(await req.json());
+      let body;
+      try {
+        body = requestSchema.parse(await req.json());
+      } catch (parseError) {
+        console.error('Error parsing request body:', parseError);
+        return new Response(
+          JSON.stringify({ error: 'Invalid request body' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
 
       // Create privacy request
       const { data: request, error: insertError } = await supabase
