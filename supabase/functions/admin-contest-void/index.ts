@@ -122,14 +122,18 @@ Deno.serve(async (req) => {
             completed_at: new Date().toISOString(),
           });
 
-        // Update wallet
-        await supabaseAdmin
-          .from('wallets')
-          .update({
-            available_balance: parseFloat(wallet.available_balance) + refundAmount,
-            pending_balance: parseFloat(wallet.pending_balance) - refundAmount,
-          })
-          .eq('id', wallet.id);
+        // Update wallet using atomic operation
+        const { error: walletError } = await supabaseAdmin
+          .rpc('update_wallet_balance', {
+            _wallet_id: wallet.id,
+            _available_delta: refundAmount,
+            _pending_delta: -refundAmount
+          });
+
+        if (walletError) {
+          console.error('Error updating wallet for entry refund:', walletError);
+          continue; // Skip this entry but continue with others
+        }
 
         // Update entry status
         await supabaseAdmin

@@ -116,16 +116,15 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Update wallet balances
-    const { error: walletUpdateError } = await supabase
-      .from('wallets')
-      .update({
-        available_balance: parseFloat(wallet.available_balance) + refundAmount,
-        pending_balance: parseFloat(wallet.pending_balance) - refundAmount,
-      })
-      .eq('id', wallet.id);
+    // Update wallet balances using atomic operation
+    const { data: walletUpdate, error: walletUpdateError } = await supabase
+      .rpc('update_wallet_balance', {
+        _wallet_id: wallet.id,
+        _available_delta: refundAmount,
+        _pending_delta: -refundAmount
+      });
 
-    if (walletUpdateError) {
+    if (walletUpdateError || !walletUpdate || !(walletUpdate as any).success) {
       console.error('Error updating wallet:', walletUpdateError);
       return new Response(
         JSON.stringify({ error: 'Failed to update wallet' }),

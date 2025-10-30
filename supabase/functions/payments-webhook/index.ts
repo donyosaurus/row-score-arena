@@ -228,23 +228,19 @@ async function handlePayoutSucceeded(supabase: any, event: any) {
     })
     .eq('id', transaction.id);
 
-  // Update wallet - move from pending to lifetime withdrawals
-  const { data: wallet } = await supabase
-    .from('wallets')
-    .select('*')
-    .eq('id', transaction.wallet_id)
-    .single();
+  // Update wallet - move from pending to lifetime withdrawals using atomic operation
+  const withdrawalAmount = Math.abs(Number(transaction.amount));
+  
+  const { error: walletError } = await supabase
+    .rpc('update_wallet_balance', {
+      _wallet_id: transaction.wallet_id,
+      _available_delta: 0,
+      _pending_delta: -withdrawalAmount,
+      _lifetime_withdrawals_delta: 0 // Already tracked during withdrawal initiation
+    });
 
-  if (wallet) {
-    const withdrawalAmount = Math.abs(Number(transaction.amount));
-    
-    await supabase
-      .from('wallets')
-      .update({
-        pending_balance: Number(wallet.pending_balance) - withdrawalAmount,
-        lifetime_withdrawals: Number(wallet.lifetime_withdrawals) + withdrawalAmount,
-      })
-      .eq('id', wallet.id);
+  if (walletError) {
+    console.error('[payments-webhook] Error updating wallet for payout:', walletError);
   }
 
   console.log('[payments-webhook] Payout completed:', transaction.id);
@@ -271,23 +267,19 @@ async function handlePayoutFailed(supabase: any, event: any) {
     .update({ status: 'failed' })
     .eq('id', transaction.id);
 
-  // Restore balance
-  const { data: wallet } = await supabase
-    .from('wallets')
-    .select('*')
-    .eq('id', transaction.wallet_id)
-    .single();
+  // Restore balance using atomic operation
+  const amount = Math.abs(Number(transaction.amount));
+  
+  const { error: walletError } = await supabase
+    .rpc('update_wallet_balance', {
+      _wallet_id: transaction.wallet_id,
+      _available_delta: amount,
+      _pending_delta: -amount,
+      _lifetime_withdrawals_delta: -amount // Reverse the withdrawal tracking
+    });
 
-  if (wallet) {
-    const amount = Math.abs(Number(transaction.amount));
-    
-    await supabase
-      .from('wallets')
-      .update({
-        available_balance: Number(wallet.available_balance) + amount,
-        pending_balance: Number(wallet.pending_balance) - amount,
-      })
-      .eq('id', wallet.id);
+  if (walletError) {
+    console.error('[payments-webhook] Error restoring wallet balance:', walletError);
   }
 }
 
