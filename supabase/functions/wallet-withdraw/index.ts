@@ -4,6 +4,8 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.76.1';
 import { z } from 'https://deno.land/x/zod@v3.22.4/mod.ts';
 import { getPaymentProvider } from '../shared/payment-providers/factory.ts';
 import { performComplianceChecks } from '../shared/compliance-checks.ts';
+import { checkGeoEligibility } from '../shared/geo-eligibility.ts';
+import { createErrorResponse, mapErrorToClient, ERROR_MESSAGES } from '../shared/error-handler.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -32,9 +34,8 @@ Deno.serve(async (req) => {
 
     // Validate input with Zod schema
     const withdrawSchema = z.object({
-      amountCents: z.number().int().positive().min(1000).max(5000000), // $10 - $50k
+      amountCents: z.number().int().positive().min(500).max(20000), // $5 - $200
       destinationToken: z.string().min(1),
-      stateCode: z.string().regex(/^[A-Z]{2}$/).optional(),
       idempotencyKey: z.string().uuid().optional()
     });
 
@@ -43,17 +44,13 @@ Deno.serve(async (req) => {
       const rawBody = await req.json();
       body = withdrawSchema.parse(rawBody);
     } catch (error) {
-      console.error('[wallet-withdraw] Validation error:', error);
       return new Response(
-        JSON.stringify({ 
-          error: 'Invalid input parameters',
-          details: error instanceof z.ZodError ? error.errors : 'Validation failed'
-        }),
+        JSON.stringify({ error: ERROR_MESSAGES.INVALID_INPUT }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    const { amountCents, destinationToken, stateCode, idempotencyKey } = body;
+    const { amountCents, destinationToken, idempotencyKey } = body;
 
     // Check for duplicate withdrawal (idempotency)
     if (idempotencyKey) {
@@ -77,7 +74,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Get user wallet
+    // Get user's wallet and profile for state
     const { data: wallet, error: walletError } = await supabase
       .from('wallets')
       .select('*')
@@ -86,36 +83,59 @@ Deno.serve(async (req) => {
 
     if (walletError || !wallet) {
       return new Response(
-        JSON.stringify({ error: 'Wallet not found' }),
+        JSON.stringify({ error: ERROR_MESSAGES.NOT_FOUND }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    // Get user profile for state verification
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('state, kyc_status')
+      .eq('id', user.id)
+      .single();
+
+    // Determine state from IP geolocation
+    const clientIp = req.headers.get('x-forwarded-for')?.split(',')[0].trim() 
+                     || req.headers.get('x-real-ip') 
+                     || 'unknown';
+    
+    const geoResult = await checkGeoEligibility(clientIp, user.id);
+    
+    if (!geoResult.allowed) {
+      return new Response(
+        JSON.stringify({ error: geoResult.reason || ERROR_MESSAGES.GEO_BLOCKED }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Use profile state if KYC verified, otherwise use detected state
+    const stateCode = profile?.kyc_status === 'verified' && profile?.state 
+                      ? profile.state 
+                      : (geoResult.stateCode || 'US');
 
     // Check sufficient balance
     const availableCents = Math.floor(Number(wallet.available_balance) * 100);
     if (availableCents < amountCents) {
       return new Response(
-        JSON.stringify({ 
-          error: 'Insufficient balance',
-          available: availableCents / 100,
-          requested: amountCents / 100,
-        }),
+        JSON.stringify({ error: ERROR_MESSAGES.INSUFFICIENT_FUNDS }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Perform compliance checks
+    // Perform compliance checks with verified state
     const complianceResult = await performComplianceChecks({
       userId: user.id,
-      stateCode: stateCode || wallet.state_code || 'US',
+      stateCode,
       amountCents,
       actionType: 'withdrawal',
-      ipAddress: req.headers.get('x-forwarded-for') || 'unknown',
+      ipAddress: clientIp,
     });
 
     if (!complianceResult.allowed) {
+      const safeReason = mapErrorToClient({ message: complianceResult.reason });
       return new Response(
-        JSON.stringify({ error: complianceResult.reason }),
+        JSON.stringify({ error: safeReason }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -188,10 +208,6 @@ Deno.serve(async (req) => {
     );
 
   } catch (error: any) {
-    console.error('[wallet-withdraw] Error:', error);
-    return new Response(
-      JSON.stringify({ error: error?.message || 'Unknown error' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return createErrorResponse(error, 'wallet-withdraw', corsHeaders);
   }
 });

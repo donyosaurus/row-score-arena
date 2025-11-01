@@ -1,8 +1,10 @@
-// Race Results CSV Import - Admin tool to upload race results
+// Race Results Import - Admin function to import race results and trigger scoring
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.76.1';
 import { z } from 'https://deno.land/x/zod@v3.22.4/mod.ts';
 import { crypto } from "https://deno.land/std@0.177.0/crypto/mod.ts";
+import { scoreContestInstance } from '../shared/scoring-logic.ts';
+import { createErrorResponse, ERROR_MESSAGES } from '../shared/error-handler.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -166,32 +168,33 @@ Deno.serve(async (req) => {
       .eq('contest_template_id', body.contestTemplateId)
       .eq('status', 'completed');
 
-    // Trigger scoring for each instance (could be done async)
+    // Trigger scoring for all completed instances directly (no HTTP calls)
+    console.log('[race-results] Triggering scoring for', instances?.length || 0, 'instances');
+    
     const scoringResults = [];
     if (instances) {
       for (const instance of instances) {
-        console.log('[race-results-import] Triggering scoring for instance:', instance.id);
-        
-        // Call scoring function
-        const scoringResponse = await fetch(
-          `${supabaseUrl}/functions/v1/contest-scoring`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': authHeader,
-            },
-            body: JSON.stringify({
-              instanceId: instance.id,
-              results: body.results,
-            }),
-          }
-        );
-
-        if (scoringResponse.ok) {
-          scoringResults.push({ instanceId: instance.id, status: 'scored' });
-        } else {
-          scoringResults.push({ instanceId: instance.id, status: 'error' });
+        try {
+          const result = await scoreContestInstance(
+            supabase,
+            instance.id,
+            body.results
+          );
+          
+          scoringResults.push({
+            instanceId: instance.id,
+            success: true,
+            entriesScored: result.entriesScored,
+          });
+          
+          console.log('[race-results] Scoring completed for instance:', instance.id);
+        } catch (error: any) {
+          console.error('[race-results] Scoring failed for instance:', instance.id, error);
+          scoringResults.push({
+            instanceId: instance.id,
+            success: false,
+            error: error.message,
+          });
         }
       }
     }
@@ -214,23 +217,17 @@ Deno.serve(async (req) => {
 
     return new Response(
       JSON.stringify({
+        success: true,
         importId: importRecord.id,
-        resultsProcessed: body.results.length,
-        instancesScored: scoringResults.length,
+        rowsProcessed: body.results.length,
+        instancesScored: instances?.length || 0,
         scoringResults,
-        message: 'Results imported and scoring initiated successfully',
+        message: 'Results imported and scoring completed successfully',
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
   } catch (error: any) {
-    console.error('[race-results-import] Error:', error);
-    return new Response(
-      JSON.stringify({ 
-        error: error?.message || 'Unknown error',
-        details: error instanceof z.ZodError ? error.errors : undefined,
-      }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return createErrorResponse(error, 'race-results-import', corsHeaders);
   }
 });

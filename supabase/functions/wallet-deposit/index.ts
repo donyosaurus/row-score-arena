@@ -4,6 +4,8 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.76.1';
 import { z } from 'https://deno.land/x/zod@v3.22.4/mod.ts';
 import { getPaymentProvider } from '../shared/payment-providers/factory.ts';
 import { performComplianceChecks } from '../shared/compliance-checks.ts';
+import { checkGeoEligibility } from '../shared/geo-eligibility.ts';
+import { createErrorResponse, mapErrorToClient, ERROR_MESSAGES } from '../shared/error-handler.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -30,10 +32,9 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Validate input with Zod schema
+    // Validate input with Zod schema (stateCode removed - determined server-side)
     const depositSchema = z.object({
       amountCents: z.number().int().positive().min(500).max(1000000), // $5 - $10k
-      stateCode: z.string().regex(/^[A-Z]{2}$/, 'Invalid state code format'),
       returnUrl: z.string().url().optional(),
       idempotencyKey: z.string().uuid().optional()
     });
@@ -43,17 +44,29 @@ Deno.serve(async (req) => {
       const rawBody = await req.json();
       body = depositSchema.parse(rawBody);
     } catch (error) {
-      console.error('[wallet-deposit] Validation error:', error);
       return new Response(
-        JSON.stringify({ 
-          error: 'Invalid input parameters',
-          details: error instanceof z.ZodError ? error.errors : 'Validation failed'
-        }),
+        JSON.stringify({ error: ERROR_MESSAGES.INVALID_INPUT }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    const { amountCents, stateCode, returnUrl, idempotencyKey } = body;
+    const { amountCents, returnUrl, idempotencyKey } = body;
+
+    // Determine state from IP geolocation (server-side)
+    const clientIp = req.headers.get('x-forwarded-for')?.split(',')[0].trim() 
+                     || req.headers.get('x-real-ip') 
+                     || 'unknown';
+    
+    const geoResult = await checkGeoEligibility(clientIp, user.id);
+    
+    if (!geoResult.allowed) {
+      return new Response(
+        JSON.stringify({ error: geoResult.reason || ERROR_MESSAGES.GEO_BLOCKED }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const stateCode = geoResult.stateCode || 'US';
 
     // Check for existing session with idempotency key
     if (idempotencyKey) {
@@ -78,18 +91,19 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Perform compliance checks
+    // Perform compliance checks with verified state
     const complianceResult = await performComplianceChecks({
       userId: user.id,
       stateCode,
       amountCents,
       actionType: 'deposit',
-      ipAddress: req.headers.get('x-forwarded-for') || 'unknown',
+      ipAddress: clientIp,
     });
 
     if (!complianceResult.allowed) {
+      const safeReason = mapErrorToClient({ message: complianceResult.reason });
       return new Response(
-        JSON.stringify({ error: complianceResult.reason, metadata: complianceResult.metadata }),
+        JSON.stringify({ error: safeReason }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -123,8 +137,7 @@ Deno.serve(async (req) => {
       .single();
 
     if (sessionError) {
-      console.error('[wallet-deposit] Error creating session:', sessionError);
-      throw sessionError;
+      return createErrorResponse(sessionError, 'wallet-deposit', corsHeaders);
     }
 
     console.log('[wallet-deposit] Created payment session:', session.id);
@@ -140,10 +153,6 @@ Deno.serve(async (req) => {
     );
 
   } catch (error: any) {
-    console.error('[wallet-deposit] Error:', error);
-    return new Response(
-      JSON.stringify({ error: error?.message || 'Unknown error' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return createErrorResponse(error, 'wallet-deposit', corsHeaders);
   }
 });
