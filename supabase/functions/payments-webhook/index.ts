@@ -54,7 +54,7 @@ Deno.serve(async (req) => {
 
     // Route handlers (simplified for space)
     if (webhookEvent.eventType === 'payment.succeeded') {
-      const { sessionId } = webhookEvent.data;
+      const sessionId = webhookEvent.providerSessionId || webhookEvent.providerTransactionId;
       const { data: session } = await supabase.from('payment_sessions').select('*').eq('provider_session_id', sessionId).single();
       if (session) {
         await supabase.from('payment_sessions').update({ status: 'succeeded', completed_at: new Date().toISOString() }).eq('id', session.id);
