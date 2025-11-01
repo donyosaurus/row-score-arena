@@ -15,8 +15,46 @@ Deno.serve(async (req) => {
 
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+
+    // SECURITY: Admin-only endpoint
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const supabase = createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
+
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Verify admin role
+    const { data: roles } = await supabase
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', user.id)
+      .eq('role', 'admin');
+
+    if (!roles || roles.length === 0) {
+      return new Response(
+        JSON.stringify({ error: 'Admin access required' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // NOW create service client after auth check
     const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, serviceKey);
+    const supabaseAdmin = createClient(supabaseUrl, serviceKey);
 
     // Validate input
     const settlementSchema = z.object({
@@ -26,10 +64,10 @@ Deno.serve(async (req) => {
 
     const body = settlementSchema.parse(await req.json());
 
-    console.log('[settlement] Processing settlement for instance:', body.instanceId);
+    console.log('[settlement] Admin', user.id, 'processing settlement for instance:', body.instanceId);
 
     // Get instance
-    const { data: instance, error: instanceError } = await supabase
+    const { data: instance, error: instanceError } = await supabaseAdmin
       .from('contest_instances')
       .select('*, contest_templates(*)')
       .eq('id', body.instanceId)
@@ -42,16 +80,31 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Check if already settled
+    // IDEMPOTENCY: Check if already settled
     if (instance.settled_at && !body.forceResettle) {
+      console.log('[settlement] Instance already settled at', instance.settled_at);
+      
+      // Log idempotent attempt
+      await supabaseAdmin.from('compliance_audit_logs').insert({
+        admin_id: user.id,
+        event_type: 'settlement_duplicate_attempt',
+        severity: 'info',
+        description: `Admin attempted duplicate settlement of instance ${body.instanceId}`,
+        metadata: { instance_id: body.instanceId, already_settled_at: instance.settled_at },
+      });
+
       return new Response(
-        JSON.stringify({ error: 'Contest already settled. Use forceResettle=true to override.' }),
+        JSON.stringify({ 
+          error: 'Contest already settled',
+          settled_at: instance.settled_at,
+          message: 'Use forceResettle=true to override (admin only)'
+        }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     // Get scores (must be calculated first)
-    const { data: scores, error: scoresError } = await supabase
+    const { data: scores, error: scoresError } = await supabaseAdmin
       .from('contest_scores')
       .select('*')
       .eq('instance_id', body.instanceId)
@@ -91,7 +144,7 @@ Deno.serve(async (req) => {
       }
 
       // Update score with payout
-      await supabase
+      await supabaseAdmin
         .from('contest_scores')
         .update({
           payout_cents: payout,
@@ -112,7 +165,7 @@ Deno.serve(async (req) => {
     // Process payouts via wallet transactions
     for (const winner of winners) {
       // Get user wallet
-      const { data: wallet } = await supabase
+      const { data: wallet } = await supabaseAdmin
         .from('wallets')
         .select('id')
         .eq('user_id', winner.userId)
@@ -124,7 +177,7 @@ Deno.serve(async (req) => {
       }
 
       // Create payout transaction
-      const { error: txnError } = await supabase
+      const { error: txnError } = await supabaseAdmin
         .from('transactions')
         .insert({
           user_id: winner.userId,
@@ -148,7 +201,7 @@ Deno.serve(async (req) => {
       }
 
       // Update wallet balance
-      await supabase.rpc('update_wallet_balance', {
+      await supabaseAdmin.rpc('update_wallet_balance', {
         _wallet_id: wallet.id,
         _available_delta: winner.payoutCents / 100,
         _pending_delta: 0,
@@ -161,7 +214,7 @@ Deno.serve(async (req) => {
     // Release entry fees for non-winners (mark as released)
     for (const score of scores) {
       if (!winners.find(w => w.userId === score.user_id)) {
-        const { data: wallet } = await supabase
+        const { data: wallet } = await supabaseAdmin
           .from('wallets')
           .select('id')
           .eq('user_id', score.user_id)
@@ -169,7 +222,7 @@ Deno.serve(async (req) => {
 
         if (wallet) {
           // Create entry fee release transaction
-          await supabase
+          await supabaseAdmin
             .from('transactions')
             .insert({
               user_id: score.user_id,
@@ -187,7 +240,7 @@ Deno.serve(async (req) => {
     }
 
     // Update instance as settled
-    await supabase
+    await supabaseAdmin
       .from('contest_instances')
       .update({
         settled_at: new Date().toISOString(),
@@ -196,7 +249,8 @@ Deno.serve(async (req) => {
       .eq('id', body.instanceId);
 
     // Log to compliance
-    await supabase.from('compliance_audit_logs').insert({
+    await supabaseAdmin.from('compliance_audit_logs').insert({
+      admin_id: user.id,
       event_type: 'contest_settled',
       severity: 'info',
       description: `Contest settled: ${instance.contest_templates.regatta_name} - Pool ${instance.pool_number}`,
@@ -233,8 +287,9 @@ Deno.serve(async (req) => {
 
   } catch (error: any) {
     console.error('[settlement] Error:', error);
+    // Generic error for security
     return new Response(
-      JSON.stringify({ error: error?.message || 'Unknown error' }),
+      JSON.stringify({ error: 'An error occurred during settlement' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }

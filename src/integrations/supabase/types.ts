@@ -436,6 +436,36 @@ export type Database = {
         }
         Relationships: []
       }
+      feature_flags: {
+        Row: {
+          created_at: string
+          description: string | null
+          enabled: boolean
+          flag_name: string
+          id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          enabled?: boolean
+          flag_name: string
+          id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          enabled?: boolean
+          flag_name?: string
+          id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       geofence_logs: {
         Row: {
           action_type: string
@@ -899,6 +929,33 @@ export type Database = {
           },
         ]
       }
+      rate_limits: {
+        Row: {
+          created_at: string
+          endpoint: string
+          id: string
+          identifier: string
+          request_count: number
+          window_start: string
+        }
+        Insert: {
+          created_at?: string
+          endpoint: string
+          id?: string
+          identifier: string
+          request_count?: number
+          window_start?: string
+        }
+        Update: {
+          created_at?: string
+          endpoint?: string
+          id?: string
+          identifier?: string
+          request_count?: number
+          window_start?: string
+        }
+        Relationships: []
+      }
       state_regulation_rules: {
         Row: {
           created_at: string
@@ -1159,17 +1216,59 @@ export type Database = {
         }
         Relationships: []
       }
+      webhook_dedup: {
+        Row: {
+          event_type: string
+          id: string
+          ip_address: unknown
+          metadata: Json | null
+          provider: string
+          received_at: string
+        }
+        Insert: {
+          event_type: string
+          id: string
+          ip_address?: unknown
+          metadata?: Json | null
+          provider: string
+          received_at?: string
+        }
+        Update: {
+          event_type?: string
+          id?: string
+          ip_address?: unknown
+          metadata?: Json | null
+          provider?: string
+          received_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      cleanup_old_rate_limits: { Args: never; Returns: undefined }
+      cleanup_old_webhooks: { Args: never; Returns: undefined }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
           _user_id: string
         }
         Returns: boolean
+      }
+      initiate_withdrawal_atomic: {
+        Args: {
+          _amount_cents: number
+          _state_code: string
+          _user_id: string
+          _wallet_id: string
+        }
+        Returns: {
+          allowed: boolean
+          reason: string
+          today_total: number
+        }[]
       }
       update_wallet_balance: {
         Args: {

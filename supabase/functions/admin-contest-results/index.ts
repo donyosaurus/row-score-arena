@@ -22,6 +22,7 @@ Deno.serve(async (req) => {
   }
 
   try {
+    // SECURITY: Authenticate FIRST, create service client AFTER
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_ANON_KEY') ?? '',
@@ -54,13 +55,19 @@ Deno.serve(async (req) => {
       );
     }
 
+    // ONLY NOW create service client after admin verification  
+    const supabaseAdmin = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
+
     const body: ResultsRequest = await req.json();
     const { contestTemplateId, results } = body;
 
     console.log('Setting contest results:', { contestTemplateId, admin: user.id });
 
-    // Update contest template with results
-    const { error: updateError } = await supabase
+    // Update contest template with results using service client
+    const { error: updateError } = await supabaseAdmin
       .from('contest_templates')
       .update({
         results,
@@ -77,14 +84,14 @@ Deno.serve(async (req) => {
     }
 
     // Get all pools for this contest
-    const { data: pools } = await supabase
+    const { data: pools } = await supabaseAdmin
       .from('contest_pools')
       .select('id')
       .eq('contest_template_id', contestTemplateId)
       .eq('status', 'locked');
 
     // Log compliance event
-    await supabase.from('compliance_audit_logs').insert({
+    await supabaseAdmin.from('compliance_audit_logs').insert({
       admin_id: user.id,
       event_type: 'contest_results_set',
       description: `Admin set results for contest ${contestTemplateId}`,
@@ -107,8 +114,9 @@ Deno.serve(async (req) => {
 
   } catch (error) {
     console.error('Error in admin-contest-results:', error);
+    // Generic error for security
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : 'An error occurred' }),
+      JSON.stringify({ error: 'An error occurred' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }

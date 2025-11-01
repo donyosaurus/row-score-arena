@@ -15,14 +15,34 @@ Deno.serve(async (req) => {
 
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
     const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, serviceKey);
+
+    // SECURITY: Authenticate user first
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const supabase = createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
+
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     // Validate input
     const entrySchema = z.object({
       contestTemplateId: z.string().uuid(),
       tierId: z.string(),
-      userId: z.string().uuid(),
       picks: z.array(z.object({
         crewId: z.string(),
         divisionId: z.string(),
@@ -34,10 +54,16 @@ Deno.serve(async (req) => {
 
     const body = entrySchema.parse(await req.json());
 
-    console.log('[matchmaking] Processing entry for template:', body.contestTemplateId, 'tier:', body.tierId);
+    // SECURITY: Enforce userId matches authenticated user
+    const userId = user.id; // Use authenticated user's ID, not from request
+
+    console.log('[matchmaking] Processing entry for user:', userId, 'template:', body.contestTemplateId);
+
+    // Create service client for pool operations (after auth)
+    const supabaseAdmin = createClient(supabaseUrl, serviceKey);
 
     // Get contest template details
-    const { data: template, error: templateError } = await supabase
+    const { data: template, error: templateError } = await supabaseAdmin
       .from('contest_templates')
       .select('*')
       .eq('id', body.contestTemplateId)
@@ -54,7 +80,7 @@ Deno.serve(async (req) => {
     const { data: existingEntry } = await supabase
       .from('contest_entries')
       .select('id')
-      .eq('user_id', body.userId)
+      .eq('user_id', userId)
       .eq('contest_template_id', body.contestTemplateId)
       .eq('status', 'active')
       .maybeSingle();
@@ -68,7 +94,7 @@ Deno.serve(async (req) => {
 
     // Find available instance or create new one
     const instance = await findOrCreateInstance(
-      supabase,
+      supabaseAdmin,
       body.contestTemplateId,
       body.tierId,
       body.entryFeeCents,
@@ -83,10 +109,10 @@ Deno.serve(async (req) => {
     }
 
     // Create contest entry
-    const { data: entry, error: entryError } = await supabase
+    const { data: entry, error: entryError } = await supabaseAdmin
       .from('contest_entries')
       .insert({
-        user_id: body.userId,
+        user_id: userId,
         pool_id: instance.id, // Legacy field
         instance_id: instance.id,
         contest_template_id: body.contestTemplateId,
@@ -107,7 +133,7 @@ Deno.serve(async (req) => {
     }
 
     // Increment instance entry count
-    const { error: updateError } = await supabase
+    const { error: updateError } = await supabaseAdmin
       .from('contest_instances')
       .update({ current_entries: instance.current_entries + 1 })
       .eq('id', instance.id);
@@ -117,8 +143,8 @@ Deno.serve(async (req) => {
     }
 
     // Log to compliance
-    await supabase.from('compliance_audit_logs').insert({
-      user_id: body.userId,
+    await supabaseAdmin.from('compliance_audit_logs').insert({
+      user_id: userId,
       event_type: 'contest_entry_created',
       severity: 'info',
       description: `User entered ${template.regatta_name} - Pool ${instance.pool_number}`,
@@ -147,8 +173,9 @@ Deno.serve(async (req) => {
 
   } catch (error: any) {
     console.error('[matchmaking] Error:', error);
+    // Generic error message for security
     return new Response(
-      JSON.stringify({ error: error?.message || 'Unknown error' }),
+      JSON.stringify({ error: 'An error occurred while processing your entry' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }

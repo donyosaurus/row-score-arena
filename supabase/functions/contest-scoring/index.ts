@@ -38,8 +38,46 @@ Deno.serve(async (req) => {
 
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+
+    // SECURITY: Admin-only endpoint
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const supabase = createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
+
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Verify admin role
+    const { data: roles } = await supabase
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', user.id)
+      .eq('role', 'admin');
+
+    if (!roles || roles.length === 0) {
+      return new Response(
+        JSON.stringify({ error: 'Admin access required' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // NOW create service client after auth check
     const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, serviceKey);
+    const supabaseAdmin = createClient(supabaseUrl, serviceKey);
 
     // Validate input
     const scoreSchema = z.object({
@@ -55,10 +93,22 @@ Deno.serve(async (req) => {
 
     const body = scoreSchema.parse(await req.json());
 
-    console.log('[scoring] Processing results for instance:', body.instanceId);
+    console.log('[scoring] Admin', user.id, 'processing results for instance:', body.instanceId);
 
-    // Use shared scoring logic
-    const result = await scoreContestInstance(supabase, body.instanceId, body.results);
+    // Use shared scoring logic with service client
+    const result = await scoreContestInstance(supabaseAdmin, body.instanceId, body.results);
+
+    // Log admin action
+    await supabaseAdmin.from('compliance_audit_logs').insert({
+      admin_id: user.id,
+      event_type: 'contest_scored',
+      severity: 'info',
+      description: `Admin scored contest instance ${body.instanceId}`,
+      metadata: {
+        instance_id: body.instanceId,
+        entries_scored: result.entriesScored,
+      },
+    });
 
     return new Response(
       JSON.stringify({

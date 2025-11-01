@@ -16,11 +16,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const supabaseAdmin = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
-
+    // SECURITY: Authenticate FIRST, create service client AFTER
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_ANON_KEY') ?? '',
@@ -52,6 +48,12 @@ Deno.serve(async (req) => {
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    // ONLY NOW create service client after admin verification
+    const supabaseAdmin = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
 
     const body: VoidRequest = await req.json();
     const { poolId, reason } = body;
@@ -177,8 +179,9 @@ Deno.serve(async (req) => {
 
   } catch (error) {
     console.error('Error in admin-contest-void:', error);
+    // Generic error for security
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : 'An error occurred' }),
+      JSON.stringify({ error: 'An error occurred' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
