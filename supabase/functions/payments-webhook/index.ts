@@ -141,6 +141,7 @@ async function handlePaymentSucceeded(supabase: any, event: any) {
       state_code: session.state_code,
       idempotency_key: idempotencyKey,
       completed_at: new Date().toISOString(),
+      deposit_timestamp: new Date().toISOString(), // Phase 4: Track deposit time for 24-hour hold
       metadata: {
         provider_transaction_id: event.providerTransactionId,
         fee_cents: event.feeCents,

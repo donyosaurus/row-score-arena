@@ -1,6 +1,7 @@
 // Compliance Gating Functions
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.76.1';
+import { checkGeoEligibility } from './geo-eligibility.ts';
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -24,7 +25,33 @@ export async function performComplianceChecks(
 ): Promise<ComplianceCheckResult> {
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-  // 1. Check state regulations
+  // 1. Check geo eligibility first
+  if (context.ipAddress && context.ipAddress !== 'unknown') {
+    const geoResult = await checkGeoEligibility(context.ipAddress, context.userId);
+    
+    if (!geoResult.allowed) {
+      await logComplianceEvent(supabase, {
+        userId: context.userId,
+        eventType: 'geo_blocked',
+        severity: 'warn',
+        description: geoResult.reason || 'Geolocation check failed',
+        stateCode: geoResult.stateCode,
+        ipAddress: context.ipAddress,
+      });
+      
+      return {
+        allowed: false,
+        reason: geoResult.reason,
+      };
+    }
+    
+    // Update context with detected state if available
+    if (geoResult.stateCode) {
+      context.stateCode = geoResult.stateCode;
+    }
+  }
+
+  // 2. Check state regulations
   const { data: stateRule, error: stateError } = await supabase
     .from('state_regulation_rules')
     .select('*')
@@ -47,12 +74,12 @@ export async function performComplianceChecks(
     };
   }
 
-  if (stateRule.status === 'prohibited') {
+  if (stateRule.status === 'prohibited' || stateRule.status === 'restricted') {
     await logComplianceEvent(supabase, {
       userId: context.userId,
       eventType: 'state_prohibited',
       severity: 'warn',
-      description: `Attempted ${context.actionType} from prohibited state ${context.stateCode}`,
+      description: `Attempted ${context.actionType} from ${stateRule.status} state ${context.stateCode}`,
       stateCode: context.stateCode,
       ipAddress: context.ipAddress,
     });
@@ -63,7 +90,7 @@ export async function performComplianceChecks(
     };
   }
 
-  // 2. Check user profile and KYC
+  // 3. Check user profile and age verification
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
     .select('*')
@@ -74,6 +101,41 @@ export async function performComplianceChecks(
     return {
       allowed: false,
       reason: 'User profile not found',
+    };
+  }
+
+  // Check age verification (Phase 4 requirement)
+  if (!profile.date_of_birth || !profile.age_confirmed_at) {
+    await logComplianceEvent(supabase, {
+      userId: context.userId,
+      eventType: 'age_verification_missing',
+      severity: 'warn',
+      description: 'User has not completed age verification',
+      stateCode: context.stateCode,
+    });
+    
+    return {
+      allowed: false,
+      reason: 'Age verification required',
+    };
+  }
+
+  // Verify minimum age based on state rules
+  const birthDate = new Date(profile.date_of_birth);
+  const age = Math.floor((Date.now() - birthDate.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
+  
+  if (age < stateRule.min_age) {
+    await logComplianceEvent(supabase, {
+      userId: context.userId,
+      eventType: 'underage_blocked',
+      severity: 'error',
+      description: `User age ${age} is below minimum ${stateRule.min_age}`,
+      stateCode: context.stateCode,
+    });
+    
+    return {
+      allowed: false,
+      reason: `You must be at least ${stateRule.min_age} years old to use this service`,
     };
   }
 
@@ -128,7 +190,7 @@ export async function performComplianceChecks(
     };
   }
 
-  // 3. Check deposit limits for deposits
+  // 4. Check deposit limits for deposits
   if (context.actionType === 'deposit') {
     const depositLimit = profile.deposit_limit_monthly || 250000; // Default $2,500
     
@@ -177,22 +239,107 @@ export async function performComplianceChecks(
     }
   }
 
-  // 4. Check KYC for withdrawals
+  // 5. Check withdrawal limits and restrictions (Phase 4 light controls)
   if (context.actionType === 'withdrawal') {
-    if (profile.kyc_status !== 'verified') {
-      await logComplianceEvent(supabase, {
-        userId: context.userId,
-        eventType: 'kyc_required',
-        severity: 'info',
-        description: 'KYC verification required for withdrawal',
-        stateCode: context.stateCode,
-      });
-      
+    // Per-transaction cap: $200
+    if (context.amountCents > 20000) {
       return {
         allowed: false,
-        reason: 'Identity verification required before withdrawal',
+        reason: 'Per-transaction withdrawal limit is $200',
       };
     }
+
+    // Check for pending withdrawals (only 1 at a time)
+    const { data: pendingWithdrawals } = await supabase
+      .from('transactions')
+      .select('id')
+      .eq('user_id', context.userId)
+      .eq('type', 'withdrawal')
+      .eq('status', 'pending');
+
+    if (pendingWithdrawals && pendingWithdrawals.length > 0) {
+      return {
+        allowed: false,
+        reason: 'You already have a pending withdrawal. Please wait for it to complete.',
+      };
+    }
+
+    // 10-minute cooldown between withdrawals
+    if (profile.withdrawal_last_requested_at) {
+      const lastWithdrawal = new Date(profile.withdrawal_last_requested_at);
+      const cooldownMs = 10 * 60 * 1000; // 10 minutes
+      const timeSinceLastWithdrawal = Date.now() - lastWithdrawal.getTime();
+      
+      if (timeSinceLastWithdrawal < cooldownMs) {
+        const minutesRemaining = Math.ceil((cooldownMs - timeSinceLastWithdrawal) / 60000);
+        return {
+          allowed: false,
+          reason: `Please wait ${minutesRemaining} minute(s) before requesting another withdrawal`,
+        };
+      }
+    }
+
+    // Daily withdrawal cap: $500
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+
+    const { data: dailyWithdrawals } = await supabase
+      .from('transactions')
+      .select('amount')
+      .eq('user_id', context.userId)
+      .eq('type', 'withdrawal')
+      .in('status', ['completed', 'pending'])
+      .gte('created_at', startOfDay.toISOString());
+
+    if (dailyWithdrawals) {
+      const dailyTotal = dailyWithdrawals.reduce(
+        (sum, txn) => sum + Math.abs(Number(txn.amount)),
+        0
+      );
+      
+      if ((dailyTotal * 100) + context.amountCents > 50000) {
+        return {
+          allowed: false,
+          reason: 'Daily withdrawal limit of $500 reached',
+          metadata: {
+            dailyTotal,
+            limit: 500,
+            remaining: Math.max(0, 500 - dailyTotal),
+          },
+        };
+      }
+    }
+
+    // 24-hour hold on newly deposited funds
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    
+    const { data: recentDeposits } = await supabase
+      .from('transactions')
+      .select('amount, deposit_timestamp')
+      .eq('user_id', context.userId)
+      .eq('type', 'deposit')
+      .eq('status', 'completed')
+      .gte('deposit_timestamp', twentyFourHoursAgo.toISOString());
+
+    if (recentDeposits && recentDeposits.length > 0) {
+      const holdAmount = recentDeposits.reduce(
+        (sum, txn) => sum + Number(txn.amount),
+        0
+      );
+      
+      if (holdAmount * 100 >= context.amountCents) {
+        return {
+          allowed: false,
+          reason: 'Newly deposited funds must be held for 24 hours before withdrawal',
+        };
+      }
+    }
+
+    // Update withdrawal timestamp
+    await supabase
+      .from('profiles')
+      .update({ withdrawal_last_requested_at: new Date().toISOString() })
+      .eq('id', context.userId);
   }
 
   // All checks passed

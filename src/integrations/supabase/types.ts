@@ -628,6 +628,7 @@ export type Database = {
         Row: {
           address_line1: string | null
           address_line2: string | null
+          age_confirmed_at: string | null
           city: string | null
           contest_count: number
           created_at: string
@@ -648,11 +649,13 @@ export type Database = {
           updated_at: string
           username: string | null
           username_last_changed_at: string | null
+          withdrawal_last_requested_at: string | null
           zip_code: string | null
         }
         Insert: {
           address_line1?: string | null
           address_line2?: string | null
+          age_confirmed_at?: string | null
           city?: string | null
           contest_count?: number
           created_at?: string
@@ -673,11 +676,13 @@ export type Database = {
           updated_at?: string
           username?: string | null
           username_last_changed_at?: string | null
+          withdrawal_last_requested_at?: string | null
           zip_code?: string | null
         }
         Update: {
           address_line1?: string | null
           address_line2?: string | null
+          age_confirmed_at?: string | null
           city?: string | null
           contest_count?: number
           created_at?: string
@@ -698,6 +703,7 @@ export type Database = {
           updated_at?: string
           username?: string | null
           username_last_changed_at?: string | null
+          withdrawal_last_requested_at?: string | null
           zip_code?: string | null
         }
         Relationships: []
@@ -810,6 +816,7 @@ export type Database = {
           completed_at: string | null
           created_at: string
           created_by: string | null
+          deposit_timestamp: string | null
           description: string | null
           id: string
           idempotency_key: string | null
@@ -829,6 +836,7 @@ export type Database = {
           completed_at?: string | null
           created_at?: string
           created_by?: string | null
+          deposit_timestamp?: string | null
           description?: string | null
           id?: string
           idempotency_key?: string | null
@@ -848,6 +856,7 @@ export type Database = {
           completed_at?: string | null
           created_at?: string
           created_by?: string | null
+          deposit_timestamp?: string | null
           description?: string | null
           id?: string
           idempotency_key?: string | null

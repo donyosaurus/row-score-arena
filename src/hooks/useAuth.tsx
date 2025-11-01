@@ -8,7 +8,7 @@ interface AuthContextType {
   user: User | null;
   session: Session | null;
   loading: boolean;
-  signUp: (email: string, password: string, fullName: string, username: string) => Promise<{ error: any }>;
+  signUp: (email: string, password: string, fullName: string, username: string, dateOfBirth: string, stateCode?: string) => Promise<{ error: any }>;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
 }
@@ -46,7 +46,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     return () => subscription.unsubscribe();
   }, []);
 
-  const signUp = async (email: string, password: string, fullName: string, username: string) => {
+  const signUp = async (email: string, password: string, fullName: string, username: string, dateOfBirth: string, stateCode?: string) => {
     try {
       // Check if username already exists
       const { data: existingUser, error: checkError } = await supabase
@@ -60,13 +60,24 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         return { error: { message: "Username already exists" } };
       }
 
-      const { error } = await supabase.auth.signUp({
+      // Validate age (must be at least 18)
+      const birthDate = new Date(dateOfBirth);
+      const age = Math.floor((Date.now() - birthDate.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
+      
+      if (age < 18) {
+        toast.error("You must be at least 18 years old to sign up");
+        return { error: { message: "Age requirement not met" } };
+      }
+
+      const { error, data } = await supabase.auth.signUp({
         email,
         password,
         options: {
           data: {
             full_name: fullName,
             username: username,
+            date_of_birth: dateOfBirth,
+            state_code: stateCode,
           },
           emailRedirectTo: `${window.location.origin}/`,
         },
@@ -79,6 +90,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           toast.error(error.message);
         }
         return { error };
+      }
+
+      // Update profile with DOB and age confirmation after signup
+      if (data.user) {
+        await supabase
+          .from('profiles')
+          .update({
+            date_of_birth: dateOfBirth,
+            age_confirmed_at: new Date().toISOString(),
+            state: stateCode,
+          })
+          .eq('id', data.user.id);
       }
 
       toast.success("Account created successfully!");

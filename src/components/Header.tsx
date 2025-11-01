@@ -23,6 +23,22 @@ export const Header = () => {
     enabled: !!user?.id,
   });
 
+  const { data: isAdmin } = useQuery({
+    queryKey: ['isAdmin', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return false;
+      const { data, error } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', user.id)
+        .eq('role', 'admin')
+        .maybeSingle();
+      if (error) return false;
+      return !!data;
+    },
+    enabled: !!user?.id,
+  });
+
   return (
     <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-50">
       <div className="container mx-auto px-4 py-4">
@@ -42,6 +58,11 @@ export const Header = () => {
             {user && (
               <Link to="/profile" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-base">
                 Profile
+              </Link>
+            )}
+            {isAdmin && (
+              <Link to="/admin" className="text-sm font-medium text-accent hover:text-accent/80 transition-base">
+                Admin
               </Link>
             )}
           </nav>

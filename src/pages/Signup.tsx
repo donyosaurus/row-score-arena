@@ -15,9 +15,11 @@ const Signup = () => {
   const [fullName, setFullName] = useState("");
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
+  const [dateOfBirth, setDateOfBirth] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [termsAccepted, setTermsAccepted] = useState(false);
+  const [ageConfirmed, setAgeConfirmed] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const { signUp, user } = useAuth();
   const navigate = useNavigate();
@@ -60,6 +62,25 @@ const Signup = () => {
       toast.error("This username is not allowed");
       return;
     }
+
+    // Date of birth validation
+    if (!dateOfBirth) {
+      toast.error("Please enter your date of birth");
+      return;
+    }
+
+    const birthDate = new Date(dateOfBirth);
+    const age = Math.floor((Date.now() - birthDate.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
+    
+    if (age < 18) {
+      toast.error("You must be at least 18 years old to sign up");
+      return;
+    }
+
+    if (!ageConfirmed) {
+      toast.error("Please confirm that you are 18 years or older");
+      return;
+    }
     
     if (password.length < 6) {
       toast.error("Password must be at least 6 characters");
@@ -77,7 +98,7 @@ const Signup = () => {
     }
     
     setIsLoading(true);
-    await signUp(email, password, fullName, username);
+    await signUp(email, password, fullName, username, dateOfBirth);
     setIsLoading(false);
   };
 
@@ -141,6 +162,21 @@ const Signup = () => {
                   required
                 />
               </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="dateOfBirth">Date of Birth</Label>
+                <Input
+                  id="dateOfBirth"
+                  type="date"
+                  value={dateOfBirth}
+                  onChange={(e) => setDateOfBirth(e.target.value)}
+                  max={new Date(Date.now() - 18 * 365.25 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]}
+                  required
+                />
+                <p className="text-xs text-muted-foreground">
+                  You must be at least 18 years old
+                </p>
+              </div>
               
               <div className="space-y-2">
                 <Label htmlFor="password">Password</Label>
@@ -166,6 +202,20 @@ const Signup = () => {
 
               <div className="flex items-start space-x-2">
                 <Checkbox
+                  id="ageConfirm"
+                  checked={ageConfirmed}
+                  onCheckedChange={(checked) => setAgeConfirmed(checked as boolean)}
+                />
+                <label
+                  htmlFor="ageConfirm"
+                  className="text-sm text-muted-foreground leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                >
+                  I confirm that I am at least 18 years old
+                </label>
+              </div>
+
+              <div className="flex items-start space-x-2">
+                <Checkbox
                   id="terms"
                   checked={termsAccepted}
                   onCheckedChange={(checked) => setTermsAccepted(checked as boolean)}
@@ -174,7 +224,7 @@ const Signup = () => {
                   htmlFor="terms"
                   className="text-sm text-muted-foreground leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                 >
-                  I am 18+ and agree to the{" "}
+                  I agree to the{" "}
                   <Link to="/terms" className="text-accent hover:underline">
                     Terms of Use
                   </Link>{" "}
@@ -191,7 +241,7 @@ const Signup = () => {
                 type="submit" 
                 variant="hero" 
                 className="w-full"
-                disabled={!termsAccepted || isLoading}
+                disabled={!termsAccepted || !ageConfirmed || isLoading}
               >
                 {isLoading ? "Creating account..." : "Sign Up"}
               </Button>
