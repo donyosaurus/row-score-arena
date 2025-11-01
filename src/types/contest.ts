@@ -2,6 +2,7 @@
 
 export type ContestType = "H2H" | "5_PERSON";
 export type GenderCategory = "Men's" | "Women's";
+export type ContestStatus = "open" | "locked" | "completed";
 
 export interface EntryTier {
   id: string;
@@ -10,6 +11,69 @@ export interface EntryTier {
   prize: number;
   capacity: number;
   filled: number;
+}
+
+// Database Types
+export interface ContestInstance {
+  id: string;
+  contest_template_id: string;
+  pool_number: string;
+  tier_id: string;
+  entry_fee_cents: number;
+  prize_pool_cents: number;
+  max_entries: number;
+  min_entries: number;
+  current_entries: number;
+  lock_time: string;
+  status: ContestStatus;
+  locked_at: string | null;
+  completed_at: string | null;
+  settled_at: string | null;
+  metadata: Record<string, any>;
+  created_at: string;
+  contest_templates?: {
+    regatta_name: string;
+    gender_category: string;
+  };
+}
+
+export interface ContestScore {
+  id: string;
+  entry_id: string;
+  instance_id: string;
+  user_id: string;
+  total_points: number;
+  margin_bonus: number;
+  rank: number | null;
+  payout_cents: number;
+  is_winner: boolean;
+  is_tiebreak_resolved: boolean;
+  crew_scores: CrewScore[];
+  created_at: string;
+  updated_at: string;
+  profiles?: {
+    username: string;
+  };
+}
+
+export interface CrewScore {
+  crew_id: string;
+  division_id: string;
+  predicted_margin: number;
+  actual_margin?: number;
+  finish_position: number | null;
+  finish_points: number;
+  margin_bonus: number;
+}
+
+export interface RaceResult {
+  crewId: string;
+  crewName: string;
+  divisionId: string;
+  divisionName: string;
+  finishPosition: number;
+  finishTime?: string;
+  marginSeconds?: number;
 }
 
 export interface Division {

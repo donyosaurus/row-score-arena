@@ -3,19 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Trophy, Medal, Award } from "lucide-react";
-
-interface LeaderboardEntry {
-  id: string;
-  user_id: string;
-  total_points: number;
-  margin_bonus: number;
-  rank: number;
-  is_winner: boolean;
-  payout_cents: number;
-  profiles?: {
-    username: string;
-  };
-}
+import { ContestScore } from "@/types/contest";
 
 interface ContestLeaderboardProps {
   instanceId: string;
@@ -23,7 +11,7 @@ interface ContestLeaderboardProps {
 }
 
 export const ContestLeaderboard = ({ instanceId, autoRefresh = false }: ContestLeaderboardProps) => {
-  const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
+  const [entries, setEntries] = useState<ContestScore[]>([]);
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState<string>('open');
 
@@ -55,7 +43,7 @@ export const ContestLeaderboard = ({ instanceId, autoRefresh = false }: ContestL
         return;
       }
 
-      setEntries(data as any || []);
+      setEntries(data as unknown as ContestScore[] || []);
     } catch (error) {
       console.error('Error loading leaderboard:', error);
     } finally {
