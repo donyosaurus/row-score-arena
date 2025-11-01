@@ -134,6 +134,7 @@ export type Database = {
           created_at: string
           entry_fee_cents: number
           id: string
+          instance_id: string | null
           margin_error: number | null
           payout_cents: number | null
           picks: Json
@@ -150,6 +151,7 @@ export type Database = {
           created_at?: string
           entry_fee_cents: number
           id?: string
+          instance_id?: string | null
           margin_error?: number | null
           payout_cents?: number | null
           picks: Json
@@ -166,6 +168,7 @@ export type Database = {
           created_at?: string
           entry_fee_cents?: number
           id?: string
+          instance_id?: string | null
           margin_error?: number | null
           payout_cents?: number | null
           picks?: Json
@@ -186,10 +189,82 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "contest_entries_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "contest_instances"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "contest_entries_pool_id_fkey"
             columns: ["pool_id"]
             isOneToOne: false
             referencedRelation: "contest_pools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contest_instances: {
+        Row: {
+          completed_at: string | null
+          contest_template_id: string
+          created_at: string
+          current_entries: number
+          entry_fee_cents: number
+          id: string
+          lock_time: string
+          locked_at: string | null
+          max_entries: number
+          metadata: Json | null
+          min_entries: number
+          pool_number: string
+          prize_pool_cents: number
+          settled_at: string | null
+          status: string
+          tier_id: string
+        }
+        Insert: {
+          completed_at?: string | null
+          contest_template_id: string
+          created_at?: string
+          current_entries?: number
+          entry_fee_cents: number
+          id?: string
+          lock_time: string
+          locked_at?: string | null
+          max_entries: number
+          metadata?: Json | null
+          min_entries?: number
+          pool_number: string
+          prize_pool_cents?: number
+          settled_at?: string | null
+          status?: string
+          tier_id: string
+        }
+        Update: {
+          completed_at?: string | null
+          contest_template_id?: string
+          created_at?: string
+          current_entries?: number
+          entry_fee_cents?: number
+          id?: string
+          lock_time?: string
+          locked_at?: string | null
+          max_entries?: number
+          metadata?: Json | null
+          min_entries?: number
+          pool_number?: string
+          prize_pool_cents?: number
+          settled_at?: string | null
+          status?: string
+          tier_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contest_instances_contest_template_id_fkey"
+            columns: ["contest_template_id"]
+            isOneToOne: false
+            referencedRelation: "contest_templates"
             referencedColumns: ["id"]
           },
         ]
@@ -246,6 +321,69 @@ export type Database = {
             columns: ["contest_template_id"]
             isOneToOne: false
             referencedRelation: "contest_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contest_scores: {
+        Row: {
+          created_at: string
+          crew_scores: Json | null
+          entry_id: string
+          id: string
+          instance_id: string
+          is_tiebreak_resolved: boolean | null
+          is_winner: boolean | null
+          margin_bonus: number
+          payout_cents: number | null
+          rank: number | null
+          total_points: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          crew_scores?: Json | null
+          entry_id: string
+          id?: string
+          instance_id: string
+          is_tiebreak_resolved?: boolean | null
+          is_winner?: boolean | null
+          margin_bonus?: number
+          payout_cents?: number | null
+          rank?: number | null
+          total_points?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          crew_scores?: Json | null
+          entry_id?: string
+          id?: string
+          instance_id?: string
+          is_tiebreak_resolved?: boolean | null
+          is_winner?: boolean | null
+          margin_bonus?: number
+          payout_cents?: number | null
+          rank?: number | null
+          total_points?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contest_scores_entry_id_fkey"
+            columns: ["entry_id"]
+            isOneToOne: true
+            referencedRelation: "contest_entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contest_scores_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "contest_instances"
             referencedColumns: ["id"]
           },
         ]
@@ -707,6 +845,59 @@ export type Database = {
           zip_code?: string | null
         }
         Relationships: []
+      }
+      race_results_imports: {
+        Row: {
+          admin_id: string
+          contest_template_id: string
+          created_at: string
+          errors: Json | null
+          file_hash: string | null
+          id: string
+          import_date: string
+          metadata: Json | null
+          regatta_name: string
+          results_data: Json
+          rows_processed: number
+          status: string
+        }
+        Insert: {
+          admin_id: string
+          contest_template_id: string
+          created_at?: string
+          errors?: Json | null
+          file_hash?: string | null
+          id?: string
+          import_date?: string
+          metadata?: Json | null
+          regatta_name: string
+          results_data: Json
+          rows_processed?: number
+          status?: string
+        }
+        Update: {
+          admin_id?: string
+          contest_template_id?: string
+          created_at?: string
+          errors?: Json | null
+          file_hash?: string | null
+          id?: string
+          import_date?: string
+          metadata?: Json | null
+          regatta_name?: string
+          results_data?: Json
+          rows_processed?: number
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "race_results_imports_contest_template_id_fkey"
+            columns: ["contest_template_id"]
+            isOneToOne: false
+            referencedRelation: "contest_templates"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       state_regulation_rules: {
         Row: {

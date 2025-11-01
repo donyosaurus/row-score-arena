@@ -56,9 +56,14 @@ export const Header = () => {
               Contests
             </Link>
             {user && (
-              <Link to="/profile" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-base">
-                Profile
-              </Link>
+              <>
+                <Link to="/profile" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-base">
+                  Profile
+                </Link>
+                <Link to="/my-entries" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-base">
+                  My Entries
+                </Link>
+              </>
             )}
             {isAdmin && (
               <Link to="/admin" className="text-sm font-medium text-accent hover:text-accent/80 transition-base">
