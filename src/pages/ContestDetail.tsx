@@ -1,5 +1,6 @@
-import { useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useParams, Link, useNavigate } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { Button } from "@/components/ui/button";
@@ -134,12 +135,24 @@ const mockRegattas: Record<string, Regatta> = {
 
 const ContestDetail = () => {
   const { id, tierId } = useParams();
+  const navigate = useNavigate();
+  const { user, loading } = useAuth();
   const [draftPicks, setDraftPicks] = useState<DraftPick[]>([]);
   const [currentDivision, setCurrentDivision] = useState<string>("");
   const [currentCrew, setCurrentCrew] = useState<string>("");
   const [currentMargin, setCurrentMargin] = useState<string>("");
 
+  useEffect(() => {
+    if (!loading && !user) {
+      navigate("/login");
+    }
+  }, [user, loading, navigate]);
+
   const mockRegatta = mockRegattas[id || "1"] || mockRegattas["1"];
+
+  if (loading) {
+    return null;
+  }
 
   const selectedTier = mockRegatta.entryTiers.find(t => t.id === tierId);
   if (!selectedTier) {

@@ -1,4 +1,5 @@
 import { useParams, Link, useNavigate } from "react-router-dom";
+import { useEffect } from "react";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { Button } from "@/components/ui/button";
@@ -6,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Clock, Users, DollarSign, Trophy } from "lucide-react";
 import { Regatta } from "@/types/contest";
+import { useAuth } from "@/hooks/useAuth";
 
 // Mock regatta data - maps to lobby IDs
 const mockRegattas: Record<string, Regatta> = {
@@ -267,8 +269,19 @@ const mockRegattas: Record<string, Regatta> = {
 const RegattaDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { user, loading } = useAuth();
+
+  useEffect(() => {
+    if (!loading && !user) {
+      navigate("/login");
+    }
+  }, [user, loading, navigate]);
 
   const mockRegatta = mockRegattas[id || "1"] || mockRegattas["1"];
+
+  if (loading) {
+    return null;
+  }
 
   const handleSelectTier = (tierId: string) => {
     navigate(`/contest/${id}/${tierId}`);
