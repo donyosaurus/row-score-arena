@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { Button } from "@/components/ui/button";
@@ -9,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Clock, DollarSign, Info, Target, Plus, Trash2, Trophy } from "lucide-react";
+import { ArrowLeft, Clock, DollarSign, Info, Target, Plus, Trash2, Trophy, Loader2 } from "lucide-react";
 import { Regatta, DraftPick, FINISH_POINTS, EntryTier } from "@/types/contest";
 import { toast } from "sonner";
 
@@ -141,12 +142,36 @@ const ContestDetail = () => {
   const [currentDivision, setCurrentDivision] = useState<string>("");
   const [currentCrew, setCurrentCrew] = useState<string>("");
   const [currentMargin, setCurrentMargin] = useState<string>("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [walletBalance, setWalletBalance] = useState<number | null>(null);
 
   useEffect(() => {
     if (!loading && !user) {
       navigate("/login");
     }
   }, [user, loading, navigate]);
+
+  // Fetch wallet balance
+  useEffect(() => {
+    const fetchWalletBalance = async () => {
+      if (!user) return;
+      
+      const { data, error } = await supabase
+        .from('wallets')
+        .select('available_balance')
+        .eq('user_id', user.id)
+        .single();
+      
+      if (error) {
+        console.error('Error fetching wallet:', error);
+        return;
+      }
+      
+      setWalletBalance(data?.available_balance ? Number(data.available_balance) : 0);
+    };
+    
+    fetchWalletBalance();
+  }, [user]);
 
   const mockRegatta = mockRegattas[id || "1"] || mockRegattas["1"];
 
@@ -198,7 +223,7 @@ const ContestDetail = () => {
     toast.info("Pick removed");
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (draftPicks.length < mockRegatta.minPicks) {
@@ -206,9 +231,84 @@ const ContestDetail = () => {
       return;
     }
 
-    // TODO: Submit to backend
-    console.log("Draft submitted:", draftPicks);
-    toast.success("Draft submitted successfully!");
+    if (!selectedTier) {
+      toast.error("Invalid entry tier");
+      return;
+    }
+
+    // Check wallet balance
+    if (walletBalance === null) {
+      toast.error("Unable to verify wallet balance");
+      return;
+    }
+
+    if (walletBalance < selectedTier.entryFee) {
+      toast.error(`Insufficient balance. You need $${selectedTier.entryFee} but have $${walletBalance.toFixed(2)}`);
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      // Call contest-enter edge function
+      const { data, error } = await supabase.functions.invoke('contest-enter', {
+        body: {
+          contestTemplateId: id,
+          tierId: tierId,
+          picks: draftPicks.map(pick => ({
+            crewId: pick.crewId,
+            divisionId: pick.divisionId,
+            predictedMargin: pick.predictedMargin
+          }))
+        }
+      });
+
+      if (error) {
+        console.error('Contest entry error:', error);
+        
+        // Handle specific error messages
+        if (error.message?.includes('Insufficient balance')) {
+          toast.error('Insufficient balance to enter this contest');
+        } else if (error.message?.includes('Already entered')) {
+          toast.error('You have already entered this contest');
+        } else if (error.message?.includes('not open')) {
+          toast.error('Contest entry period has ended');
+        } else {
+          toast.error('Failed to submit entry. Please try again.');
+        }
+        return;
+      }
+
+      if (!data?.success) {
+        toast.error(data?.error || 'Failed to submit entry');
+        return;
+      }
+
+      // Success!
+      toast.success('Entry submitted successfully! Matching you with other players...');
+      
+      // Refresh wallet balance
+      const { data: walletData } = await supabase
+        .from('wallets')
+        .select('available_balance')
+        .eq('user_id', user!.id)
+        .single();
+      
+      if (walletData) {
+        setWalletBalance(Number(walletData.available_balance));
+      }
+
+      // Navigate to My Entries after a short delay
+      setTimeout(() => {
+        navigate('/my-entries');
+      }, 1500);
+
+    } catch (error) {
+      console.error('Unexpected error:', error);
+      toast.error('An unexpected error occurred. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const availableDivisions = mockRegatta.divisions.filter(
@@ -254,7 +354,7 @@ const ContestDetail = () => {
               </Badge>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <Card>
                 <CardContent className="pt-6">
                   <div className="flex items-center gap-3">
@@ -305,6 +405,26 @@ const ContestDetail = () => {
                     <div>
                       <p className="text-sm text-muted-foreground">Locks</p>
                       <p className="text-sm font-semibold">{mockRegatta.lockTime}</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-muted/50 flex items-center justify-center">
+                      <DollarSign className="h-5 w-5 text-foreground" />
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Your Balance</p>
+                      {walletBalance !== null ? (
+                        <p className={`text-2xl font-bold ${walletBalance < selectedTier.entryFee ? 'text-destructive' : ''}`}>
+                          ${walletBalance.toFixed(2)}
+                        </p>
+                      ) : (
+                        <p className="text-sm text-muted-foreground">Loading...</p>
+                      )}
                     </div>
                   </div>
                 </CardContent>
@@ -449,8 +569,18 @@ const ContestDetail = () => {
                   variant="hero" 
                   size="lg" 
                   className="w-full text-lg py-6"
+                  disabled={isSubmitting}
                 >
-                  Submit Draft (${selectedTier.entryFee})
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                      Processing...
+                    </>
+                  ) : (
+                    <>
+                      Submit Draft (${selectedTier.entryFee})
+                    </>
+                  )}
                 </Button>
               )}
             </div>
