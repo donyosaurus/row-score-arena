@@ -1,4 +1,4 @@
-// Cancel Pending Withdrawal
+// Wallet Withdraw Cancel - Cancel pending withdrawal
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.76.1';
 
@@ -14,9 +14,7 @@ Deno.serve(async (req) => {
 
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const authHeader = req.headers.get('Authorization')!;
-    
     const supabase = createClient(supabaseUrl, Deno.env.get('SUPABASE_ANON_KEY')!, {
       global: { headers: { Authorization: authHeader } },
     });
@@ -29,91 +27,65 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { transactionId } = await req.json();
+    const { request_id } = await req.json();
 
-    if (!transactionId) {
+    if (!request_id) {
       return new Response(
-        JSON.stringify({ error: 'Transaction ID required' }),
+        JSON.stringify({ error: 'Request ID is required' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Get transaction
-    const { data: transaction, error: txnError } = await supabase
+    const { data: transaction, error: txError } = await supabase
       .from('transactions')
       .select('*')
-      .eq('id', transactionId)
+      .eq('id', request_id)
       .eq('user_id', user.id)
+      .eq('type', 'withdrawal')
       .single();
 
-    if (txnError || !transaction) {
+    if (txError || !transaction) {
       return new Response(
-        JSON.stringify({ error: 'Transaction not found' }),
+        JSON.stringify({ error: 'Withdrawal request not found' }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    if (transaction.type !== 'withdrawal') {
-      return new Response(
-        JSON.stringify({ error: 'Can only cancel withdrawal transactions' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     if (transaction.status !== 'pending') {
       return new Response(
-        JSON.stringify({ error: 'Can only cancel pending withdrawals' }),
+        JSON.stringify({ error: 'Only pending withdrawals can be cancelled' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Use service role to bypass RLS for transaction update
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
-
-    // Cancel transaction (transactions are immutable, so we mark as failed)
-    const { error: updateError } = await supabaseAdmin
+    const { error: updateError } = await supabase
       .from('transactions')
-      .update({ status: 'failed', description: 'Cancelled by user' })
-      .eq('id', transactionId);
+      .update({ status: 'failed', metadata: { ...transaction.metadata, cancelled_by_user: true } })
+      .eq('id', request_id);
 
     if (updateError) {
-      console.error('[wallet-withdraw-cancel] Error updating transaction:', updateError);
       throw updateError;
     }
 
-    // Restore balance
-    const { data: wallet } = await supabase
-      .from('wallets')
-      .select('*')
-      .eq('user_id', user.id)
-      .single();
-
-    if (wallet) {
-      const amountToRestore = Math.abs(Number(transaction.amount));
-      
-      await supabaseAdmin
-        .from('wallets')
-        .update({
-          available_balance: Number(wallet.available_balance) + amountToRestore,
-          pending_balance: Number(wallet.pending_balance) - amountToRestore,
-        })
-        .eq('id', wallet.id);
-    }
-
-    console.log('[wallet-withdraw-cancel] Withdrawal cancelled:', transactionId);
+    await supabase
+      .from('compliance_audit_logs')
+      .insert({
+        user_id: user.id,
+        event_type: 'withdrawal_cancelled',
+        description: 'User cancelled withdrawal request',
+        severity: 'info',
+        metadata: { transaction_id: request_id },
+      });
 
     return new Response(
-      JSON.stringify({
-        success: true,
-        message: 'Withdrawal cancelled successfully',
-      }),
+      JSON.stringify({ success: true }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
   } catch (error: any) {
     console.error('[wallet-withdraw-cancel] Error:', error);
     return new Response(
-      JSON.stringify({ error: error?.message || 'Unknown error' }),
+      JSON.stringify({ error: 'Failed to cancel withdrawal' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
