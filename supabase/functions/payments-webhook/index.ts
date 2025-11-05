@@ -9,9 +9,37 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, webhook-signature, webhook-timestamp, webhook-id',
 };
 
+// SECURITY: Rate limiting per IP
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
+
+function checkRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const limit = rateLimitMap.get(ip);
+  
+  if (!limit || now > limit.resetAt) {
+    rateLimitMap.set(ip, { count: 1, resetAt: now + 60000 }); // 1 minute window
+    return true;
+  }
+  
+  if (limit.count >= 100) { // Max 100 requests per minute per IP
+    return false;
+  }
+  
+  limit.count++;
+  return true;
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
+  }
+
+  const clientIp = req.headers.get('x-forwarded-for')?.split(',')[0].trim() || 'unknown';
+
+  // SECURITY: Rate limit check
+  if (!checkRateLimit(clientIp)) {
+    console.warn('[webhook] Rate limit exceeded:', clientIp);
+    return new Response(JSON.stringify({ error: 'invalid' }), { status: 429, headers: corsHeaders });
   }
 
   try {
@@ -22,51 +50,156 @@ Deno.serve(async (req) => {
 
     const signature = req.headers.get('webhook-signature') || req.headers.get('x-webhook-signature') || '';
     const timestamp = req.headers.get('webhook-timestamp') || req.headers.get('x-webhook-timestamp') || '';
-    const webhookId = req.headers.get('webhook-id') || `${Date.now()}-${Math.random()}`;
+    const webhookId = req.headers.get('webhook-id') || `${Date.now()}-${crypto.randomUUID()}`;
     const providerType = new URL(req.url).searchParams.get('provider') || 'mock';
 
     // SECURITY: Validate timestamp (max 5 minutes old)
     if (!isTimestampValid(timestamp, 300)) {
-      console.warn('[webhook] Invalid timestamp');
-      return new Response(JSON.stringify({ error: 'invalid' }), { status: 401, headers: corsHeaders });
+      console.warn('[webhook] Invalid timestamp from', clientIp);
+      return new Response(JSON.stringify({ error: 'invalid' }), { 
+        status: 401, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      });
     }
 
-    // SECURITY: Check for replay
-    const { data: existing } = await supabase.from('webhook_dedup').select('id').eq('id', webhookId).single();
+    // SECURITY: Check for replay attack
+    const { data: existing } = await supabase
+      .from('webhook_dedup')
+      .select('id')
+      .eq('id', webhookId)
+      .maybeSingle();
+      
     if (existing) {
-      console.warn('[webhook] Replay detected');
-      return new Response(JSON.stringify({ error: 'invalid' }), { status: 409, headers: corsHeaders });
+      console.warn('[webhook] Replay attack detected:', webhookId, 'from', clientIp);
+      return new Response(JSON.stringify({ error: 'invalid' }), { 
+        status: 409, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      });
     }
 
-    await supabase.from('webhook_dedup').insert({ id: webhookId, provider: providerType, event_type: 'pending', ip_address: req.headers.get('x-forwarded-for') });
+    // Store webhook for deduplication
+    await supabase.from('webhook_dedup').insert({ 
+      id: webhookId, 
+      provider: providerType, 
+      event_type: 'pending', 
+      ip_address: clientIp 
+    });
 
     const rawPayload = await req.text();
     const provider = getPaymentProvider(providerType as any);
     
-    // SECURITY: Verify signature
-    const isValid = await provider.verifyWebhook({ signature, payload: rawPayload, timestamp });
+    // SECURITY: Verify signature with constant-time comparison
+    const isValid = await provider.verifyWebhook({ 
+      signature, 
+      payload: rawPayload, 
+      timestamp 
+    });
+    
     if (!isValid) {
-      return new Response(JSON.stringify({ error: 'invalid' }), { status: 401, headers: corsHeaders });
+      console.warn('[webhook] Invalid signature from', clientIp);
+      return new Response(JSON.stringify({ error: 'invalid' }), { 
+        status: 401, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      });
     }
 
     const webhookEvent = await provider.handleWebhook(rawPayload);
-    await supabase.from('webhook_dedup').update({ event_type: webhookEvent.eventType }).eq('id', webhookId);
+    
+    // Update event type
+    await supabase
+      .from('webhook_dedup')
+      .update({ event_type: webhookEvent.eventType })
+      .eq('id', webhookId);
 
-    // Route handlers (simplified for space)
+    console.log('[webhook] Processing event:', webhookEvent.eventType);
+
+    // Handle different event types
     if (webhookEvent.eventType === 'payment.succeeded') {
       const sessionId = webhookEvent.providerSessionId || webhookEvent.providerTransactionId;
-      const { data: session } = await supabase.from('payment_sessions').select('*').eq('provider_session_id', sessionId).single();
+      
+      const { data: session } = await supabase
+        .from('payment_sessions')
+        .select('*')
+        .eq('provider_session_id', sessionId)
+        .single();
+        
       if (session) {
-        await supabase.from('payment_sessions').update({ status: 'succeeded', completed_at: new Date().toISOString() }).eq('id', session.id);
-        const { data: wallet } = await supabase.from('wallets').select('*').eq('user_id', session.user_id).single();
-        await supabase.from('transactions').insert({ user_id: session.user_id, wallet_id: wallet.id, type: 'deposit', amount: session.amount_cents / 100, status: 'completed', reference_id: sessionId, completed_at: new Date().toISOString() });
-        await supabase.rpc('update_wallet_balance', { _wallet_id: wallet.id, _available_delta: session.amount_cents / 100, _lifetime_deposits_delta: session.amount_cents / 100 });
+        // Update session status
+        await supabase
+          .from('payment_sessions')
+          .update({ 
+            status: 'succeeded', 
+            completed_at: new Date().toISOString() 
+          })
+          .eq('id', session.id);
+        
+        // Get wallet
+        const { data: wallet } = await supabase
+          .from('wallets')
+          .select('*')
+          .eq('user_id', session.user_id)
+          .single();
+          
+        if (wallet) {
+          // Create deposit transaction
+          await supabase.from('transactions').insert({ 
+            user_id: session.user_id, 
+            wallet_id: wallet.id, 
+            type: 'deposit', 
+            amount: session.amount_cents / 100, 
+            status: 'completed', 
+            reference_id: sessionId,
+            reference_type: 'payment_session',
+            description: 'Deposit via payment processor',
+            completed_at: new Date().toISOString(),
+            metadata: { provider: providerType, webhook_id: webhookId }
+          });
+          
+          // Update wallet balance atomically
+          await supabase.rpc('update_wallet_balance', { 
+            _wallet_id: wallet.id, 
+            _available_delta: session.amount_cents / 100, 
+            _pending_delta: 0,
+            _lifetime_deposits_delta: session.amount_cents / 100 
+          });
+
+          // Log to compliance
+          await supabase.from('compliance_audit_logs').insert({
+            user_id: session.user_id,
+            event_type: 'deposit_completed',
+            description: 'Deposit processed via webhook',
+            severity: 'info',
+            state_code: session.state_code,
+            metadata: {
+              amount_cents: session.amount_cents,
+              provider: providerType,
+              session_id: session.id,
+            },
+          });
+          
+          console.log('[webhook] Deposit processed:', session.amount_cents / 100, 'for user', session.user_id);
+        }
       }
+    } else if (webhookEvent.eventType === 'payment.failed') {
+      const sessionId = webhookEvent.providerSessionId || webhookEvent.providerTransactionId;
+      
+      await supabase
+        .from('payment_sessions')
+        .update({ status: 'failed' })
+        .eq('provider_session_id', sessionId);
     }
 
-    return new Response(JSON.stringify({ success: true }), { status: 200, headers: corsHeaders });
-  } catch (error) {
+    return new Response(
+      JSON.stringify({ success: true }), 
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+    
+  } catch (error: any) {
     console.error('[webhook] Error:', error);
-    return new Response(JSON.stringify({ error: 'invalid' }), { status: 500, headers: corsHeaders });
+    // Always return generic error for security
+    return new Response(
+      JSON.stringify({ error: 'invalid' }), 
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
   }
 });

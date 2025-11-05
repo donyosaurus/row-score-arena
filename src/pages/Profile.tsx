@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,63 +7,97 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { DollarSign, TrendingUp, Trophy, User, Edit2 } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DollarSign, TrendingUp, Trophy, User, Edit2, Download, ArrowUpDown, Loader2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { z } from "zod";
 
-// Mock user data for stats (to be replaced with real data later)
-const mockUser = {
-  joined: "March 2025",
-  contests: 12,
-  wins: 5,
-};
+interface ProfileData {
+  profile: {
+    id: string;
+    email: string;
+    username: string;
+    fullName: string | null;
+    dateOfBirth: string | null;
+    state: string | null;
+    usernameLastChangedAt: string | null;
+    kycStatus: string;
+    isActive: boolean;
+    selfExclusionUntil: string | null;
+    depositLimitMonthly: number;
+  };
+  wallet: {
+    availableBalance: number;
+    pendingBalance: number;
+    lifetimeDeposits: number;
+    lifetimeWithdrawals: number;
+    lifetimeWinnings: number;
+  };
+  stats: {
+    contestsPlayed: number;
+    winRate: number;
+    totalWinnings: number;
+    netProfit: number;
+    bestFinish: number | null;
+    recentForm: string;
+  };
+}
 
-const mockTransactions = [
-  { id: "1", type: "Deposit", amount: 50.00, date: "May 10, 2025", status: "Completed" },
-  { id: "2", type: "Entry Fee", amount: -9.00, date: "May 11, 2025", status: "Completed" },
-  { id: "3", type: "Prize", amount: 15.00, date: "May 12, 2025", status: "Completed" },
-];
+interface Transaction {
+  id: string;
+  type: string;
+  amount: number;
+  status: string;
+  created_at: string;
+  description: string;
+  reference_id: string | null;
+  state_code: string | null;
+}
 
-const mockHistory = [
-  { 
-    id: "1", 
-    eventName: "IRA Championship",
-    raceName: "Men's Varsity Eight",
-    result: "Won",
-    prize: 15.00,
-    date: "May 12, 2025"
-  },
-  { 
-    id: "2", 
-    eventName: "Dad Vail Regatta",
-    raceName: "Women's Four",
-    result: "Lost",
-    prize: 0,
-    date: "May 10, 2025"
-  },
-];
-
-const usernameSchema = z.string()
-  .min(3, "Username must be at least 3 characters")
-  .max(20, "Username must be less than 20 characters")
-  .regex(/^[a-zA-Z0-9_]+$/, "Username can only contain letters, numbers, and underscores");
-
-const inappropriateWords = ['admin', 'moderator', 'fuck', 'shit', 'damn', 'ass', 'bitch'];
+interface Contest {
+  id: string;
+  contestTemplateId: string;
+  regattaName: string;
+  genderCategory: string;
+  tierId: string;
+  poolId: string;
+  entryFeeCents: number;
+  lockTime: string;
+  status: string;
+  rank: number | null;
+  totalPoints: number | null;
+  payoutCents: number | null;
+  createdAt: string;
+  poolStatus: string;
+}
 
 const Profile = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [profile, setProfile] = useState<{ username: string; email: string; username_last_changed_at: string } | null>(null);
-  const [balance, setBalance] = useState<number>(0);
+  const [profileData, setProfileData] = useState<ProfileData | null>(null);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [contests, setContests] = useState<Contest[]>([]);
   const [loading, setLoading] = useState(true);
-  const [dialogOpen, setDialogOpen] = useState(false);
+  
+  // Dialogs
+  const [usernameDialogOpen, setUsernameDialogOpen] = useState(false);
+  const [depositDialogOpen, setDepositDialogOpen] = useState(false);
+  const [withdrawDialogOpen, setWithdrawDialogOpen] = useState(false);
+  
+  // Forms
   const [newUsername, setNewUsername] = useState("");
-  const [isUpdating, setIsUpdating] = useState(false);
-  const [canChangeUsername, setCanChangeUsername] = useState(false);
+  const [depositAmount, setDepositAmount] = useState("");
+  const [withdrawAmount, setWithdrawAmount] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // Filters
+  const [txTypeFilter, setTxTypeFilter] = useState("all");
+  const [txPage, setTxPage] = useState(1);
+  const [contestPage, setContestPage] = useState(1);
+  const [txTotal, setTxTotal] = useState(0);
+  const [contestTotal, setContestTotal] = useState(0);
 
   useEffect(() => {
     if (!user) {
@@ -70,130 +105,223 @@ const Profile = () => {
       return;
     }
 
-    const fetchProfileData = async () => {
-      try {
-        // Fetch profile data
-        const { data: profileData, error: profileError } = await supabase
-          .from("profiles")
-          .select("username, email, username_last_changed_at")
-          .eq("id", user.id)
-          .single();
-
-        if (profileError) throw profileError;
-        setProfile(profileData);
-        setNewUsername(profileData.username || "");
-
-        // Check if user can change username (3 months = 90 days)
-        if (profileData.username_last_changed_at) {
-          const lastChanged = new Date(profileData.username_last_changed_at);
-          const threeMonthsAgo = new Date();
-          threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
-          setCanChangeUsername(lastChanged <= threeMonthsAgo);
-        } else {
-          setCanChangeUsername(true);
-        }
-
-        // Fetch wallet balance
-        const { data: walletData, error: walletError } = await supabase
-          .from("wallets")
-          .select("available_balance")
-          .eq("user_id", user.id)
-          .single();
-
-        if (walletError) throw walletError;
-        setBalance(Number(walletData.available_balance) || 0);
-      } catch (error) {
-        console.error("Error fetching profile data:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchProfileData();
-  }, [user, navigate]);
+    fetchTransactions();
+    fetchContests();
+  }, [user, navigate, txTypeFilter, txPage, contestPage]);
 
-  const handleUsernameChange = async () => {
-    if (!user || !profile) return;
-
+  const fetchProfileData = async () => {
     try {
-      // Validate username format
-      usernameSchema.parse(newUsername);
-
-      // Check for inappropriate words
-      const lowerUsername = newUsername.toLowerCase();
-      const hasInappropriateWord = inappropriateWords.some(word => 
-        lowerUsername.includes(word)
-      );
-
-      if (hasInappropriateWord) {
-        toast.error("Username contains inappropriate content");
-        return;
-      }
-
-      // Check if username is different
-      if (newUsername === profile.username) {
-        toast.error("New username must be different from current username");
-        return;
-      }
-
-      setIsUpdating(true);
-
-      // Check if username is already taken
-      const { data: existingUser } = await supabase
-        .from("profiles")
-        .select("username")
-        .eq("username", newUsername)
-        .neq("id", user.id)
-        .single();
-
-      if (existingUser) {
-        toast.error("Username is already taken");
-        setIsUpdating(false);
-        return;
-      }
-
-      // Update username
-      const { error } = await supabase
-        .from("profiles")
-        .update({ 
-          username: newUsername,
-          username_last_changed_at: new Date().toISOString()
-        })
-        .eq("id", user.id);
-
+      const { data, error } = await supabase.functions.invoke('profile-overview');
+      
       if (error) throw error;
-
-      toast.success("Username updated successfully!");
-      setProfile({ ...profile, username: newUsername, username_last_changed_at: new Date().toISOString() });
-      setCanChangeUsername(false);
-      setDialogOpen(false);
+      
+      setProfileData(data);
+      setNewUsername(data.profile.username || "");
     } catch (error: any) {
-      if (error instanceof z.ZodError) {
-        toast.error(error.errors[0].message);
-      } else {
-        toast.error("Failed to update username");
-        console.error(error);
-      }
-    } finally {
-      setIsUpdating(false);
+      console.error('Error fetching profile:', error);
+      toast.error('Failed to load profile data');
     }
   };
 
+  const fetchTransactions = async () => {
+    try {
+      const params = new URLSearchParams({
+        page: txPage.toString(),
+        limit: '25',
+      });
+      
+      if (txTypeFilter !== 'all') {
+        params.append('type', txTypeFilter);
+      }
+
+      const { data, error } = await supabase.functions.invoke('wallet-transactions', {
+        body: { page: txPage, limit: 25, type: txTypeFilter !== 'all' ? txTypeFilter : undefined }
+      });
+      
+      if (error) throw error;
+      
+      setTransactions(data.transactions || []);
+      setTxTotal(data.total || 0);
+    } catch (error: any) {
+      console.error('Error fetching transactions:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchContests = async () => {
+    try {
+      const { data, error } = await supabase.functions.invoke('profile-contests', {
+        body: { page: contestPage, limit: 20 }
+      });
+      
+      if (error) throw error;
+      
+      setContests(data.contests || []);
+      setContestTotal(data.total || 0);
+    } catch (error: any) {
+      console.error('Error fetching contests:', error);
+    }
+  };
+
+  const handleUsernameChange = async () => {
+    if (!newUsername || !profileData) return;
+
+    setIsSubmitting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('profile-username', {
+        body: { new_username: newUsername }
+      });
+
+      if (error) {
+        toast.error(error.message || 'Failed to update username');
+        return;
+      }
+
+      if (data.error) {
+        toast.error(data.error);
+        if (data.nextChangeAvailable) {
+          toast.info(`Next change available: ${new Date(data.nextChangeAvailable).toLocaleDateString()}`);
+        }
+        return;
+      }
+
+      toast.success('Username updated successfully!');
+      setUsernameDialogOpen(false);
+      fetchProfileData();
+    } catch (error: any) {
+      toast.error('Failed to update username');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDeposit = async () => {
+    const amount = parseFloat(depositAmount);
+    if (!amount || amount < 5 || amount > 500) {
+      toast.error('Deposit amount must be between $5 and $500');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('wallet-deposit-init', {
+        body: { amount_cents: Math.floor(amount * 100) }
+      });
+
+      if (error) {
+        toast.error(error.message || 'Failed to initialize deposit');
+        return;
+      }
+
+      toast.info('Deposit session created (mock mode)');
+      toast.info(`Checkout URL: ${data.checkoutUrl}`);
+      setDepositDialogOpen(false);
+      setDepositAmount("");
+      fetchProfileData();
+      fetchTransactions();
+    } catch (error: any) {
+      toast.error('Failed to initialize deposit');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleWithdraw = async () => {
+    const amount = parseFloat(withdrawAmount);
+    if (!amount || amount < 5 || amount > 200) {
+      toast.error('Withdrawal amount must be between $5 and $200');
+      return;
+    }
+
+    if (!profileData || profileData.wallet.availableBalance < amount) {
+      toast.error('Insufficient balance');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('wallet-withdraw-request', {
+        body: { amount_cents: Math.floor(amount * 100) }
+      });
+
+      if (error) {
+        toast.error(error.message || 'Failed to request withdrawal');
+        return;
+      }
+
+      if (data.error) {
+        toast.error(data.error);
+        return;
+      }
+
+      toast.success('Withdrawal request submitted');
+      setWithdrawDialogOpen(false);
+      setWithdrawAmount("");
+      fetchProfileData();
+      fetchTransactions();
+    } catch (error: any) {
+      toast.error('Failed to request withdrawal');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const canWithdraw = () => {
+    if (!profileData) return false;
+    return profileData.profile.isActive && 
+           !profileData.profile.selfExclusionUntil &&
+           profileData.wallet.availableBalance >= 5;
+  };
+
+  const exportContestsCSV = () => {
+    const csv = [
+      ['Date', 'Regatta', 'Tier', 'Entry Fee', 'Rank', 'Points', 'Payout'].join(','),
+      ...contests.map(c => [
+        new Date(c.createdAt).toLocaleDateString(),
+        c.regattaName,
+        c.tierId,
+        `$${(c.entryFeeCents / 100).toFixed(2)}`,
+        c.rank || 'Pending',
+        c.totalPoints || '0',
+        c.payoutCents ? `$${(c.payoutCents / 100).toFixed(2)}` : '$0'
+      ].join(','))
+    ].join('\n');
+
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'contest-history.csv';
+    a.click();
+  };
+
+  const canChangeUsername = () => {
+    if (!profileData?.profile.usernameLastChangedAt) return true;
+    const lastChanged = new Date(profileData.profile.usernameLastChangedAt);
+    const ninetyDaysAgo = new Date();
+    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+    return lastChanged <= ninetyDaysAgo;
+  };
+
   const getNextChangeDate = () => {
-    if (!profile?.username_last_changed_at) return null;
-    const lastChanged = new Date(profile.username_last_changed_at);
+    if (!profileData?.profile.usernameLastChangedAt) return null;
+    const lastChanged = new Date(profileData.profile.usernameLastChangedAt);
     const nextChange = new Date(lastChanged);
-    nextChange.setMonth(nextChange.getMonth() + 3);
+    nextChange.setDate(nextChange.getDate() + 90);
     return nextChange.toLocaleDateString();
   };
 
-  if (loading) {
+  if (loading || !profileData) {
     return (
       <div className="flex flex-col min-h-screen">
         <Header />
         <main className="flex-1 gradient-subtle py-12">
           <div className="container mx-auto px-4 max-w-6xl">
-            <p className="text-center">Loading...</p>
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
           </div>
         </main>
         <Footer />
@@ -220,66 +348,25 @@ const Profile = () => {
                     </div>
                     <div className="w-full">
                       <div className="flex items-center justify-center gap-2 mb-1">
-                        <h2 className="text-xl font-bold">{profile?.username || "Loading..."}</h2>
-                        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-                          <DialogTrigger asChild>
-                            <Button 
-                              variant="ghost" 
-                              size="sm" 
-                              className="h-6 w-6 p-0"
-                              disabled={!canChangeUsername}
-                            >
-                              <Edit2 className="h-3 w-3" />
-                            </Button>
-                          </DialogTrigger>
-                          <DialogContent>
-                            <DialogHeader>
-                              <DialogTitle>Change Username</DialogTitle>
-                              <DialogDescription>
-                                {canChangeUsername 
-                                  ? "You can change your username once every 3 months."
-                                  : `You can change your username again on ${getNextChangeDate()}`
-                                }
-                              </DialogDescription>
-                            </DialogHeader>
-                            <div className="space-y-4 py-4">
-                              <div className="space-y-2">
-                                <label className="text-sm font-medium">New Username</label>
-                                <Input
-                                  value={newUsername}
-                                  onChange={(e) => setNewUsername(e.target.value)}
-                                  placeholder="Enter new username"
-                                  disabled={isUpdating}
-                                />
-                                <p className="text-xs text-muted-foreground">
-                                  3-20 characters, letters, numbers, and underscores only
-                                </p>
-                              </div>
-                            </div>
-                            <DialogFooter>
-                              <Button
-                                variant="outline"
-                                onClick={() => setDialogOpen(false)}
-                                disabled={isUpdating}
-                              >
-                                Cancel
-                              </Button>
-                              <Button
-                                onClick={handleUsernameChange}
-                                disabled={isUpdating || !newUsername}
-                              >
-                                {isUpdating ? "Updating..." : "Update Username"}
-                              </Button>
-                            </DialogFooter>
-                          </DialogContent>
-                        </Dialog>
+                        <h2 className="text-xl font-bold">{profileData.profile.username}</h2>
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="h-6 w-6 p-0"
+                          onClick={() => setUsernameDialogOpen(true)}
+                          disabled={!canChangeUsername()}
+                        >
+                          <Edit2 className="h-3 w-3" />
+                        </Button>
                       </div>
-                      <p className="text-sm text-muted-foreground">{profile?.email || "Loading..."}</p>
-                      <p className="text-xs text-muted-foreground mt-1">Member since {mockUser.joined}</p>
-                      {!canChangeUsername && (
+                      <p className="text-sm text-muted-foreground">{profileData.profile.email}</p>
+                      {!canChangeUsername() && (
                         <p className="text-xs text-muted-foreground mt-1">
                           Next username change: {getNextChangeDate()}
                         </p>
+                      )}
+                      {profileData.profile.state && (
+                        <Badge variant="outline" className="mt-2">{profileData.profile.state}</Badge>
                       )}
                     </div>
                   </div>
@@ -290,18 +377,40 @@ const Profile = () => {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <DollarSign className="h-5 w-5 text-success" />
-                    Wallet Balance
+                    Wallet
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <p className="text-3xl font-bold text-success">${balance.toFixed(2)}</p>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Available Balance</p>
+                    <p className="text-3xl font-bold text-success">${profileData.wallet.availableBalance.toFixed(2)}</p>
+                  </div>
+                  {profileData.wallet.pendingBalance > 0 && (
+                    <div>
+                      <p className="text-sm text-muted-foreground">Pending</p>
+                      <p className="text-lg font-semibold">${profileData.wallet.pendingBalance.toFixed(2)}</p>
+                    </div>
+                  )}
                   <div className="space-y-2">
-                    <Button variant="hero" className="w-full">
+                    <Button 
+                      variant="hero" 
+                      className="w-full"
+                      onClick={() => setDepositDialogOpen(true)}
+                      disabled={!profileData.profile.isActive}
+                    >
                       Deposit Funds
                     </Button>
-                    <Button variant="outline" className="w-full">
+                    <Button 
+                      variant="outline" 
+                      className="w-full"
+                      onClick={() => setWithdrawDialogOpen(true)}
+                      disabled={!canWithdraw()}
+                    >
                       Withdraw
                     </Button>
+                    {!canWithdraw() && profileData.wallet.availableBalance < 5 && (
+                      <p className="text-xs text-muted-foreground">Minimum $5 to withdraw</p>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -315,18 +424,32 @@ const Profile = () => {
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Total Contests</span>
-                    <span className="font-semibold">{mockUser.contests}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Wins</span>
-                    <span className="font-semibold text-success">{mockUser.wins}</span>
+                    <span className="text-muted-foreground">Contests Played</span>
+                    <span className="font-semibold">{profileData.stats.contestsPlayed}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Win Rate</span>
-                    <span className="font-semibold">
-                      {((mockUser.wins / mockUser.contests) * 100).toFixed(0)}%
+                    <span className="font-semibold">{profileData.stats.winRate.toFixed(1)}%</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Total Winnings</span>
+                    <span className="font-semibold text-success">${profileData.stats.totalWinnings.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Net Profit</span>
+                    <span className={`font-semibold ${profileData.stats.netProfit >= 0 ? 'text-success' : 'text-destructive'}`}>
+                      ${profileData.stats.netProfit.toFixed(2)}
                     </span>
+                  </div>
+                  {profileData.stats.bestFinish && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Best Finish</span>
+                      <span className="font-semibold">#{profileData.stats.bestFinish}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Recent Form</span>
+                    <span className="font-mono text-sm">{profileData.stats.recentForm}</span>
                   </div>
                 </CardContent>
               </Card>
@@ -334,44 +457,96 @@ const Profile = () => {
 
             {/* Main Content */}
             <div className="lg:col-span-2">
-              <Tabs defaultValue="history" className="w-full">
+              <Tabs defaultValue="contests" className="w-full">
                 <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="history">Contest History</TabsTrigger>
+                  <TabsTrigger value="contests">Contest History</TabsTrigger>
                   <TabsTrigger value="transactions">Transactions</TabsTrigger>
                 </TabsList>
 
-                <TabsContent value="history" className="mt-6">
+                <TabsContent value="contests" className="mt-6">
                   <Card>
                     <CardHeader>
-                      <CardTitle>Recent Contests</CardTitle>
+                      <div className="flex items-center justify-between">
+                        <CardTitle>Contest History</CardTitle>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={exportContestsCSV}
+                          disabled={contests.length === 0}
+                        >
+                          <Download className="h-4 w-4 mr-2" />
+                          Export CSV
+                        </Button>
+                      </div>
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-4">
-                        {mockHistory.map((contest) => (
-                          <div 
-                            key={contest.id}
-                            className="p-4 rounded-lg border border-border hover:bg-accent/5 transition-base"
-                          >
-                            <div className="flex items-start justify-between mb-2">
-                              <div>
-                                <p className="font-semibold">{contest.raceName}</p>
-                                <p className="text-sm text-muted-foreground">{contest.eventName}</p>
+                        {contests.length === 0 ? (
+                          <p className="text-center text-muted-foreground py-8">No contests yet</p>
+                        ) : (
+                          contests.map((contest) => (
+                            <div 
+                              key={contest.id}
+                              className="p-4 rounded-lg border border-border hover:bg-accent/5 transition-base"
+                            >
+                              <div className="flex items-start justify-between mb-2">
+                                <div>
+                                  <p className="font-semibold">{contest.regattaName}</p>
+                                  <p className="text-sm text-muted-foreground">{contest.genderCategory} • Tier: {contest.tierId}</p>
+                                  <p className="text-xs text-muted-foreground">Entry: ${(contest.entryFeeCents / 100).toFixed(2)}</p>
+                                </div>
+                                <div className="text-right">
+                                  {contest.rank ? (
+                                    <Badge variant={contest.rank === 1 ? "default" : "secondary"}>
+                                      Rank #{contest.rank}
+                                    </Badge>
+                                  ) : (
+                                    <Badge variant="outline">Pending</Badge>
+                                  )}
+                                </div>
                               </div>
-                              <Badge variant={contest.result === "Won" ? "default" : "secondary"}>
-                                {contest.result}
-                              </Badge>
-                            </div>
-                            <div className="flex items-center justify-between text-sm">
-                              <span className="text-muted-foreground">{contest.date}</span>
-                              {contest.prize > 0 && (
-                                <span className="font-semibold text-success">
-                                  +${contest.prize.toFixed(2)}
+                              <div className="flex items-center justify-between text-sm mt-2">
+                                <span className="text-muted-foreground">
+                                  {new Date(contest.createdAt).toLocaleDateString()}
                                 </span>
-                              )}
+                                {contest.payoutCents && contest.payoutCents > 0 && (
+                                  <span className="font-semibold text-success">
+                                    +${(contest.payoutCents / 100).toFixed(2)}
+                                  </span>
+                                )}
+                                {contest.totalPoints !== null && (
+                                  <span className="text-muted-foreground">
+                                    {contest.totalPoints} pts
+                                  </span>
+                                )}
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          ))
+                        )}
                       </div>
+                      {contestTotal > 20 && (
+                        <div className="flex items-center justify-center gap-2 mt-4">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setContestPage(p => Math.max(1, p - 1))}
+                            disabled={contestPage === 1}
+                          >
+                            Previous
+                          </Button>
+                          <span className="text-sm text-muted-foreground">
+                            Page {contestPage} of {Math.ceil(contestTotal / 20)}
+                          </span>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setContestPage(p => p + 1)}
+                            disabled={contestPage >= Math.ceil(contestTotal / 20)}
+                          >
+                            Next
+                          </Button>
+                        </div>
+                      )}
                     </CardContent>
                   </Card>
                 </TabsContent>
@@ -379,34 +554,83 @@ const Profile = () => {
                 <TabsContent value="transactions" className="mt-6">
                   <Card>
                     <CardHeader>
-                      <CardTitle>Transaction History</CardTitle>
+                      <div className="flex items-center justify-between">
+                        <CardTitle>Transaction History</CardTitle>
+                        <Select value={txTypeFilter} onValueChange={setTxTypeFilter}>
+                          <SelectTrigger className="w-[180px]">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All Types</SelectItem>
+                            <SelectItem value="deposit">Deposits</SelectItem>
+                            <SelectItem value="withdrawal">Withdrawals</SelectItem>
+                            <SelectItem value="contest_winnings">Winnings</SelectItem>
+                            <SelectItem value="entry_fee">Entry Fees</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-4">
-                        {mockTransactions.map((tx) => (
-                          <div 
-                            key={tx.id}
-                            className="p-4 rounded-lg border border-border hover:bg-accent/5 transition-base"
-                          >
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <p className="font-semibold">{tx.type}</p>
-                                <p className="text-sm text-muted-foreground">{tx.date}</p>
-                              </div>
-                              <div className="text-right">
-                                <p className={`font-semibold ${
-                                  tx.amount > 0 ? 'text-success' : 'text-foreground'
-                                }`}>
-                                  {tx.amount > 0 ? '+' : ''}${Math.abs(tx.amount).toFixed(2)}
-                                </p>
-                                <Badge variant="outline" className="text-xs">
-                                  {tx.status}
-                                </Badge>
+                        {transactions.length === 0 ? (
+                          <p className="text-center text-muted-foreground py-8">No transactions yet</p>
+                        ) : (
+                          transactions.map((tx) => (
+                            <div 
+                              key={tx.id}
+                              className="p-4 rounded-lg border border-border hover:bg-accent/5 transition-base"
+                            >
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <p className="font-semibold capitalize">{tx.type.replace(/_/g, ' ')}</p>
+                                  <p className="text-sm text-muted-foreground">
+                                    {new Date(tx.created_at).toLocaleDateString()} {new Date(tx.created_at).toLocaleTimeString()}
+                                  </p>
+                                  {tx.description && (
+                                    <p className="text-xs text-muted-foreground mt-1">{tx.description}</p>
+                                  )}
+                                </div>
+                                <div className="text-right">
+                                  <p className={`font-semibold ${
+                                    tx.amount > 0 ? 'text-success' : 'text-foreground'
+                                  }`}>
+                                    {tx.amount > 0 ? '+' : ''}${Math.abs(tx.amount).toFixed(2)}
+                                  </p>
+                                  <Badge 
+                                    variant={tx.status === 'completed' ? 'default' : 'outline'}
+                                    className="text-xs mt-1"
+                                  >
+                                    {tx.status}
+                                  </Badge>
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        ))}
+                          ))
+                        )}
                       </div>
+                      {txTotal > 25 && (
+                        <div className="flex items-center justify-center gap-2 mt-4">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setTxPage(p => Math.max(1, p - 1))}
+                            disabled={txPage === 1}
+                          >
+                            Previous
+                          </Button>
+                          <span className="text-sm text-muted-foreground">
+                            Page {txPage} of {Math.ceil(txTotal / 25)}
+                          </span>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setTxPage(p => p + 1)}
+                            disabled={txPage >= Math.ceil(txTotal / 25)}
+                          >
+                            Next
+                          </Button>
+                        </div>
+                      )}
                     </CardContent>
                   </Card>
                 </TabsContent>
@@ -415,6 +639,140 @@ const Profile = () => {
           </div>
         </div>
       </main>
+
+      {/* Username Dialog */}
+      <Dialog open={usernameDialogOpen} onOpenChange={setUsernameDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Change Username</DialogTitle>
+            <DialogDescription>
+              {canChangeUsername() 
+                ? "You can change your username once every 90 days."
+                : `You can change your username again on ${getNextChangeDate()}`
+              }
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">New Username</label>
+              <Input
+                value={newUsername}
+                onChange={(e) => setNewUsername(e.target.value.toLowerCase())}
+                placeholder="Enter new username"
+                disabled={isSubmitting || !canChangeUsername()}
+              />
+              <p className="text-xs text-muted-foreground">
+                3-20 characters, lowercase letters, numbers, and underscores only
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setUsernameDialogOpen(false)}
+              disabled={isSubmitting}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleUsernameChange}
+              disabled={isSubmitting || !newUsername || !canChangeUsername()}
+            >
+              {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Update Username"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Deposit Dialog */}
+      <Dialog open={depositDialogOpen} onOpenChange={setDepositDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Deposit Funds</DialogTitle>
+            <DialogDescription>
+              Add funds to your wallet. Minimum $5, maximum $500 per transaction.
+              <br />
+              <span className="text-xs text-muted-foreground">Note: Mock mode - no real money processed</span>
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Amount (USD)</label>
+              <Input
+                type="number"
+                value={depositAmount}
+                onChange={(e) => setDepositAmount(e.target.value)}
+                placeholder="0.00"
+                min="5"
+                max="500"
+                step="0.01"
+                disabled={isSubmitting}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setDepositDialogOpen(false)}
+              disabled={isSubmitting}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleDeposit}
+              disabled={isSubmitting || !depositAmount}
+            >
+              {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Continue to Checkout"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Withdraw Dialog */}
+      <Dialog open={withdrawDialogOpen} onOpenChange={setWithdrawDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Withdraw Funds</DialogTitle>
+            <DialogDescription>
+              Withdraw funds from your wallet. Minimum $5, maximum $200 per transaction.
+              Daily limit: $500. Processing time: 1-3 business days.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Amount (USD)</label>
+              <Input
+                type="number"
+                value={withdrawAmount}
+                onChange={(e) => setWithdrawAmount(e.target.value)}
+                placeholder="0.00"
+                min="5"
+                max="200"
+                step="0.01"
+                disabled={isSubmitting}
+              />
+              <p className="text-xs text-muted-foreground">
+                Available: ${profileData.wallet.availableBalance.toFixed(2)}
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setWithdrawDialogOpen(false)}
+              disabled={isSubmitting}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleWithdraw}
+              disabled={isSubmitting || !withdrawAmount}
+            >
+              {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Request Withdrawal"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Footer />
     </div>

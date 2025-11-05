@@ -1,6 +1,6 @@
-// Secure Admin Status Check - Server-Side Verification
+// User Admin Check - Verify if user has admin role
+
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.76.1';
-import { authenticateUser, verifyAdmin } from '../shared/auth-helpers.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -13,34 +13,36 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
-    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const authHeader = req.headers.get('Authorization')!;
+    const supabase = createClient(supabaseUrl, Deno.env.get('SUPABASE_ANON_KEY')!, {
+      global: { headers: { Authorization: authHeader } },
+    });
 
-    // Authenticate user
-    const auth = await authenticateUser(req, supabaseUrl, supabaseAnonKey);
-    if (!auth) {
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
       return new Response(
-        JSON.stringify({ isAdmin: false, authenticated: false }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: 'Unauthorized', isAdmin: false }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Check admin status
-    const isAdmin = await verifyAdmin(auth.supabase, auth.user.id);
+    const { data: roles } = await supabase
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', user.id)
+      .eq('role', 'admin')
+      .maybeSingle();
+
+    const isAdmin = !!roles;
 
     return new Response(
-      JSON.stringify({ 
-        isAdmin,
-        authenticated: true,
-        userId: auth.user.id 
-      }),
+      JSON.stringify({ isAdmin, userId: user.id }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
-
-  } catch (error) {
-    console.error('[user-admin-check] Error:', error);
+  } catch (error: any) {
     return new Response(
-      JSON.stringify({ isAdmin: false, authenticated: false, error: 'An error occurred' }),
+      JSON.stringify({ error: 'Failed to check admin status', isAdmin: false }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }

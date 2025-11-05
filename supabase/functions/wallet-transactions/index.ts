@@ -1,4 +1,4 @@
-// Wallet Transactions - Get user's transaction history
+// Wallet Transactions - Get user transaction history
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.76.1';
 
@@ -27,11 +27,11 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Parse query parameters
     const url = new URL(req.url);
-    const limit = parseInt(url.searchParams.get('limit') || '50');
-    const offset = parseInt(url.searchParams.get('offset') || '0');
-    const type = url.searchParams.get('type'); // Filter by transaction type
+    const page = parseInt(url.searchParams.get('page') || '1');
+    const limit = parseInt(url.searchParams.get('limit') || '25');
+    const type = url.searchParams.get('type');
+    const offset = (page - 1) * limit;
 
     let query = supabase
       .from('transactions')
@@ -40,31 +40,26 @@ Deno.serve(async (req) => {
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
 
-    if (type) {
+    if (type && type !== 'all') {
       query = query.eq('type', type);
     }
 
-    const { data: transactions, error: txnError, count } = await query;
+    const { data: transactions, error: txError, count } = await query;
 
-    if (txnError) {
-      console.error('[wallet-transactions] Error fetching transactions:', txnError);
-      throw txnError;
-    }
+    if (txError) throw txError;
 
     return new Response(
       JSON.stringify({
         transactions: transactions || [],
         total: count || 0,
+        page,
         limit,
-        offset,
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
-
   } catch (error: any) {
-    console.error('[wallet-transactions] Error:', error);
     return new Response(
-      JSON.stringify({ error: error?.message || 'Unknown error' }),
+      JSON.stringify({ error: 'Failed to fetch transactions' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
