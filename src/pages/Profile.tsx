@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { DollarSign, TrendingUp, Trophy, User, Edit2, Download, ArrowUpDown, Loader2 } from "lucide-react";
+import { DollarSign, TrendingUp, Trophy, User, Edit2, ArrowUpDown, Loader2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -275,28 +275,6 @@ const Profile = () => {
            profileData.wallet.availableBalance >= 5;
   };
 
-  const exportContestsCSV = () => {
-    const csv = [
-      ['Date', 'Regatta', 'Tier', 'Entry Fee', 'Rank', 'Points', 'Payout'].join(','),
-      ...contests.map(c => [
-        new Date(c.createdAt).toLocaleDateString(),
-        c.regattaName,
-        c.tierId,
-        `$${(c.entryFeeCents / 100).toFixed(2)}`,
-        c.rank || 'Pending',
-        c.totalPoints || '0',
-        c.payoutCents ? `$${(c.payoutCents / 100).toFixed(2)}` : '$0'
-      ].join(','))
-    ].join('\n');
-
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'contest-history.csv';
-    a.click();
-  };
-
   const canChangeUsername = () => {
     if (!profileData?.profile.usernameLastChangedAt) return true;
     const lastChanged = new Date(profileData.profile.usernameLastChangedAt);
@@ -466,18 +444,7 @@ const Profile = () => {
                 <TabsContent value="contests" className="mt-6">
                   <Card>
                     <CardHeader>
-                      <div className="flex items-center justify-between">
-                        <CardTitle>Contest History</CardTitle>
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={exportContestsCSV}
-                          disabled={contests.length === 0}
-                        >
-                          <Download className="h-4 w-4 mr-2" />
-                          Export CSV
-                        </Button>
-                      </div>
+                      <CardTitle>Contest History</CardTitle>
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-4">
