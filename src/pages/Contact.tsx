@@ -203,7 +203,7 @@ export default function Contact() {
                 For urgent issues, you can also reach us at:
               </p>
               <p className="text-sm">
-                <strong>Email:</strong> support@rowfantasy.com
+                <strong>Email:</strong> <a href="mailto:rowfantasy@gmail.com" className="text-primary hover:underline">rowfantasy@gmail.com</a>
               </p>
               <p className="text-sm">
                 <strong>Hours:</strong> Monday-Friday, 9am-5pm ET

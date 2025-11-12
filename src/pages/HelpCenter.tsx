@@ -6,8 +6,10 @@ import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { supabase } from "@/integrations/supabase/client";
 import { Search, BookOpen, CreditCard, Users, Settings, Shield, HelpCircle } from "lucide-react";
+import ReactMarkdown from "react-markdown";
 
 const categories = [
   { id: 'account', label: 'Account', icon: Users, color: 'text-blue-500' },
@@ -22,6 +24,7 @@ export default function HelpCenter() {
   const [searchQuery, setSearchQuery] = useState("");
   const [articles, setArticles] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [expandedArticles, setExpandedArticles] = useState<Record<string, any>>({});
 
   useEffect(() => {
     fetchArticles();
@@ -41,6 +44,18 @@ export default function HelpCenter() {
       setArticles(data.articles);
     }
     setLoading(false);
+  };
+
+  const fetchArticleDetails = async (slug: string) => {
+    if (expandedArticles[slug]) return; // Already fetched
+
+    const { data } = await supabase.functions.invoke('help-articles', {
+      body: { slug }
+    });
+
+    if (data?.article) {
+      setExpandedArticles(prev => ({ ...prev, [slug]: data.article }));
+    }
   };
 
   return (
@@ -85,18 +100,27 @@ export default function HelpCenter() {
                   </CardHeader>
                   {categoryArticles.length > 0 && (
                     <CardContent>
-                      <ul className="space-y-2">
-                        {categoryArticles.slice(0, 3).map((article) => (
-                          <li key={article.id}>
-                            <Link
-                              to={`/support/article/${article.slug}`}
-                              className="text-sm text-primary hover:underline"
+                      <Accordion type="single" collapsible className="w-full">
+                        {categoryArticles.map((article) => (
+                          <AccordionItem key={article.id} value={article.slug}>
+                            <AccordionTrigger 
+                              className="text-sm hover:no-underline"
+                              onClick={() => fetchArticleDetails(article.slug)}
                             >
                               {article.title}
-                            </Link>
-                          </li>
+                            </AccordionTrigger>
+                            <AccordionContent>
+                              {expandedArticles[article.slug] ? (
+                                <div className="prose prose-sm dark:prose-invert max-w-none">
+                                  <ReactMarkdown>{expandedArticles[article.slug].body_md}</ReactMarkdown>
+                                </div>
+                              ) : (
+                                <p className="text-sm text-muted-foreground">Loading...</p>
+                              )}
+                            </AccordionContent>
+                          </AccordionItem>
                         ))}
-                      </ul>
+                      </Accordion>
                     </CardContent>
                   )}
                 </Card>
@@ -119,12 +143,23 @@ export default function HelpCenter() {
             <CardHeader>
               <CardTitle>Still need help?</CardTitle>
             </CardHeader>
-            <CardContent>
-              <Link to="/support/contact">
-                <button className="text-primary hover:underline">
-                  Contact our support team →
-                </button>
-              </Link>
+            <CardContent className="space-y-2">
+              <p className="text-sm text-muted-foreground">
+                Can't find what you're looking for? Reach out to our support team.
+              </p>
+              <div className="flex flex-col gap-2">
+                <Link to="/support/contact">
+                  <button className="text-primary hover:underline text-sm">
+                    Submit a support ticket →
+                  </button>
+                </Link>
+                <p className="text-sm">
+                  <strong>Email:</strong>{" "}
+                  <a href="mailto:rowfantasy@gmail.com" className="text-primary hover:underline">
+                    rowfantasy@gmail.com
+                  </a>
+                </p>
+              </div>
             </CardContent>
           </Card>
         </div>
