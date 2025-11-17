@@ -1,6 +1,9 @@
-// Wallet Withdraw Request - Create pending withdrawal with Phase 4 checks
+// Wallet Withdraw Request - Create pending withdrawal with limits and rate limiting
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.76.1';
+import { z } from 'https://deno.land/x/zod@v3.22.4/mod.ts';
+import { authenticateUser, checkRateLimit } from '../shared/auth-helpers.ts';
+import { mapErrorToClient, logSecureError, ERROR_MESSAGES } from '../shared/error-handler.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -13,44 +16,54 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const authHeader = req.headers.get('Authorization')!;
-    const supabase = createClient(supabaseUrl, Deno.env.get('SUPABASE_ANON_KEY')!, {
-      global: { headers: { Authorization: authHeader } },
-    });
+    const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
+    const ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!;
+    const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
+    // SECURITY: Authenticate user
+    const auth = await authenticateUser(req, SUPABASE_URL, ANON_KEY);
+    if (!auth) {
       return new Response(
-        JSON.stringify({ error: 'Unauthorized' }),
+        JSON.stringify({ error: ERROR_MESSAGES.UNAUTHORIZED }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    const { amount_cents } = await req.json();
+    const userId = auth.user.id;
 
-    if (!amount_cents || amount_cents <= 0) {
+    // SECURITY: Rate limit (5 requests per hour per user)
+    const rateLimitOk = await checkRateLimit(auth.supabase, userId, 'wallet-withdraw-request', 5, 60);
+    if (!rateLimitOk) {
       return new Response(
-        JSON.stringify({ error: 'Invalid amount' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: ERROR_MESSAGES.RATE_LIMIT }),
+        { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
+    // Validate input
+    const withdrawSchema = z.object({
+      amount_cents: z.number().int().min(500).max(20000), // $5 to $200
+    });
+
+    const body = withdrawSchema.parse(await req.json());
+    const amountDollars = body.amount_cents / 100;
+
+    // Use service client for atomic operations
+    const supabaseAdmin = createClient(SUPABASE_URL, SERVICE_KEY);
+
     // Fetch wallet
-    const { data: wallet } = await supabase
+    const { data: wallet } = await auth.supabase
       .from('wallets')
       .select('*')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .single();
 
     if (!wallet) {
       return new Response(
-        JSON.stringify({ error: 'Wallet not found' }),
+        JSON.stringify({ error: ERROR_MESSAGES.NOT_FOUND }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
-
-    const amountDollars = amount_cents / 100;
 
     // Check per-transaction limit ($200)
     if (amountDollars > 200) {
@@ -63,16 +76,16 @@ Deno.serve(async (req) => {
     // Check available balance
     if (Number(wallet.available_balance) < amountDollars) {
       return new Response(
-        JSON.stringify({ error: 'Insufficient balance' }),
+        JSON.stringify({ error: ERROR_MESSAGES.INSUFFICIENT_FUNDS }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     // Check for pending withdrawals
-    const { data: pendingWithdrawals } = await supabase
+    const { data: pendingWithdrawals } = await auth.supabase
       .from('transactions')
       .select('id')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .eq('type', 'withdrawal')
       .eq('status', 'pending');
 
@@ -84,10 +97,10 @@ Deno.serve(async (req) => {
     }
 
     // Check 10-minute cooldown
-    const { data: lastWithdrawal } = await supabase
+    const { data: lastWithdrawal } = await auth.supabase
       .from('transactions')
       .select('created_at')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .eq('type', 'withdrawal')
       .order('created_at', { ascending: false })
       .limit(1)
@@ -98,94 +111,102 @@ Deno.serve(async (req) => {
       const minutesSince = timeSince / (1000 * 60);
       if (minutesSince < 10) {
         return new Response(
-          JSON.stringify({ error: 'Please wait 10 minutes between withdrawal requests' }),
+          JSON.stringify({ error: ERROR_MESSAGES.WITHDRAWAL_COOLDOWN }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
     }
 
-    // Check daily limit ($500)
+    // Check daily limit ($500) - Use UTC
     const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
+    todayStart.setUTCHours(0, 0, 0, 0);
 
-    const { data: todayWithdrawals } = await supabase
+    const { data: todayWithdrawals } = await auth.supabase
       .from('transactions')
       .select('amount')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .eq('type', 'withdrawal')
-      .eq('status', 'completed')
+      .in('status', ['completed', 'pending'])
       .gte('created_at', todayStart.toISOString());
 
-    const todayTotal = todayWithdrawals?.reduce((sum, t) => sum + Math.abs(Number(t.amount)), 0) || 0;
+    const todayTotal = (todayWithdrawals || []).reduce((sum: number, tx: any) => sum + Math.abs(Number(tx.amount)), 0);
 
     if (todayTotal + amountDollars > 500) {
       return new Response(
-        JSON.stringify({ error: 'Daily withdrawal limit of $500 exceeded' }),
+        JSON.stringify({ error: ERROR_MESSAGES.DAILY_LIMIT }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     // Check 24-hour deposit hold
-    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    const { data: recentDeposits } = await supabase
+    const { data: recentDeposits } = await auth.supabase
       .from('transactions')
-      .select('amount')
-      .eq('user_id', user.id)
+      .select('created_at')
+      .eq('user_id', userId)
       .eq('type', 'deposit')
-      .gte('created_at', oneDayAgo.toISOString());
+      .eq('status', 'completed')
+      .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+      .limit(1);
 
-    const recentDepositTotal = recentDeposits?.reduce((sum, t) => sum + Number(t.amount), 0) || 0;
-
-    if (recentDepositTotal > 0) {
+    if (recentDeposits && recentDeposits.length > 0) {
       return new Response(
-        JSON.stringify({ error: 'Deposits must be held for 24 hours before withdrawal' }),
+        JSON.stringify({ error: 'Please wait 24 hours after your last deposit before withdrawing' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     // Create pending withdrawal transaction
-    const { data: transaction, error: txError } = await supabase
+    const { data: transaction, error: txError } = await supabaseAdmin
       .from('transactions')
       .insert({
-        user_id: user.id,
+        user_id: userId,
         wallet_id: wallet.id,
         type: 'withdrawal',
         amount: -amountDollars,
         status: 'pending',
         description: 'Withdrawal request',
-        metadata: { amount_cents },
       })
       .select()
       .single();
 
-    if (txError) {
-      throw txError;
-    }
+    if (txError) throw txError;
+
+    // Move funds to pending
+    await supabaseAdmin.rpc('update_wallet_balance', {
+      _wallet_id: wallet.id,
+      _available_delta: -amountDollars,
+      _pending_delta: amountDollars,
+    });
 
     // Log compliance event
-    await supabase
-      .from('compliance_audit_logs')
-      .insert({
-        user_id: user.id,
-        event_type: 'withdrawal_requested',
-        description: 'User requested withdrawal',
-        severity: 'info',
-        metadata: { amount_cents, transaction_id: transaction.id },
-      });
+    await supabaseAdmin.from('compliance_audit_logs').insert({
+      user_id: userId,
+      event_type: 'withdrawal_requested',
+      description: 'User requested withdrawal',
+      severity: 'info',
+      metadata: {
+        amount_cents: body.amount_cents,
+        transaction_id: transaction.id,
+        today_total: todayTotal + amountDollars,
+      },
+    });
 
     return new Response(
       JSON.stringify({
-        success: true,
-        transactionId: transaction.id,
+        requestId: transaction.id,
+        amount: amountDollars,
         status: 'pending',
+        message: 'Withdrawal request submitted successfully',
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
   } catch (error: any) {
-    console.error('[wallet-withdraw-request] Error:', error);
+    const requestId = logSecureError('wallet-withdraw-request', error);
+    const clientMessage = mapErrorToClient(error);
+    
     return new Response(
-      JSON.stringify({ error: 'Failed to request withdrawal' }),
+      JSON.stringify({ error: clientMessage, requestId }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }

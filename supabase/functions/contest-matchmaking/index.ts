@@ -2,6 +2,8 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.76.1';
 import { z } from 'https://deno.land/x/zod@v3.22.4/mod.ts';
+import { authenticateUser, checkRateLimit } from '../shared/auth-helpers.ts';
+import { mapErrorToClient, logSecureError } from '../shared/error-handler.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -14,53 +16,49 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
-    const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
+    const ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!;
+    const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
-    // SECURITY: Authenticate user first
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
+    // SECURITY: Authenticate user with shared helper
+    const auth = await authenticateUser(req, SUPABASE_URL, ANON_KEY);
+    if (!auth) {
       return new Response(
-        JSON.stringify({ error: 'Unauthorized' }),
+        JSON.stringify({ error: mapErrorToClient({ message: 'not authenticated' }) }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    const supabase = createClient(supabaseUrl, anonKey, {
-      global: { headers: { Authorization: authHeader } },
-    });
+    const userId = auth.user.id;
 
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
+    // SECURITY: Rate limit (20 requests per minute per user)
+    const rateLimitOk = await checkRateLimit(auth.supabase, userId, 'contest-matchmaking', 20, 1);
+    if (!rateLimitOk) {
       return new Response(
-        JSON.stringify({ error: 'Unauthorized' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: mapErrorToClient({ message: 'rate limit' }) }),
+        { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Validate input
+    // Validate input with Zod
     const entrySchema = z.object({
       contestTemplateId: z.string().uuid(),
-      tierId: z.string(),
+      tierId: z.string().min(1).max(50),
       picks: z.array(z.object({
         crewId: z.string(),
         divisionId: z.string(),
         predictedMargin: z.number(),
-      })),
-      entryFeeCents: z.number().int().positive(),
-      stateCode: z.string().optional(),
+      })).min(1).max(10),
+      entryFeeCents: z.number().int().positive().max(1000000),
+      stateCode: z.string().length(2).optional(),
     });
 
     const body = entrySchema.parse(await req.json());
 
-    // SECURITY: Enforce userId matches authenticated user
-    const userId = user.id; // Use authenticated user's ID, not from request
-
-    console.log('[matchmaking] Processing entry for user:', userId, 'template:', body.contestTemplateId);
+    console.log('[matchmaking] User', userId, 'entering template:', body.contestTemplateId);
 
     // Create service client for pool operations (after auth)
-    const supabaseAdmin = createClient(supabaseUrl, serviceKey);
+    const supabaseAdmin = createClient(SUPABASE_URL, SERVICE_KEY);
 
     // Get contest template details
     const { data: template, error: templateError } = await supabaseAdmin
@@ -77,7 +75,7 @@ Deno.serve(async (req) => {
     }
 
     // Check if user already has an entry for this contest template
-    const { data: existingEntry } = await supabase
+    const { data: existingEntry } = await auth.supabase
       .from('contest_entries')
       .select('id')
       .eq('user_id', userId)
@@ -87,8 +85,8 @@ Deno.serve(async (req) => {
 
     if (existingEntry) {
       return new Response(
-        JSON.stringify({ error: 'You have already entered this contest' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: mapErrorToClient({ code: '23505' }) }),
+        { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -172,10 +170,11 @@ Deno.serve(async (req) => {
     );
 
   } catch (error: any) {
-    console.error('[matchmaking] Error:', error);
-    // Generic error message for security
+    const requestId = logSecureError('contest-matchmaking', error);
+    const clientMessage = mapErrorToClient(error);
+    
     return new Response(
-      JSON.stringify({ error: 'An error occurred while processing your entry' }),
+      JSON.stringify({ error: clientMessage, requestId }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
