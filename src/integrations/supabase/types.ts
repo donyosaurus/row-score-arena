@@ -438,31 +438,19 @@ export type Database = {
       }
       feature_flags: {
         Row: {
-          created_at: string
-          description: string | null
-          enabled: boolean
-          flag_name: string
-          id: string
+          key: string
           updated_at: string
-          updated_by: string | null
+          value: Json
         }
         Insert: {
-          created_at?: string
-          description?: string | null
-          enabled?: boolean
-          flag_name: string
-          id?: string
+          key: string
           updated_at?: string
-          updated_by?: string | null
+          value: Json
         }
         Update: {
-          created_at?: string
-          description?: string | null
-          enabled?: boolean
-          flag_name?: string
-          id?: string
+          key?: string
           updated_at?: string
-          updated_by?: string | null
+          value?: Json
         }
         Relationships: []
       }
