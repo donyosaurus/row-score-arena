@@ -7,7 +7,8 @@ import { Footer } from "@/components/Footer";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Users, DollarSign, Trophy, Shield, Download } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Users, DollarSign, Trophy, Shield, Download, Settings } from "lucide-react";
 import { toast } from "sonner";
 
 const Admin = () => {
@@ -19,6 +20,7 @@ const Admin = () => {
   const [transactions, setTransactions] = useState<any[]>([]);
   const [contests, setContests] = useState<any[]>([]);
   const [complianceLogs, setComplianceLogs] = useState<any[]>([]);
+  const [featureFlags, setFeatureFlags] = useState<any>({});
 
   useEffect(() => {
     const checkAdminStatus = async () => {
@@ -50,6 +52,17 @@ const Admin = () => {
 
   const loadDashboardData = async () => {
     try {
+      // Load feature flags
+      const { data: flagsData } = await supabase
+        .from("feature_flags")
+        .select("key, value");
+      
+      const flags = (flagsData || []).reduce((acc: any, flag: any) => {
+        acc[flag.key] = flag.value;
+        return acc;
+      }, {});
+      setFeatureFlags(flags);
+
       // Load users
       const { data: usersData } = await supabase
         .from("profiles")
@@ -155,6 +168,44 @@ const Admin = () => {
             <h1 className="text-3xl font-bold mb-2">Admin Dashboard</h1>
             <p className="text-muted-foreground">Manage users, transactions, contests, and compliance</p>
           </div>
+
+          {/* Feature Flags Badge */}
+          <Card className="mb-8">
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <Settings className="h-5 w-5" />
+                <CardTitle>System Configuration</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-wrap gap-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium">Real Money:</span>
+                  <Badge variant={featureFlags.real_money_enabled?.enabled ? "default" : "secondary"}>
+                    {featureFlags.real_money_enabled?.enabled ? "ON" : "OFF"}
+                  </Badge>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium">Regulated Mode:</span>
+                  <Badge variant={featureFlags.regulated_mode?.enabled ? "default" : "secondary"}>
+                    {featureFlags.regulated_mode?.enabled ? "ON" : "OFF"}
+                  </Badge>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium">IP Verification:</span>
+                  <Badge variant={featureFlags.ipbase_enabled?.enabled ? "default" : "secondary"}>
+                    {featureFlags.ipbase_enabled?.enabled ? "ON" : "OFF"}
+                  </Badge>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium">Payment Provider:</span>
+                  <Badge variant="outline">
+                    {featureFlags.payments_provider?.name || "mock"}
+                  </Badge>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
           {/* Stats Overview */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
