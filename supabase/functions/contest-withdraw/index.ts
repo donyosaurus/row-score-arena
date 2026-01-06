@@ -1,13 +1,10 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.76.1';
+import { z } from 'https://deno.land/x/zod@v3.22.4/mod.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
-
-interface WithdrawRequest {
-  entryId: string;
-}
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -33,149 +30,61 @@ Deno.serve(async (req) => {
       });
     }
 
-    const body: WithdrawRequest = await req.json();
-    const { entryId } = body;
-
-    console.log('Contest withdrawal request:', { userId: user.id, entryId });
-
-    // Get entry details
-    const { data: entry, error: entryError } = await supabase
-      .from('contest_entries')
-      .select('*, contest_pools!inner(*)')
-      .eq('id', entryId)
-      .eq('user_id', user.id)
-      .single();
-
-    if (entryError || !entry) {
-      return new Response(
-        JSON.stringify({ error: 'Entry not found' }),
-        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    if (entry.status !== 'active') {
-      return new Response(
-        JSON.stringify({ error: 'Entry cannot be withdrawn' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Check if contest is locked
-    const pool = entry.contest_pools;
-    if (pool.status !== 'open') {
-      return new Response(
-        JSON.stringify({ error: 'Cannot withdraw from locked contest' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Check if lock time has passed
-    if (new Date(pool.lock_time) < new Date()) {
-      return new Response(
-        JSON.stringify({ error: 'Contest entry period has ended' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Get wallet
-    const { data: wallet, error: walletError } = await supabase
-      .from('wallets')
-      .select('*')
-      .eq('user_id', user.id)
-      .single();
-
-    if (walletError || !wallet) {
-      return new Response(
-        JSON.stringify({ error: 'Wallet not found' }),
-        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    const refundAmount = entry.entry_fee_cents / 100;
-
-    // Create refund transaction (entry_fee_release)
-    const { error: refundError } = await supabase
-      .from('transactions')
-      .insert({
-        user_id: user.id,
-        wallet_id: wallet.id,
-        type: 'entry_fee_release',
-        amount: refundAmount,
-        status: 'completed',
-        description: `Entry withdrawal refund`,
-        reference_type: 'contest_entry',
-        reference_id: entryId,
-        completed_at: new Date().toISOString(),
-      });
-
-    if (refundError) {
-      console.error('Error creating refund transaction:', refundError);
-      return new Response(
-        JSON.stringify({ error: 'Failed to process refund' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Update wallet balances using atomic operation
-    const { data: walletUpdate, error: walletUpdateError } = await supabase
-      .rpc('update_wallet_balance', {
-        _wallet_id: wallet.id,
-        _available_delta: refundAmount,
-        _pending_delta: -refundAmount
-      });
-
-    if (walletUpdateError || !walletUpdate || !(walletUpdate as any).success) {
-      console.error('Error updating wallet:', walletUpdateError);
-      return new Response(
-        JSON.stringify({ error: 'Failed to update wallet' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Update entry status
-    const { error: entryUpdateError } = await supabase
-      .from('contest_entries')
-      .update({ status: 'withdrawn' })
-      .eq('id', entryId);
-
-    if (entryUpdateError) {
-      console.error('Error updating entry:', entryUpdateError);
-      return new Response(
-        JSON.stringify({ error: 'Failed to update entry' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Update pool current entries count
-    await supabase
-      .from('contest_pools')
-      .update({ current_entries: pool.current_entries - 1 })
-      .eq('id', pool.id);
-
-    // Log compliance event
-    await supabase.from('compliance_audit_logs').insert({
-      user_id: user.id,
-      event_type: 'contest_withdrawal',
-      description: 'User withdrew from contest',
-      severity: 'info',
-      metadata: {
-        entry_id: entryId,
-        pool_id: pool.id,
-        refund_amount: refundAmount,
-      },
+    // Validate input
+    const withdrawSchema = z.object({
+      contestPoolId: z.string().uuid('Invalid contest pool ID'),
     });
+
+    let body;
+    try {
+      const rawBody = await req.json();
+      body = withdrawSchema.parse(rawBody);
+    } catch (error) {
+      console.error('[contest-withdraw] Validation error:', error);
+      return new Response(
+        JSON.stringify({ 
+          error: 'Invalid input parameters',
+          details: error instanceof z.ZodError ? error.errors : 'Validation failed'
+        }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const { contestPoolId } = body;
+
+    console.log('[contest-withdraw] Request:', { userId: user.id, contestPoolId });
+
+    // Call the atomic withdraw RPC
+    const { data, error } = await supabase.rpc('withdraw_contest_entry', {
+      p_user_id: user.id,
+      p_contest_pool_id: contestPoolId
+    });
+
+    if (error) {
+      console.error('[contest-withdraw] RPC error:', error);
+      
+      const errorMessage = error.message || 'Failed to withdraw from contest';
+      
+      return new Response(
+        JSON.stringify({ error: errorMessage }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    console.log('[contest-withdraw] Success:', data);
 
     return new Response(
       JSON.stringify({
         success: true,
         message: 'Entry withdrawn and funds refunded',
-        refundAmount,
+        refundedAmountCents: data?.refunded_amount,
+        entryId: data?.entry_id
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
   } catch (error) {
-    console.error('Error in contest-withdraw:', error);
+    console.error('[contest-withdraw] Error:', error);
     return new Response(
       JSON.stringify({ error: error instanceof Error ? error.message : 'An error occurred' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
