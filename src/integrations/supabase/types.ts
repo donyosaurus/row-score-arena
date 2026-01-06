@@ -1357,6 +1357,10 @@ export type Database = {
           success: boolean
         }[]
       }
+      withdraw_contest_entry: {
+        Args: { p_contest_pool_id: string; p_user_id: string }
+        Returns: Json
+      }
     }
     Enums: {
       app_role: "admin" | "user"
