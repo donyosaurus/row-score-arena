@@ -1276,6 +1276,10 @@ export type Database = {
     Functions: {
       cleanup_old_rate_limits: { Args: never; Returns: undefined }
       cleanup_old_webhooks: { Args: never; Returns: undefined }
+      enter_contest_pool: {
+        Args: { p_contest_pool_id: string; p_picks: Json; p_user_id: string }
+        Returns: Json
+      }
       get_user_balance: { Args: { target_user_id: string }; Returns: number }
       has_role: {
         Args: {
