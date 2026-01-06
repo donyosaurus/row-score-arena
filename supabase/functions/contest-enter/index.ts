@@ -33,11 +33,10 @@ Deno.serve(async (req) => {
     // Validate input with Zod schema
     const entrySchema = z.object({
       contestPoolId: z.string().uuid('Invalid contest pool ID'),
-      picks: z.array(z.object({
-        crewId: z.string().uuid('Invalid crew ID'),
-        divisionId: z.string().min(1, 'Division ID required'),
-        predictedMargin: z.number()
-      })).min(2, 'Minimum 2 picks required').max(10, 'Maximum 10 picks allowed')
+      picks: z.array(z.string().min(1, 'Crew ID required'))
+        .min(2, 'Minimum 2 picks required')
+        .max(10, 'Maximum 10 picks allowed'),
+      tiebreakerMargin: z.number().min(0, 'Tiebreaker must be non-negative')
     });
 
     let body;
@@ -55,21 +54,92 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { contestPoolId, picks } = body;
+    const { contestPoolId, picks, tiebreakerMargin } = body;
 
-    console.log('[contest-enter] Request:', { userId: user.id, contestPoolId });
+    console.log('[contest-enter] Request:', { userId: user.id, contestPoolId, picksCount: picks.length });
 
-    // Call the atomic enter_contest_pool function
+    // Step A: Security Check - Verify all picks are in the allowed crews list
+    const { data: allowedCrews, error: crewsError } = await supabase
+      .from('contest_pool_crews')
+      .select('crew_id, event_id')
+      .eq('contest_pool_id', contestPoolId);
+
+    if (crewsError) {
+      console.error('[contest-enter] Error fetching allowed crews:', crewsError);
+      return new Response(
+        JSON.stringify({ error: 'Failed to validate crew selections' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (!allowedCrews || allowedCrews.length === 0) {
+      console.error('[contest-enter] No allowed crews found for pool:', contestPoolId);
+      return new Response(
+        JSON.stringify({ error: 'Contest pool has no available crews' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Create a map of allowed crew_id -> event_id
+    const crewToEventMap = new Map<string, string>();
+    for (const crew of allowedCrews) {
+      crewToEventMap.set(crew.crew_id, crew.event_id);
+    }
+
+    // Validate every pick exists in the allowed list
+    const invalidPicks: string[] = [];
+    const pickedEventIds = new Set<string>();
+
+    for (const crewId of picks) {
+      const eventId = crewToEventMap.get(crewId);
+      if (!eventId) {
+        invalidPicks.push(crewId);
+      } else {
+        pickedEventIds.add(eventId);
+      }
+    }
+
+    if (invalidPicks.length > 0) {
+      console.error('[contest-enter] Invalid picks:', invalidPicks);
+      return new Response(
+        JSON.stringify({ error: 'Invalid crew selection - Crew not allowed in this contest' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Step B: Diversity Rule - Must have at least 2 unique events
+    if (pickedEventIds.size < 2) {
+      console.error('[contest-enter] Diversity rule violation:', { uniqueEvents: pickedEventIds.size });
+      return new Response(
+        JSON.stringify({ error: 'You must select crews from at least two separate events' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Step C: Tiebreaker already validated by Zod schema
+
+    // Step D: Construct validated roster and call RPC
+    const roster = {
+      crews: picks,
+      tiebreaker_margin: tiebreakerMargin
+    };
+
+    console.log('[contest-enter] Calling RPC with validated roster:', { 
+      userId: user.id, 
+      contestPoolId, 
+      picksCount: picks.length,
+      uniqueEvents: pickedEventIds.size 
+    });
+
     const { data, error } = await supabase.rpc('enter_contest_pool', {
       p_user_id: user.id,
       p_contest_pool_id: contestPoolId,
-      p_picks: picks
+      p_picks: roster
     });
 
     if (error) {
       console.error('[contest-enter] RPC error:', error);
       
-      // Map database exceptions to user-friendly messages
       const errorMessage = error.message || 'Failed to enter contest';
       
       return new Response(
