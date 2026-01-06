@@ -1,11 +1,8 @@
-// Wallet Deposit - Create payment session and return checkout URL
+// Wallet Deposit - Process deposit using ledger system
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.76.1';
 import { z } from 'https://deno.land/x/zod@v3.22.4/mod.ts';
-import { getPaymentProvider } from '../shared/payment-providers/factory.ts';
-import { performComplianceChecks } from '../shared/compliance-checks.ts';
-import { checkGeoEligibility } from '../shared/geo-eligibility.ts';
-import { createErrorResponse, mapErrorToClient, ERROR_MESSAGES } from '../shared/error-handler.ts';
+import { MockPaymentAdapter } from '../shared/payment-providers/mock-adapter.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -19,7 +16,10 @@ Deno.serve(async (req) => {
 
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const authHeader = req.headers.get('Authorization')!;
+    
+    // User client for auth
     const supabase = createClient(supabaseUrl, Deno.env.get('SUPABASE_ANON_KEY')!, {
       global: { headers: { Authorization: authHeader } },
     });
@@ -32,11 +32,9 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Validate input with Zod schema (stateCode removed - determined server-side)
+    // Validate input
     const depositSchema = z.object({
-      amountCents: z.number().int().positive().min(500).max(1000000), // $5 - $10k
-      returnUrl: z.string().url().optional(),
-      idempotencyKey: z.string().uuid().optional()
+      amount: z.number().int().positive().min(100).max(10000000), // $1 - $100k in cents
     });
 
     let body;
@@ -45,114 +43,74 @@ Deno.serve(async (req) => {
       body = depositSchema.parse(rawBody);
     } catch (error) {
       return new Response(
-        JSON.stringify({ error: ERROR_MESSAGES.INVALID_INPUT }),
+        JSON.stringify({ error: 'Invalid input: amount must be a positive integer in cents' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    const { amountCents, returnUrl, idempotencyKey } = body;
+    const { amount } = body;
 
-    // Determine state from IP geolocation (server-side)
-    const clientIp = req.headers.get('x-forwarded-for')?.split(',')[0].trim() 
-                     || req.headers.get('x-real-ip') 
-                     || 'unknown';
-    
-    const geoResult = await checkGeoEligibility(clientIp, user.id);
-    
-    if (!geoResult.allowed) {
+    // Process payment with mock adapter
+    const paymentAdapter = new MockPaymentAdapter();
+    const paymentResult = await paymentAdapter.processPayment(amount, 'USD');
+
+    if (!paymentResult.success) {
       return new Response(
-        JSON.stringify({ error: geoResult.reason || ERROR_MESSAGES.GEO_BLOCKED }),
-        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: 'Payment processing failed' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    const stateCode = geoResult.stateCode || 'US';
+    // Use service role client to insert ledger entry
+    const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
-    // Check for existing session with idempotency key
-    if (idempotencyKey) {
-      const { data: existingSession } = await supabase
-        .from('payment_sessions')
-        .select('*')
-        .eq('metadata->idempotencyKey', idempotencyKey)
-        .eq('user_id', user.id)
-        .single();
-
-      if (existingSession) {
-        console.log('[wallet-deposit] Returning existing session for idempotency key', idempotencyKey);
-        return new Response(
-          JSON.stringify({
-            sessionId: existingSession.id,
-            checkoutUrl: existingSession.checkout_url,
-            clientToken: existingSession.client_token,
-            status: existingSession.status,
-          }),
-          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-    }
-
-    // Perform compliance checks with verified state
-    const complianceResult = await performComplianceChecks({
-      userId: user.id,
-      stateCode,
-      amountCents,
-      actionType: 'deposit',
-      ipAddress: clientIp,
-    });
-
-    if (!complianceResult.allowed) {
-      const safeReason = mapErrorToClient({ message: complianceResult.reason });
-      return new Response(
-        JSON.stringify({ error: safeReason }),
-        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Create payment session with provider
-    const provider = getPaymentProvider();
-    const checkout = await provider.createCheckout({
-      userId: user.id,
-      amountCents,
-      stateCode,
-      returnUrl: returnUrl || `${req.headers.get('origin')}/profile`,
-      metadata: { idempotencyKey },
-    });
-
-    // Store payment session in database
-    const { data: session, error: sessionError } = await supabase
-      .from('payment_sessions')
+    const { error: ledgerError } = await adminClient
+      .from('ledger_entries')
       .insert({
         user_id: user.id,
-        provider: provider.name,
-        provider_session_id: checkout.sessionId,
-        amount_cents: amountCents,
-        state_code: stateCode,
-        status: 'pending',
-        checkout_url: checkout.checkoutUrl,
-        client_token: checkout.clientToken,
-        expires_at: checkout.expiresAt.toISOString(),
-        metadata: { idempotencyKey, returnUrl },
-      })
-      .select()
-      .single();
+        amount: amount, // Positive for deposit
+        transaction_type: 'DEPOSIT',
+        description: 'Deposit via Mock Adapter',
+        reference_id: null,
+      });
 
-    if (sessionError) {
-      return createErrorResponse(sessionError, 'wallet-deposit', corsHeaders);
+    if (ledgerError) {
+      console.error('[wallet-deposit] Ledger insert error:', ledgerError);
+      return new Response(
+        JSON.stringify({ error: 'Failed to record deposit' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
-    console.log('[wallet-deposit] Created payment session:', session.id);
+    // Get new balance
+    const { data: balanceData, error: balanceError } = await adminClient
+      .rpc('get_user_balance', { target_user_id: user.id });
+
+    if (balanceError) {
+      console.error('[wallet-deposit] Balance fetch error:', balanceError);
+    }
+
+    const balanceCents = Number(balanceData) || 0;
+    const balanceDisplay = `$${(balanceCents / 100).toFixed(2)}`;
+
+    console.log('[wallet-deposit] Deposit successful:', { userId: user.id, amount, transactionId: paymentResult.transactionId });
 
     return new Response(
       JSON.stringify({
-        sessionId: session.id,
-        checkoutUrl: checkout.checkoutUrl,
-        clientToken: checkout.clientToken,
-        expiresAt: checkout.expiresAt.toISOString(),
+        success: true,
+        transactionId: paymentResult.transactionId,
+        depositedAmount: amount,
+        balanceCents,
+        balanceDisplay,
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
   } catch (error: any) {
-    return createErrorResponse(error, 'wallet-deposit', corsHeaders);
+    console.error('[wallet-deposit] Error:', error);
+    return new Response(
+      JSON.stringify({ error: 'An unexpected error occurred' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
   }
 });

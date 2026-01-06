@@ -16,6 +16,17 @@ import type {
   WebhookEvent,
 } from './types.ts';
 
+export class MockPaymentAdapter {
+  async processPayment(amount: number, currency: string): Promise<{ success: boolean; transactionId: string }> {
+    // Simulate network delay
+    await new Promise(resolve => setTimeout(resolve, 100));
+    return {
+      success: true,
+      transactionId: `mock_${crypto.randomUUID()}`,
+    };
+  }
+}
+
 export class MockProviderAdapter implements PaymentProvider {
   name = 'mock';
   private transactions: Map<string, any> = new Map();
