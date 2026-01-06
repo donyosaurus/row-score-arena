@@ -1,4 +1,4 @@
-// Wallet Balance - Get user's current wallet balance
+// Wallet Balance - Get user's current balance from double-entry ledger
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.76.1';
 
@@ -27,27 +27,26 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { data: wallet, error: walletError } = await supabase
-      .from('wallets')
-      .select('*')
-      .eq('user_id', user.id)
-      .single();
+    // Call the get_user_balance RPC function
+    const { data: balanceCents, error: balanceError } = await supabase
+      .rpc('get_user_balance', { target_user_id: user.id });
 
-    if (walletError || !wallet) {
+    if (balanceError) {
+      console.error('[wallet-balance] Balance query error:', balanceError);
       return new Response(
-        JSON.stringify({ error: 'Wallet not found' }),
-        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: 'Failed to retrieve balance' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
+    const cents = balanceCents ?? 0;
+    const dollars = (cents / 100).toFixed(2);
+
     return new Response(
       JSON.stringify({
-        availableBalance: Number(wallet.available_balance),
-        pendingBalance: Number(wallet.pending_balance),
-        lifetimeDeposits: Number(wallet.lifetime_deposits),
-        lifetimeWithdrawals: Number(wallet.lifetime_withdrawals),
-        lifetimeWinnings: Number(wallet.lifetime_winnings),
-        lastUpdated: wallet.updated_at,
+        balanceCents: cents,
+        balanceDisplay: `$${dollars}`,
+        lastUpdated: new Date().toISOString(),
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
@@ -55,7 +54,7 @@ Deno.serve(async (req) => {
   } catch (error: any) {
     console.error('[wallet-balance] Error:', error);
     return new Response(
-      JSON.stringify({ error: error?.message || 'Unknown error' }),
+      JSON.stringify({ error: 'An unexpected error occurred' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
