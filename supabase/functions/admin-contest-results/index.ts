@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.76.1';
+import { requireAdmin } from '../shared/auth-helpers.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -22,7 +23,6 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // SECURITY: Authenticate FIRST, create service client AFTER
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_ANON_KEY') ?? '',
@@ -41,19 +41,8 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Check if user is admin
-    const { data: roles } = await supabase
-      .from('user_roles')
-      .select('role')
-      .eq('user_id', user.id);
-
-    const isAdmin = roles?.some(r => r.role === 'admin');
-    if (!isAdmin) {
-      return new Response(
-        JSON.stringify({ error: 'Admin access required' }),
-        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+    // Require admin role - throws if not admin
+    await requireAdmin(supabase, user.id);
 
     // ONLY NOW create service client after admin verification  
     const supabaseAdmin = createClient(
