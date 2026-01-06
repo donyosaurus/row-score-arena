@@ -269,6 +269,47 @@ export type Database = {
           },
         ]
       }
+      contest_pool_crews: {
+        Row: {
+          contest_pool_id: string
+          created_at: string
+          crew_id: string
+          crew_name: string
+          event_id: string
+          id: string
+          manual_finish_order: number | null
+          manual_result_time: string | null
+        }
+        Insert: {
+          contest_pool_id: string
+          created_at?: string
+          crew_id: string
+          crew_name: string
+          event_id: string
+          id?: string
+          manual_finish_order?: number | null
+          manual_result_time?: string | null
+        }
+        Update: {
+          contest_pool_id?: string
+          created_at?: string
+          crew_id?: string
+          crew_name?: string
+          event_id?: string
+          id?: string
+          manual_finish_order?: number | null
+          manual_result_time?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contest_pool_crews_contest_pool_id_fkey"
+            columns: ["contest_pool_id"]
+            isOneToOne: false
+            referencedRelation: "contest_pools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contest_pools: {
         Row: {
           contest_template_id: string
