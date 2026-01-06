@@ -1023,6 +1023,38 @@ export type Database = {
         }
         Relationships: []
       }
+      responsible_gaming: {
+        Row: {
+          created_at: string
+          deposit_limit_monthly_cents: number | null
+          self_exclusion_until: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          deposit_limit_monthly_cents?: number | null
+          self_exclusion_until?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          deposit_limit_monthly_cents?: number | null
+          self_exclusion_until?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "responsible_gaming_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       state_regulation_rules: {
         Row: {
           created_at: string
@@ -1322,6 +1354,10 @@ export type Database = {
       calculate_pool_scores: {
         Args: { p_contest_pool_id: string; p_official_margin_seconds: number }
         Returns: Json
+      }
+      check_deposit_limit: {
+        Args: { p_amount: number; p_user_id: string }
+        Returns: boolean
       }
       cleanup_old_rate_limits: { Args: never; Returns: undefined }
       cleanup_old_webhooks: { Args: never; Returns: undefined }

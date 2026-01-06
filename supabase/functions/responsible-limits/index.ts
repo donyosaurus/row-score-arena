@@ -1,3 +1,5 @@
+// Responsible Gaming Limits - Allow users to set deposit limits and self-exclusion
+
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.76.1";
 import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
@@ -8,9 +10,8 @@ const corsHeaders = {
 };
 
 const limitSchema = z.object({
-  type: z.enum(['deposit_limit', 'cooling_off', 'self_exclusion']),
-  value: z.number().optional(),
-  duration: z.string().optional()
+  depositLimit: z.number().int().positive().optional(), // Monthly limit in cents
+  exclusionDays: z.number().int().positive().optional(), // Days to self-exclude
 });
 
 serve(async (req) => {
@@ -19,8 +20,11 @@ serve(async (req) => {
   }
 
   try {
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    
     const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
+      supabaseUrl,
       Deno.env.get('SUPABASE_ANON_KEY') ?? '',
       { global: { headers: { Authorization: req.headers.get('Authorization')! } } }
     );
@@ -33,45 +37,56 @@ serve(async (req) => {
       );
     }
 
-    const body = limitSchema.parse(await req.json());
+    let body;
+    try {
+      body = limitSchema.parse(await req.json());
+    } catch (error) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid input' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
-    let updateData: any = {};
+    const { depositLimit, exclusionDays } = body;
+
+    // Build upsert data
+    const upsertData: {
+      user_id: string;
+      deposit_limit_monthly_cents?: number;
+      self_exclusion_until?: string;
+      updated_at: string;
+    } = {
+      user_id: user.id,
+      updated_at: new Date().toISOString(),
+    };
+
     let eventType = '';
     let description = '';
 
-    if (body.type === 'deposit_limit') {
-      updateData.deposit_limit_monthly = body.value;
-      eventType = 'limit_changed';
-      description = `Deposit limit set to $${body.value}`;
-    } else if (body.type === 'self_exclusion') {
-      const duration = body.duration;
-      let until: Date | null = null;
-      let exclusionType = '';
-
-      if (duration === 'permanent') {
-        until = new Date('2099-12-31');
-        exclusionType = 'permanent';
-      } else {
-        const days = parseInt(duration!);
-        until = new Date();
-        until.setDate(until.getDate() + days);
-        exclusionType = `${days}_days`;
-      }
-
-      updateData.self_exclusion_until = until.toISOString();
-      updateData.self_exclusion_type = exclusionType;
-      eventType = 'self_exclude_enabled';
-      description = `Self-exclusion enabled for ${duration}`;
+    if (depositLimit !== undefined) {
+      upsertData.deposit_limit_monthly_cents = depositLimit;
+      eventType = 'deposit_limit_set';
+      description = `Deposit limit set to $${(depositLimit / 100).toFixed(2)}/month`;
     }
 
-    // Update profile
-    const { error: updateError } = await supabase
-      .from('profiles')
-      .update(updateData)
-      .eq('id', user.id);
+    if (exclusionDays !== undefined) {
+      const exclusionUntil = new Date();
+      exclusionUntil.setDate(exclusionUntil.getDate() + exclusionDays);
+      upsertData.self_exclusion_until = exclusionUntil.toISOString();
+      eventType = 'self_exclusion_enabled';
+      description = `Self-exclusion enabled for ${exclusionDays} days until ${exclusionUntil.toLocaleDateString()}`;
+    }
 
-    if (updateError) {
-      console.error('Error updating profile:', updateError);
+    // Use service role for upsert
+    const adminClient = createClient(supabaseUrl, serviceRoleKey);
+
+    // Upsert into responsible_gaming table
+    const { error: upsertError } = await adminClient
+      .from('responsible_gaming')
+      .upsert(upsertData, { onConflict: 'user_id' });
+
+    if (upsertError) {
+      console.error('[responsible-limits] Upsert error:', upsertError);
       return new Response(
         JSON.stringify({ error: 'Failed to update limits' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -79,20 +94,28 @@ serve(async (req) => {
     }
 
     // Log to compliance audit
-    await supabase.from('compliance_audit_logs').insert({
-      user_id: user.id,
-      event_type: eventType,
-      description: description,
-      severity: 'info',
-      metadata: body
-    });
+    if (eventType) {
+      await adminClient.from('compliance_audit_logs').insert({
+        user_id: user.id,
+        event_type: eventType,
+        description: description,
+        severity: 'info',
+        metadata: body
+      });
+    }
+
+    console.log('[responsible-limits] Updated:', { userId: user.id, depositLimit, exclusionDays });
 
     return new Response(
-      JSON.stringify({ success: true }),
+      JSON.stringify({ 
+        success: true,
+        depositLimit: depositLimit ? `$${(depositLimit / 100).toFixed(2)}/month` : null,
+        selfExclusionUntil: upsertData.self_exclusion_until || null,
+      }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error) {
-    console.error('Error in responsible-limits:', error);
+    console.error('[responsible-limits] Error:', error);
     return new Response(
       JSON.stringify({ error: 'Internal server error' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
