@@ -4,7 +4,8 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.76.1';
 import { z } from 'https://deno.land/x/zod@v3.22.4/mod.ts';
 import { crypto } from "https://deno.land/std@0.177.0/crypto/mod.ts";
 import { scoreContestInstance } from '../shared/scoring-logic.ts';
-import { createErrorResponse, ERROR_MESSAGES } from '../shared/error-handler.ts';
+import { createErrorResponse } from '../shared/error-handler.ts';
+import { requireAdmin } from '../shared/auth-helpers.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -23,7 +24,7 @@ Deno.serve(async (req) => {
       global: { headers: { Authorization: authHeader } },
     });
 
-    // Authenticate and verify admin
+    // Authenticate user
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) {
       return new Response(
@@ -32,20 +33,8 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Check admin role
-    const { data: roleData } = await supabase
-      .from('user_roles')
-      .select('role')
-      .eq('user_id', user.id)
-      .eq('role', 'admin')
-      .maybeSingle();
-
-    if (!roleData) {
-      return new Response(
-        JSON.stringify({ error: 'Admin access required' }),
-        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+    // Require admin role - throws if not admin
+    await requireAdmin(supabase, user.id);
 
     // Validate input
     const importSchema = z.object({

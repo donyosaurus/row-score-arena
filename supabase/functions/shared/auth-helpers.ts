@@ -124,16 +124,31 @@ export async function checkRateLimit(
 }
 
 /**
+ * Require admin role - throws if not admin
+ */
+export async function requireAdmin(supabase: any, userId: string): Promise<void> {
+  const { data: roles, error } = await supabase
+    .from('user_roles')
+    .select('role')
+    .eq('user_id', userId)
+    .eq('role', 'admin');
+
+  if (error || !roles || roles.length === 0) {
+    throw new Error('Forbidden: Admin access required');
+  }
+}
+
+/**
  * Check if real money transactions are enabled
  */
 export async function isRealMoneyEnabled(supabase: any): Promise<boolean> {
   const { data: flag } = await supabase
     .from('feature_flags')
-    .select('enabled')
-    .eq('flag_name', 'real_money_enabled')
+    .select('value')
+    .eq('key', 'real_money_enabled')
     .single();
 
-  return flag?.enabled ?? false;
+  return flag?.value?.enabled ?? false;
 }
 
 /**
