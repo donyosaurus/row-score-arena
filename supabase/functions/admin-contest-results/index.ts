@@ -1,21 +1,23 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.76.1';
 import { requireAdmin } from '../shared/auth-helpers.ts';
+import { z } from 'https://deno.land/x/zod@v3.22.4/mod.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-interface ResultsRequest {
-  contestTemplateId: string;
-  results: {
-    crews: Array<{
-      crewId: string;
-      finishPosition: number;
-      marginSeconds?: number;
-    }>;
-  };
-}
+// Input validation schema
+const ResultItemSchema = z.object({
+  crew_id: z.string().min(1),
+  finish_order: z.number().int().positive(),
+  finish_time: z.string().min(1), // Stored as text, parsed later in scoring engine
+});
+
+const RequestSchema = z.object({
+  contestPoolId: z.string().uuid(),
+  results: z.array(ResultItemSchema).min(1),
+});
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -23,6 +25,7 @@ Deno.serve(async (req) => {
   }
 
   try {
+    // Initialize client with user's auth
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_ANON_KEY') ?? '',
@@ -44,50 +47,50 @@ Deno.serve(async (req) => {
     // Require admin role - throws if not admin
     await requireAdmin(supabase, user.id);
 
+    // Parse and validate input
+    const body = await req.json();
+    const parseResult = RequestSchema.safeParse(body);
+    
+    if (!parseResult.success) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid input', details: parseResult.error.flatten() }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const { contestPoolId, results } = parseResult.data;
+
+    console.log('Admin submitting race results:', { contestPoolId, admin: user.id, resultCount: results.length });
+
     // ONLY NOW create service client after admin verification  
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    const body: ResultsRequest = await req.json();
-    const { contestTemplateId, results } = body;
+    // Call the atomic RPC to update race results
+    const { data: rpcResult, error: rpcError } = await supabaseAdmin.rpc('admin_update_race_results', {
+      p_contest_pool_id: contestPoolId,
+      p_results: results,
+    });
 
-    console.log('Setting contest results:', { contestTemplateId, admin: user.id });
-
-    // Update contest template with results using service client
-    const { error: updateError } = await supabaseAdmin
-      .from('contest_templates')
-      .update({
-        results,
-        status: 'settled',
-      })
-      .eq('id', contestTemplateId);
-
-    if (updateError) {
-      console.error('Error updating results:', updateError);
+    if (rpcError) {
+      console.error('RPC error:', rpcError);
       return new Response(
-        JSON.stringify({ error: 'Failed to update results' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: rpcError.message || 'Failed to update results' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
-
-    // Get all pools for this contest
-    const { data: pools } = await supabaseAdmin
-      .from('contest_pools')
-      .select('id')
-      .eq('contest_template_id', contestTemplateId)
-      .eq('status', 'locked');
 
     // Log compliance event
     await supabaseAdmin.from('compliance_audit_logs').insert({
       admin_id: user.id,
-      event_type: 'contest_results_set',
-      description: `Admin set results for contest ${contestTemplateId}`,
+      event_type: 'race_results_submitted',
+      description: `Admin submitted race results for contest pool ${contestPoolId}`,
       severity: 'info',
       metadata: {
-        contest_template_id: contestTemplateId,
-        pools_to_settle: pools?.length || 0,
+        contest_pool_id: contestPoolId,
+        results_count: results.length,
         results,
       },
     });
@@ -95,15 +98,15 @@ Deno.serve(async (req) => {
     return new Response(
       JSON.stringify({
         success: true,
-        message: 'Results set successfully',
-        poolsToSettle: pools?.length || 0,
+        message: 'Race results submitted successfully',
+        contestPoolId,
+        resultsCount: results.length,
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
   } catch (error) {
     console.error('Error in admin-contest-results:', error);
-    // Generic error for security
     return new Response(
       JSON.stringify({ error: 'An error occurred' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
