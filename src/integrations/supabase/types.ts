@@ -1315,6 +1315,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_update_race_results: {
+        Args: { p_contest_pool_id: string; p_results: Json }
+        Returns: Json
+      }
       cleanup_old_rate_limits: { Args: never; Returns: undefined }
       cleanup_old_webhooks: { Args: never; Returns: undefined }
       enter_contest_pool: {
