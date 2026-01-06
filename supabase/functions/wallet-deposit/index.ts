@@ -1,4 +1,4 @@
-// Wallet Deposit - Process deposit using ledger system
+// Wallet Deposit - Process deposit using ledger system with responsible gaming checks
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.76.1';
 import { z } from 'https://deno.land/x/zod@v3.22.4/mod.ts';
@@ -50,6 +50,23 @@ Deno.serve(async (req) => {
 
     const { amount } = body;
 
+    // Use service role client for admin operations
+    const adminClient = createClient(supabaseUrl, serviceRoleKey);
+
+    // Check responsible gaming limits before processing payment
+    const { data: limitCheck, error: limitError } = await adminClient
+      .rpc('check_deposit_limit', { p_user_id: user.id, p_amount: amount });
+
+    if (limitError) {
+      console.error('[wallet-deposit] Responsible gaming check failed:', limitError);
+      // Extract user-friendly message from error
+      const errorMessage = limitError.message || 'Deposit not allowed';
+      return new Response(
+        JSON.stringify({ error: errorMessage }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // Process payment with mock adapter
     const paymentAdapter = new MockPaymentAdapter();
     const paymentResult = await paymentAdapter.processPayment(amount, 'USD');
@@ -60,9 +77,6 @@ Deno.serve(async (req) => {
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
-
-    // Use service role client to insert ledger entry
-    const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
     const { error: ledgerError } = await adminClient
       .from('ledger_entries')
