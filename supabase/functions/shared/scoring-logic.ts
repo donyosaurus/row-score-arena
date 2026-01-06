@@ -4,23 +4,74 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.76.1';
 
 // Scoring rules
 const FINISH_POINTS: Record<number, number> = {
-  1: 10,
-  2: 6,
-  3: 3,
-  4: 0,
-  5: 0,
+  1: 100,
+  2: 80,
+  3: 60,
+  4: 40,
+  5: 20,
   6: 0,
   7: 0,
 };
 
-function getFinishPoints(position: number): number {
+export function getFinishPoints(position: number): number {
   return FINISH_POINTS[position] || 0;
 }
 
-function calculateMarginBonus(predictedMargin: number, actualMargin: number): number {
+export function calculateMarginBonus(predictedMargin: number, actualMargin: number): number {
   const error = Math.abs(predictedMargin - actualMargin);
   const bonus = Math.max(0, 10 - error);
   return Math.min(10, bonus);
+}
+
+/**
+ * Parse race time string "MM:SS.ms" into total seconds (float)
+ * Examples:
+ *   "05:30.50" -> 330.50 seconds
+ *   "06:15.00" -> 375.00 seconds
+ *   "05:30" -> 330.00 seconds (no milliseconds)
+ */
+export function parseRaceTime(timeStr: string): number {
+  if (!timeStr || typeof timeStr !== 'string') {
+    return 0;
+  }
+
+  // Handle format MM:SS.ms or MM:SS
+  const match = timeStr.match(/^(\d+):(\d+)(?:\.(\d+))?$/);
+  if (!match) {
+    console.warn('[parseRaceTime] Invalid time format:', timeStr);
+    return 0;
+  }
+
+  const minutes = parseInt(match[1], 10);
+  const seconds = parseInt(match[2], 10);
+  const milliseconds = match[3] ? parseInt(match[3].padEnd(2, '0').slice(0, 2), 10) : 0;
+
+  return minutes * 60 + seconds + milliseconds / 100;
+}
+
+/**
+ * Calculate official margin between 1st and 2nd place crews
+ */
+export function calculateOfficialMargin(
+  crews: Array<{ crew_id: string; manual_finish_order: number | null; manual_result_time: string | null }>
+): number {
+  // Sort by finish order
+  const sortedCrews = crews
+    .filter(c => c.manual_finish_order !== null)
+    .sort((a, b) => (a.manual_finish_order ?? 999) - (b.manual_finish_order ?? 999));
+
+  if (sortedCrews.length < 2) {
+    return 0; // No margin if fewer than 2 crews
+  }
+
+  const firstPlaceTime = parseRaceTime(sortedCrews[0].manual_result_time || '');
+  const secondPlaceTime = parseRaceTime(sortedCrews[1].manual_result_time || '');
+
+  if (firstPlaceTime === 0 || secondPlaceTime === 0) {
+    return 0; // Can't calculate if times are missing/invalid
+  }
+
+  return Math.abs(secondPlaceTime - firstPlaceTime);
 }
 
 export interface RaceResult {
