@@ -1350,6 +1350,10 @@ export type Database = {
           today_total: number
         }[]
       }
+      settle_pool_payouts: {
+        Args: { p_contest_pool_id: string }
+        Returns: Json
+      }
       update_wallet_balance: {
         Args: {
           _available_delta: number
