@@ -8,8 +8,26 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Users, DollarSign, Trophy, Shield, Download, Settings } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Users, DollarSign, Trophy, Shield, Download, Settings, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+
+interface CrewResult {
+  crew_id: string;
+  crew_name: string;
+  finish_order: string;
+  finish_time: string;
+}
+
+interface PoolCrew {
+  id: string;
+  crew_id: string;
+  crew_name: string;
+  manual_finish_order: number | null;
+  manual_result_time: string | null;
+}
 
 const Admin = () => {
   const { user } = useAuth();
@@ -21,6 +39,20 @@ const Admin = () => {
   const [contests, setContests] = useState<any[]>([]);
   const [complianceLogs, setComplianceLogs] = useState<any[]>([]);
   const [featureFlags, setFeatureFlags] = useState<any>({});
+  
+  // Results entry modal state
+  const [selectedContest, setSelectedContest] = useState<any | null>(null);
+  const [resultsModalOpen, setResultsModalOpen] = useState(false);
+  const [poolCrews, setPoolCrews] = useState<PoolCrew[]>([]);
+  const [resultsForm, setResultsForm] = useState<CrewResult[]>([]);
+  const [loadingCrews, setLoadingCrews] = useState(false);
+  const [submittingResults, setSubmittingResults] = useState(false);
+  
+  // Settle payouts state
+  const [settlingPoolId, setSettlingPoolId] = useState<string | null>(null);
+  
+  // Export state
+  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     const checkAdminStatus = async () => {
@@ -29,7 +61,6 @@ const Admin = () => {
         return;
       }
 
-      // Check if user has admin role
       const { data: roleData, error: roleError } = await supabase
         .from("user_roles")
         .select("role")
@@ -52,7 +83,6 @@ const Admin = () => {
 
   const loadDashboardData = async () => {
     try {
-      // Load feature flags
       const { data: flagsData } = await supabase
         .from("feature_flags")
         .select("key, value");
@@ -63,14 +93,12 @@ const Admin = () => {
       }, {});
       setFeatureFlags(flags);
 
-      // Load users
       const { data: usersData } = await supabase
         .from("profiles")
         .select("id, username, email, state, date_of_birth, age_confirmed_at, created_at")
         .order("created_at", { ascending: false })
         .limit(100);
 
-      // Load user wallets for balance info
       const { data: walletsData } = await supabase
         .from("wallets")
         .select("user_id, available_balance");
@@ -82,7 +110,6 @@ const Admin = () => {
 
       setUsers(usersWithBalance);
 
-      // Load recent transactions
       const { data: txData } = await supabase
         .from("transactions")
         .select("*, profiles!inner(username)")
@@ -91,7 +118,6 @@ const Admin = () => {
 
       setTransactions(txData || []);
 
-      // Load contest pools
       const { data: poolsData } = await supabase
         .from("contest_pools")
         .select("*, contest_templates!inner(regatta_name)")
@@ -100,7 +126,6 @@ const Admin = () => {
 
       setContests(poolsData || []);
 
-      // Load compliance logs
       const { data: logsData } = await supabase
         .from("compliance_audit_logs")
         .select("*")
@@ -117,25 +142,119 @@ const Admin = () => {
     }
   };
 
-  const exportComplianceLogs = async () => {
+  const openResultsModal = async (contest: any) => {
+    setSelectedContest(contest);
+    setResultsModalOpen(true);
+    setLoadingCrews(true);
+    
     try {
-      const { data } = await supabase
-        .from("compliance_audit_logs")
-        .select("*")
-        .gte("created_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
+      const { data: crews, error } = await supabase
+        .from("contest_pool_crews")
+        .select("id, crew_id, crew_name, manual_finish_order, manual_result_time")
+        .eq("contest_pool_id", contest.id);
+      
+      if (error) throw error;
+      
+      setPoolCrews(crews || []);
+      setResultsForm((crews || []).map(crew => ({
+        crew_id: crew.crew_id,
+        crew_name: crew.crew_name,
+        finish_order: crew.manual_finish_order?.toString() || "",
+        finish_time: crew.manual_result_time || ""
+      })));
+    } catch (error) {
+      console.error("Error loading crews:", error);
+      toast.error("Failed to load crews");
+    } finally {
+      setLoadingCrews(false);
+    }
+  };
 
+  const updateResultForm = (crewId: string, field: "finish_order" | "finish_time", value: string) => {
+    setResultsForm(prev => prev.map(r => 
+      r.crew_id === crewId ? { ...r, [field]: value } : r
+    ));
+  };
+
+  const submitResults = async () => {
+    if (!selectedContest) return;
+    
+    // Validate all crews have finish_order
+    const invalidEntries = resultsForm.filter(r => !r.finish_order);
+    if (invalidEntries.length > 0) {
+      toast.error("Please enter finish order for all crews");
+      return;
+    }
+    
+    setSubmittingResults(true);
+    
+    try {
+      const results = resultsForm.map(r => ({
+        crew_id: r.crew_id,
+        finish_order: parseInt(r.finish_order),
+        finish_time: r.finish_time || null
+      }));
+      
+      const { data, error } = await supabase.functions.invoke("admin-contest-results", {
+        body: { contestPoolId: selectedContest.id, results }
+      });
+      
+      if (error) throw error;
+      
+      toast.success("Results submitted successfully");
+      setResultsModalOpen(false);
+      setSelectedContest(null);
+      loadDashboardData();
+    } catch (error: any) {
+      console.error("Error submitting results:", error);
+      toast.error(error.message || "Failed to submit results");
+    } finally {
+      setSubmittingResults(false);
+    }
+  };
+
+  const settlePayouts = async (contestPoolId: string) => {
+    setSettlingPoolId(contestPoolId);
+    
+    try {
+      const { data, error } = await supabase.functions.invoke("contest-settle", {
+        body: { contestPoolId }
+      });
+      
+      if (error) throw error;
+      
+      toast.success(`Payouts settled! ${data?.winners_count || 0} winner(s) paid`);
+      loadDashboardData();
+    } catch (error: any) {
+      console.error("Error settling payouts:", error);
+      toast.error(error.message || "Failed to settle payouts");
+    } finally {
+      setSettlingPoolId(null);
+    }
+  };
+
+  const exportComplianceLogs = async () => {
+    setExporting(true);
+    
+    try {
+      const { data, error } = await supabase.functions.invoke("compliance-export-daily");
+      
+      if (error) throw error;
+      
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `compliance-logs-${new Date().toISOString().split("T")[0]}.json`;
+      a.download = `compliance-report-${new Date().toISOString().split("T")[0]}.json`;
       a.click();
       URL.revokeObjectURL(url);
 
-      toast.success("Compliance logs exported successfully");
-    } catch (error) {
+      toast.success("Compliance report exported successfully");
+    } catch (error: any) {
       console.error("Error exporting logs:", error);
-      toast.error("Failed to export logs");
+      toast.error(error.message || "Failed to export compliance report");
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -344,7 +463,7 @@ const Admin = () => {
               <Card>
                 <CardHeader>
                   <CardTitle>Contest Management</CardTitle>
-                  <CardDescription>Manage contest pools and entries</CardDescription>
+                  <CardDescription>Manage contest pools, enter results, and settle payouts</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="overflow-x-auto">
@@ -356,6 +475,7 @@ const Admin = () => {
                           <th className="text-left p-2">Entries</th>
                           <th className="text-left p-2">Prize Pool</th>
                           <th className="text-left p-2">Status</th>
+                          <th className="text-left p-2">Actions</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -367,7 +487,52 @@ const Admin = () => {
                               {contest.current_entries} / {contest.max_entries}
                             </td>
                             <td className="p-2">${(contest.prize_pool_cents / 100).toFixed(2)}</td>
-                            <td className="p-2 capitalize">{contest.status}</td>
+                            <td className="p-2">
+                              <Badge variant={
+                                contest.status === "settled" ? "default" :
+                                contest.status === "scoring_completed" ? "secondary" :
+                                contest.status === "locked" ? "outline" :
+                                "secondary"
+                              }>
+                                {contest.status}
+                              </Badge>
+                            </td>
+                            <td className="p-2">
+                              <div className="flex gap-2">
+                                {contest.status === "locked" && (
+                                  <Button 
+                                    size="sm" 
+                                    variant="outline"
+                                    onClick={() => openResultsModal(contest)}
+                                  >
+                                    Enter Results
+                                  </Button>
+                                )}
+                                {contest.status === "scoring_completed" && (
+                                  <Button 
+                                    size="sm" 
+                                    variant="default"
+                                    disabled={settlingPoolId === contest.id}
+                                    onClick={() => settlePayouts(contest.id)}
+                                  >
+                                    {settlingPoolId === contest.id ? (
+                                      <>
+                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                        Settling...
+                                      </>
+                                    ) : (
+                                      "Settle Payouts"
+                                    )}
+                                  </Button>
+                                )}
+                                {contest.status === "settled" && (
+                                  <span className="text-sm text-muted-foreground">Completed</span>
+                                )}
+                                {contest.status === "open" && (
+                                  <span className="text-sm text-muted-foreground">Awaiting lock</span>
+                                )}
+                              </div>
+                            </td>
                           </tr>
                         ))}
                       </tbody>
@@ -384,9 +549,18 @@ const Admin = () => {
                     <CardTitle>Compliance Audit Logs</CardTitle>
                     <CardDescription>Monitor compliance events and violations</CardDescription>
                   </div>
-                  <Button onClick={exportComplianceLogs} variant="outline" size="sm">
-                    <Download className="mr-2 h-4 w-4" />
-                    Export Logs
+                  <Button onClick={exportComplianceLogs} variant="outline" size="sm" disabled={exporting}>
+                    {exporting ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Exporting...
+                      </>
+                    ) : (
+                      <>
+                        <Download className="mr-2 h-4 w-4" />
+                        Export Report
+                      </>
+                    )}
                   </Button>
                 </CardHeader>
                 <CardContent>
@@ -434,6 +608,85 @@ const Admin = () => {
           </Tabs>
         </div>
       </main>
+
+      {/* Results Entry Modal */}
+      <Dialog open={resultsModalOpen} onOpenChange={setResultsModalOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              Enter Race Results - {selectedContest?.contest_templates?.regatta_name}
+            </DialogTitle>
+          </DialogHeader>
+          
+          {loadingCrews ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-8 w-8 animate-spin" />
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {resultsForm.length === 0 ? (
+                <p className="text-muted-foreground text-center py-4">
+                  No crews found for this contest pool.
+                </p>
+              ) : (
+                <>
+                  <div className="grid gap-4">
+                    {resultsForm.map((crew) => (
+                      <div key={crew.crew_id} className="grid grid-cols-3 gap-3 items-center p-3 border rounded-lg">
+                        <div>
+                          <Label className="text-sm font-medium">{crew.crew_name}</Label>
+                          <p className="text-xs text-muted-foreground">ID: {crew.crew_id}</p>
+                        </div>
+                        <div>
+                          <Label htmlFor={`order-${crew.crew_id}`} className="text-xs">
+                            Finish Order
+                          </Label>
+                          <Input
+                            id={`order-${crew.crew_id}`}
+                            type="number"
+                            min="1"
+                            placeholder="1, 2, 3..."
+                            value={crew.finish_order}
+                            onChange={(e) => updateResultForm(crew.crew_id, "finish_order", e.target.value)}
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor={`time-${crew.crew_id}`} className="text-xs">
+                            Finish Time
+                          </Label>
+                          <Input
+                            id={`time-${crew.crew_id}`}
+                            type="text"
+                            placeholder="05:30.50"
+                            value={crew.finish_time}
+                            onChange={(e) => updateResultForm(crew.crew_id, "finish_time", e.target.value)}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  
+                  <div className="flex justify-end gap-3 pt-4 border-t">
+                    <Button variant="outline" onClick={() => setResultsModalOpen(false)}>
+                      Cancel
+                    </Button>
+                    <Button onClick={submitResults} disabled={submittingResults}>
+                      {submittingResults ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Submitting...
+                        </>
+                      ) : (
+                        "Submit Results"
+                      )}
+                    </Button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <Footer />
     </div>
