@@ -1,12 +1,12 @@
-import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.76.1";
+import { getLocationBlockingInfo, getUserState, isStateBlocked, BLOCKED_STATES } from '../shared/geo-eligibility.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -17,46 +17,60 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_ANON_KEY') ?? ''
     );
 
-    // Handle both GET and POST requests
-    let stateCode: string | null = null;
-
+    // Get location info from request headers
+    const locationInfo = getLocationBlockingInfo(req);
+    
+    // Handle explicit state code from query/body (for manual lookups)
+    let explicitStateCode: string | null = null;
+    
     if (req.method === 'GET') {
       const url = new URL(req.url);
-      stateCode = url.searchParams.get('state');
-    } else {
-      const body = await req.json();
-      stateCode = body.state;
+      explicitStateCode = url.searchParams.get('state');
+    } else if (req.method === 'POST') {
+      try {
+        const body = await req.json();
+        explicitStateCode = body.state || null;
+      } catch {
+        // No body or invalid JSON, use header-based detection
+      }
     }
 
+    // Use explicit state if provided, otherwise use detected state
+    const stateCode = explicitStateCode?.toUpperCase() || locationInfo.detectedState;
+    
     if (!stateCode) {
       return new Response(
-        JSON.stringify({ error: 'State code required' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({
+          detectedState: null,
+          isBlocked: false,
+          message: 'Unable to detect your location. Please ensure location services are enabled.',
+          state: null,
+          license: null
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    const isBlocked = isStateBlocked(stateCode);
 
     // Get state regulation rules
     const { data: stateRule, error: stateError } = await supabase
       .from('state_regulation_rules')
       .select('*')
-      .eq('state_code', stateCode.toUpperCase())
+      .eq('state_code', stateCode)
       .maybeSingle();
 
     if (stateError) {
-      console.error('Error fetching state rules:', stateError);
-      return new Response(
-        JSON.stringify({ error: 'State not found' }),
-        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      console.error('[legal-state-banner] Error fetching state rules:', stateError);
     }
 
     // Get license info if applicable
     let license = null;
-    if (stateRule.status === 'regulated' || stateRule.license_required) {
+    if (stateRule && (stateRule.status === 'regulated' || stateRule.license_required)) {
       const { data: licenseData } = await supabase
         .from('license_registry')
         .select('*')
-        .eq('state_code', stateCode.toUpperCase())
+        .eq('state_code', stateCode)
         .eq('status', 'active')
         .order('issued_date', { ascending: false })
         .limit(1)
@@ -65,17 +79,38 @@ serve(async (req) => {
       license = licenseData;
     }
 
+    // Build response message
+    let message: string;
+    if (isBlocked) {
+      message = `Daily Fantasy Sports is not yet available in your region (${stateCode}). We're working to expand our coverage.`;
+    } else if (stateRule) {
+      message = `RowFantasy is available in ${stateRule.state_name || stateCode}. Enjoy the competition!`;
+    } else {
+      message = `RowFantasy is available in ${stateCode}. Enjoy the competition!`;
+    }
+
+    console.log('[legal-state-banner] State check:', { stateCode, isBlocked, hasRule: !!stateRule });
+
     return new Response(
       JSON.stringify({ 
+        detectedState: stateCode,
+        isBlocked,
+        message,
         state: stateRule,
-        license 
+        license,
+        blockedStates: BLOCKED_STATES
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error) {
-    console.error('Error in legal-state-banner:', error);
+    console.error('[legal-state-banner] Error:', error);
     return new Response(
-      JSON.stringify({ error: 'Internal server error' }),
+      JSON.stringify({ 
+        error: 'Internal server error',
+        detectedState: null,
+        isBlocked: false,
+        message: 'Unable to determine location status'
+      }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }

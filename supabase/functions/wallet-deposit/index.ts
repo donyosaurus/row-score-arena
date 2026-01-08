@@ -3,6 +3,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.76.1';
 import { z } from 'https://deno.land/x/zod@v3.22.4/mod.ts';
 import { MockPaymentAdapter } from '../shared/payment-providers/mock-adapter.ts';
+import { checkLocationEligibility } from '../shared/geo-eligibility.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -31,6 +32,9 @@ Deno.serve(async (req) => {
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    // Geolocation check - block restricted states
+    checkLocationEligibility(req);
 
     // Validate input
     const depositSchema = z.object({
