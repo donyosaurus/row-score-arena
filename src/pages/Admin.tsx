@@ -51,6 +51,12 @@ const Admin = () => {
   // Settle payouts state
   const [settlingPoolId, setSettlingPoolId] = useState<string | null>(null);
   
+  // Scoring state
+  const [scoringPoolId, setScoringPoolId] = useState<string | null>(null);
+  
+  // Void contest state
+  const [voidingPoolId, setVoidingPoolId] = useState<string | null>(null);
+  
   // Export state
   const [exporting, setExporting] = useState(false);
 
@@ -231,6 +237,54 @@ const Admin = () => {
     } finally {
       setSettlingPoolId(null);
     }
+  };
+
+  const calculateScores = async (contestPoolId: string) => {
+    setScoringPoolId(contestPoolId);
+    
+    try {
+      const { data, error } = await supabase.functions.invoke("contest-scoring", {
+        body: { contestPoolId }
+      });
+      
+      if (error) throw error;
+      
+      toast.success("Scores calculated successfully");
+      loadDashboardData();
+    } catch (error: any) {
+      console.error("Error calculating scores:", error);
+      toast.error(error.message || "Failed to calculate scores");
+    } finally {
+      setScoringPoolId(null);
+    }
+  };
+
+  const voidContest = async (contestPoolId: string) => {
+    if (!confirm("Are you sure you want to void this contest? All entry fees will be refunded.")) {
+      return;
+    }
+    
+    setVoidingPoolId(contestPoolId);
+    
+    try {
+      const { data, error } = await supabase.functions.invoke("admin-contest-void", {
+        body: { contestPoolId }
+      });
+      
+      if (error) throw error;
+      
+      toast.success("Contest voided and refunds issued");
+      loadDashboardData();
+    } catch (error: any) {
+      console.error("Error voiding contest:", error);
+      toast.error(error.message || "Failed to void contest");
+    } finally {
+      setVoidingPoolId(null);
+    }
+  };
+
+  const isContestPastLockTime = (contest: any) => {
+    return new Date() > new Date(contest.lock_time);
   };
 
   const exportComplianceLogs = async () => {
@@ -498,8 +552,9 @@ const Admin = () => {
                               </Badge>
                             </td>
                             <td className="p-2">
-                              <div className="flex gap-2">
-                                {contest.status === "locked" && (
+                              <div className="flex gap-2 flex-wrap">
+                                {/* Enter Results: show for locked OR open past lock time */}
+                                {(contest.status === "locked" || (contest.status === "open" && isContestPastLockTime(contest))) && (
                                   <Button 
                                     size="sm" 
                                     variant="outline"
@@ -508,6 +563,27 @@ const Admin = () => {
                                     Enter Results
                                   </Button>
                                 )}
+                                
+                                {/* Calculate Scores: show for scoring_processing */}
+                                {contest.status === "scoring_processing" && (
+                                  <Button 
+                                    size="sm" 
+                                    variant="secondary"
+                                    disabled={scoringPoolId === contest.id}
+                                    onClick={() => calculateScores(contest.id)}
+                                  >
+                                    {scoringPoolId === contest.id ? (
+                                      <>
+                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                        Scoring...
+                                      </>
+                                    ) : (
+                                      "Calculate Scores"
+                                    )}
+                                  </Button>
+                                )}
+                                
+                                {/* Settle Payouts: show for scoring_completed */}
                                 {contest.status === "scoring_completed" && (
                                   <Button 
                                     size="sm" 
@@ -525,11 +601,36 @@ const Admin = () => {
                                     )}
                                   </Button>
                                 )}
+                                
                                 {contest.status === "settled" && (
                                   <span className="text-sm text-muted-foreground">Completed</span>
                                 )}
-                                {contest.status === "open" && (
+                                
+                                {contest.status === "open" && !isContestPastLockTime(contest) && (
                                   <span className="text-sm text-muted-foreground">Awaiting lock</span>
+                                )}
+                                
+                                {/* Void button: show for non-settled contests */}
+                                {contest.status !== "settled" && contest.status !== "voided" && (
+                                  <Button 
+                                    size="sm" 
+                                    variant="destructive"
+                                    disabled={voidingPoolId === contest.id}
+                                    onClick={() => voidContest(contest.id)}
+                                  >
+                                    {voidingPoolId === contest.id ? (
+                                      <>
+                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                        Voiding...
+                                      </>
+                                    ) : (
+                                      "Void"
+                                    )}
+                                  </Button>
+                                )}
+                                
+                                {contest.status === "voided" && (
+                                  <span className="text-sm text-destructive">Voided</span>
                                 )}
                               </div>
                             </td>
