@@ -7,8 +7,7 @@ const corsHeaders = {
 };
 
 interface VoidRequest {
-  poolId: string;
-  reason: string;
+  contestPoolId: string;
 }
 
 Deno.serve(async (req) => {
@@ -38,137 +37,62 @@ Deno.serve(async (req) => {
     // Require admin role - throws if not admin
     await requireAdmin(supabase, user.id);
 
-    // ONLY NOW create service client after admin verification
+    // Create service client after admin verification
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
     const body: VoidRequest = await req.json();
-    const { poolId, reason } = body;
+    const { contestPoolId } = body;
 
-    console.log('Voiding pool:', { poolId, reason, admin: user.id });
-
-    // Get pool
-    const { data: pool, error: poolError } = await supabaseAdmin
-      .from('contest_pools')
-      .select('*')
-      .eq('id', poolId)
-      .single();
-
-    if (poolError || !pool) {
+    if (!contestPoolId) {
       return new Response(
-        JSON.stringify({ error: 'Pool not found' }),
-        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    if (pool.status === 'settled' || pool.status === 'voided') {
-      return new Response(
-        JSON.stringify({ error: 'Pool cannot be voided' }),
+        JSON.stringify({ error: 'contestPoolId is required' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Get all active entries
-    const { data: entries, error: entriesError } = await supabaseAdmin
-      .from('contest_entries')
-      .select('*')
-      .eq('pool_id', poolId)
-      .eq('status', 'active');
+    console.log('Voiding pool:', { contestPoolId, admin: user.id });
 
-    if (entriesError) {
-      console.error('Error fetching entries:', entriesError);
+    // Call the atomic database function
+    const { data, error } = await supabaseAdmin.rpc('admin_void_contest', {
+      p_contest_pool_id: contestPoolId
+    });
+
+    if (error) {
+      console.error('Error voiding contest:', error);
       return new Response(
-        JSON.stringify({ error: 'Failed to fetch entries' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: error.message }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
-
-    let refundCount = 0;
-
-    // Refund all entries
-    for (const entry of entries || []) {
-      const { data: wallet } = await supabaseAdmin
-        .from('wallets')
-        .select('*')
-        .eq('user_id', entry.user_id)
-        .single();
-
-      if (wallet) {
-        const refundAmount = entry.entry_fee_cents / 100;
-
-        // Create refund transaction
-        await supabaseAdmin
-          .from('transactions')
-          .insert({
-            user_id: entry.user_id,
-            wallet_id: wallet.id,
-            type: 'refund',
-            amount: refundAmount,
-            status: 'completed',
-            description: `Contest voided: ${reason}`,
-            reference_type: 'contest_void',
-            reference_id: poolId,
-            completed_at: new Date().toISOString(),
-          });
-
-        // Update wallet using atomic operation
-        const { error: walletError } = await supabaseAdmin
-          .rpc('update_wallet_balance', {
-            _wallet_id: wallet.id,
-            _available_delta: refundAmount,
-            _pending_delta: -refundAmount
-          });
-
-        if (walletError) {
-          console.error('Error updating wallet for entry refund:', walletError);
-          continue; // Skip this entry but continue with others
-        }
-
-        // Update entry status
-        await supabaseAdmin
-          .from('contest_entries')
-          .update({ status: 'refunded' })
-          .eq('id', entry.id);
-
-        refundCount++;
-      }
-    }
-
-    // Update pool status
-    await supabaseAdmin
-      .from('contest_pools')
-      .update({ status: 'voided' })
-      .eq('id', poolId);
 
     // Log compliance event
     await supabaseAdmin.from('compliance_audit_logs').insert({
       admin_id: user.id,
       event_type: 'pool_voided',
-      description: `Admin voided pool ${poolId}: ${reason}`,
+      description: `Admin voided pool ${contestPoolId}`,
       severity: 'warning',
       metadata: {
-        pool_id: poolId,
-        reason,
-        refunds_processed: refundCount,
+        pool_id: contestPoolId,
+        refunded_count: data?.refunded_count || 0,
       },
     });
 
-    console.log(`Pool ${poolId} voided. Refunded ${refundCount} entries`);
+    console.log(`Pool ${contestPoolId} voided. Refunded ${data?.refunded_count || 0} entries`);
 
     return new Response(
       JSON.stringify({
         success: true,
         message: 'Pool voided and refunds processed',
-        refundCount,
+        refundedCount: data?.refunded_count || 0,
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
   } catch (error) {
     console.error('Error in admin-contest-void:', error);
-    // Generic error for security
     return new Response(
       JSON.stringify({ error: 'An error occurred' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

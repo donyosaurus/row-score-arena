@@ -1351,6 +1351,7 @@ export type Database = {
         Args: { p_contest_pool_id: string; p_results: Json }
         Returns: Json
       }
+      admin_void_contest: { Args: { p_contest_pool_id: string }; Returns: Json }
       calculate_pool_scores: {
         Args: { p_contest_pool_id: string; p_official_margin_seconds: number }
         Returns: Json
