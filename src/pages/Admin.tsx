@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Users, DollarSign, Trophy, Shield, Download, Settings, Loader2 } from "lucide-react";
+import { Users, DollarSign, Trophy, Shield, Download, Settings, Loader2, Plus, X } from "lucide-react";
 import { toast } from "sonner";
 
 interface CrewResult {
@@ -27,6 +27,20 @@ interface PoolCrew {
   crew_name: string;
   manual_finish_order: number | null;
   manual_result_time: string | null;
+}
+
+interface NewCrew {
+  crew_name: string;
+  crew_id: string;
+  event_id: string;
+}
+
+interface CreateContestForm {
+  regattaName: string;
+  entryFee: string;
+  maxEntries: string;
+  lockTime: string;
+  crews: NewCrew[];
 }
 
 const Admin = () => {
@@ -59,6 +73,22 @@ const Admin = () => {
   
   // Export state
   const [exporting, setExporting] = useState(false);
+  
+  // Create contest modal state
+  const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [creatingContest, setCreatingContest] = useState(false);
+  const [createForm, setCreateForm] = useState<CreateContestForm>({
+    regattaName: "",
+    entryFee: "",
+    maxEntries: "",
+    lockTime: "",
+    crews: []
+  });
+  const [newCrewInput, setNewCrewInput] = useState<NewCrew>({
+    crew_name: "",
+    crew_id: "",
+    event_id: ""
+  });
 
   useEffect(() => {
     const checkAdminStatus = async () => {
@@ -285,6 +315,104 @@ const Admin = () => {
 
   const isContestPastLockTime = (contest: any) => {
     return new Date() > new Date(contest.lock_time);
+  };
+
+  const resetCreateForm = () => {
+    setCreateForm({
+      regattaName: "",
+      entryFee: "",
+      maxEntries: "",
+      lockTime: "",
+      crews: []
+    });
+    setNewCrewInput({ crew_name: "", crew_id: "", event_id: "" });
+  };
+
+  const addCrewToForm = () => {
+    if (!newCrewInput.crew_name || !newCrewInput.crew_id || !newCrewInput.event_id) {
+      toast.error("Please fill in all crew fields");
+      return;
+    }
+    
+    if (createForm.crews.some(c => c.crew_id === newCrewInput.crew_id)) {
+      toast.error("Crew ID already exists");
+      return;
+    }
+    
+    setCreateForm(prev => ({
+      ...prev,
+      crews: [...prev.crews, { ...newCrewInput }]
+    }));
+    setNewCrewInput({ crew_name: "", crew_id: "", event_id: "" });
+  };
+
+  const removeCrewFromForm = (crewId: string) => {
+    setCreateForm(prev => ({
+      ...prev,
+      crews: prev.crews.filter(c => c.crew_id !== crewId)
+    }));
+  };
+
+  const submitCreateContest = async () => {
+    // Validation
+    if (!createForm.regattaName.trim()) {
+      toast.error("Regatta name is required");
+      return;
+    }
+    
+    const entryFeeDollars = parseFloat(createForm.entryFee);
+    if (isNaN(entryFeeDollars) || entryFeeDollars < 0) {
+      toast.error("Entry fee must be a valid non-negative number");
+      return;
+    }
+    
+    const maxEntries = parseInt(createForm.maxEntries);
+    if (isNaN(maxEntries) || maxEntries < 2) {
+      toast.error("Max entries must be at least 2");
+      return;
+    }
+    
+    if (!createForm.lockTime) {
+      toast.error("Lock time is required");
+      return;
+    }
+    
+    const lockDate = new Date(createForm.lockTime);
+    if (lockDate <= new Date()) {
+      toast.error("Lock time must be in the future");
+      return;
+    }
+    
+    if (createForm.crews.length < 2) {
+      toast.error("At least 2 crews are required");
+      return;
+    }
+    
+    setCreatingContest(true);
+    
+    try {
+      const { data, error } = await supabase.functions.invoke("admin-create-contest", {
+        body: {
+          regattaName: createForm.regattaName.trim(),
+          entryFeeCents: Math.round(entryFeeDollars * 100),
+          maxEntries: maxEntries,
+          lockTime: lockDate.toISOString(),
+          crews: createForm.crews
+        }
+      });
+      
+      if (error) throw error;
+      
+      toast.success(`Contest created successfully! Pool ID: ${data?.contestPoolId?.slice(0, 8)}...`);
+      setCreateModalOpen(false);
+      resetCreateForm();
+      loadDashboardData();
+    } catch (error: any) {
+      console.error("Error creating contest:", error);
+      toast.error(error.message || "Failed to create contest");
+    } finally {
+      setCreatingContest(false);
+    }
   };
 
   const exportComplianceLogs = async () => {
@@ -515,9 +643,15 @@ const Admin = () => {
 
             <TabsContent value="contests" className="space-y-4">
               <Card>
-                <CardHeader>
-                  <CardTitle>Contest Management</CardTitle>
-                  <CardDescription>Manage contest pools, enter results, and settle payouts</CardDescription>
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <div>
+                    <CardTitle>Contest Management</CardTitle>
+                    <CardDescription>Manage contest pools, enter results, and settle payouts</CardDescription>
+                  </div>
+                  <Button onClick={() => setCreateModalOpen(true)}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Create Contest
+                  </Button>
                 </CardHeader>
                 <CardContent>
                   <div className="overflow-x-auto">
@@ -789,7 +923,159 @@ const Admin = () => {
         </DialogContent>
       </Dialog>
 
-      <Footer />
+      {/* Create Contest Modal */}
+      <Dialog open={createModalOpen} onOpenChange={(open) => {
+        setCreateModalOpen(open);
+        if (!open) resetCreateForm();
+      }}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Create New Contest</DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-6">
+            {/* Basic Info */}
+            <div className="grid gap-4">
+              <div>
+                <Label htmlFor="regattaName">Regatta Name *</Label>
+                <Input
+                  id="regattaName"
+                  placeholder="e.g., Harvard-Yale Regatta 2026"
+                  value={createForm.regattaName}
+                  onChange={(e) => setCreateForm(prev => ({ ...prev, regattaName: e.target.value }))}
+                />
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="entryFee">Entry Fee ($) *</Label>
+                  <Input
+                    id="entryFee"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="10.00"
+                    value={createForm.entryFee}
+                    onChange={(e) => setCreateForm(prev => ({ ...prev, entryFee: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="maxEntries">Max Entries *</Label>
+                  <Input
+                    id="maxEntries"
+                    type="number"
+                    min="2"
+                    placeholder="100"
+                    value={createForm.maxEntries}
+                    onChange={(e) => setCreateForm(prev => ({ ...prev, maxEntries: e.target.value }))}
+                  />
+                </div>
+              </div>
+              
+              <div>
+                <Label htmlFor="lockTime">Lock Time *</Label>
+                <Input
+                  id="lockTime"
+                  type="datetime-local"
+                  value={createForm.lockTime}
+                  onChange={(e) => setCreateForm(prev => ({ ...prev, lockTime: e.target.value }))}
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Entries will be locked at this time
+                </p>
+              </div>
+            </div>
+            
+            {/* Crew Management */}
+            <div className="border-t pt-4">
+              <Label className="text-base font-semibold">Crews ({createForm.crews.length})</Label>
+              <p className="text-sm text-muted-foreground mb-3">
+                Add at least 2 crews to the contest
+              </p>
+              
+              {/* Added Crews List */}
+              {createForm.crews.length > 0 && (
+                <div className="space-y-2 mb-4">
+                  {createForm.crews.map((crew) => (
+                    <div 
+                      key={crew.crew_id} 
+                      className="flex items-center justify-between p-2 bg-muted rounded-lg"
+                    >
+                      <div className="text-sm">
+                        <span className="font-medium">{crew.crew_name}</span>
+                        <span className="text-muted-foreground ml-2">
+                          ({crew.crew_id} • {crew.event_id})
+                        </span>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => removeCrewFromForm(crew.crew_id)}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              
+              {/* Add Crew Form */}
+              <div className="grid grid-cols-4 gap-2 items-end">
+                <div>
+                  <Label htmlFor="crewName" className="text-xs">Name</Label>
+                  <Input
+                    id="crewName"
+                    placeholder="Yale"
+                    value={newCrewInput.crew_name}
+                    onChange={(e) => setNewCrewInput(prev => ({ ...prev, crew_name: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="crewId" className="text-xs">Crew ID</Label>
+                  <Input
+                    id="crewId"
+                    placeholder="yale_1v"
+                    value={newCrewInput.crew_id}
+                    onChange={(e) => setNewCrewInput(prev => ({ ...prev, crew_id: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="eventId" className="text-xs">Event ID</Label>
+                  <Input
+                    id="eventId"
+                    placeholder="mens_8"
+                    value={newCrewInput.event_id}
+                    onChange={(e) => setNewCrewInput(prev => ({ ...prev, event_id: e.target.value }))}
+                  />
+                </div>
+                <Button variant="secondary" onClick={addCrewToForm}>
+                  Add
+                </Button>
+              </div>
+            </div>
+            
+            {/* Submit */}
+            <div className="flex justify-end gap-3 pt-4 border-t">
+              <Button variant="outline" onClick={() => setCreateModalOpen(false)}>
+                Cancel
+              </Button>
+              <Button 
+                onClick={submitCreateContest} 
+                disabled={creatingContest || createForm.crews.length < 2}
+              >
+                {creatingContest ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Creating...
+                  </>
+                ) : (
+                  "Create Contest"
+                )}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
