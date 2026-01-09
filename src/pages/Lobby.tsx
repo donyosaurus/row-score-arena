@@ -1,87 +1,94 @@
+import { useState, useEffect } from "react";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { ContestCard } from "@/components/ContestCard";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search } from "lucide-react";
+import { Search, Loader2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
-// 2026 Season Regattas
-const mockRegattas = [
-  {
-    id: "1",
-    regattaName: "Eastern Sprints Regatta 2026",
-    genderCategory: "Men's" as const,
-    lockTime: "May 17, 2026 at 8:00 AM",
-    divisions: ["Heavyweight Varsity 8+", "Lightweight Varsity 8+", "Varsity 4+"],
-    entryTiers: 4,
-  },
-  {
-    id: "2",
-    regattaName: "IRA National Championship 2026",
-    genderCategory: "Men's" as const,
-    lockTime: "May 29, 2026 at 9:00 AM",
-    divisions: ["Heavyweight Varsity 8+", "Lightweight Varsity 8+", "Second Varsity 8+"],
-    entryTiers: 4,
-  },
-  {
-    id: "3",
-    regattaName: "Women's NCAA Championship 2026",
-    genderCategory: "Women's" as const,
-    lockTime: "May 30, 2026 at 10:00 AM",
-    divisions: ["Varsity 8+", "Second Varsity 8+", "Varsity 4+"],
-    entryTiers: 4,
-  },
-  {
-    id: "4",
-    regattaName: "World Rowing Cup II 2026",
-    genderCategory: "Men's" as const,
-    lockTime: "June 13, 2026 at 3:00 AM",
-    divisions: ["Men's Eight", "Men's Four", "Men's Pair", "Men's Single Sculls"],
-    entryTiers: 4,
-  },
-  {
-    id: "5",
-    regattaName: "U23 World Rowing Championships 2026",
-    genderCategory: "Men's" as const,
-    lockTime: "June 24, 2026 at 4:00 AM",
-    divisions: ["Men's Eight", "Men's Four", "Men's Pair", "Men's Double Sculls"],
-    entryTiers: 4,
-  },
-  {
-    id: "6",
-    regattaName: "World Rowing Cup III 2026",
-    genderCategory: "Women's" as const,
-    lockTime: "June 27, 2026 at 3:00 AM",
-    divisions: ["Women's Eight", "Women's Four", "Women's Pair", "Women's Single Sculls"],
-    entryTiers: 4,
-  },
-  {
-    id: "7",
-    regattaName: "European Rowing Championships 2026",
-    genderCategory: "Men's" as const,
-    lockTime: "July 31, 2026 at 3:00 AM",
-    divisions: ["Men's Eight", "Men's Four", "Men's Pair", "Men's Quad Sculls"],
-    entryTiers: 4,
-  },
-  {
-    id: "8",
-    regattaName: "U19 World Rowing Championships 2026",
-    genderCategory: "Women's" as const,
-    lockTime: "August 7, 2026 at 3:00 AM",
-    divisions: ["Women's Eight", "Women's Four", "Women's Pair", "Women's Quad Sculls"],
-    entryTiers: 4,
-  },
-  {
-    id: "9",
-    regattaName: "World Rowing Championships 2026",
-    genderCategory: "Men's" as const,
-    lockTime: "August 25, 2026 at 3:00 AM",
-    divisions: ["Men's Eight", "Men's Four", "Men's Pair", "Men's Single Sculls", "Men's Quad Sculls"],
-    entryTiers: 4,
-  },
-];
+interface ContestPool {
+  id: string;
+  lock_time: string;
+  status: string;
+  entry_fee_cents: number;
+  contest_templates: {
+    regatta_name: string;
+  };
+  contest_pool_crews: {
+    event_id: string;
+  }[];
+}
+
+interface MappedContest {
+  id: string;
+  regattaName: string;
+  genderCategory: "Men's" | "Women's";
+  lockTime: string;
+  divisions: string[];
+  entryTiers: number;
+}
 
 const Lobby = () => {
+  const [contests, setContests] = useState<MappedContest[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchContests = async () => {
+      setLoading(true);
+      
+      const { data, error } = await supabase
+        .from("contest_pools")
+        .select(`
+          id,
+          lock_time,
+          status,
+          entry_fee_cents,
+          contest_templates(regatta_name),
+          contest_pool_crews(event_id)
+        `)
+        .in("status", ["open", "locked"]);
+
+      if (error) {
+        console.error("Error fetching contests:", error);
+        setLoading(false);
+        return;
+      }
+
+      const mapped: MappedContest[] = (data as unknown as ContestPool[]).map((pool) => {
+        const regattaName = pool.contest_templates?.regatta_name || "Unknown Regatta";
+        const genderCategory: "Men's" | "Women's" = regattaName.toLowerCase().includes("women") 
+          ? "Women's" 
+          : "Men's";
+        
+        const divisions = [...new Set(pool.contest_pool_crews?.map(c => c.event_id) || [])];
+        
+        const lockTime = new Date(pool.lock_time).toLocaleString("en-US", {
+          month: "long",
+          day: "numeric",
+          year: "numeric",
+          hour: "numeric",
+          minute: "2-digit",
+          hour12: true,
+        });
+
+        return {
+          id: pool.id,
+          regattaName,
+          genderCategory,
+          lockTime,
+          divisions,
+          entryTiers: 1,
+        };
+      });
+
+      setContests(mapped);
+      setLoading(false);
+    };
+
+    fetchContests();
+  }, []);
+
   return (
     <div className="flex flex-col min-h-screen">
       <Header />
@@ -89,9 +96,9 @@ const Lobby = () => {
       <main className="flex-1 bg-background py-16">
         <div className="container mx-auto px-4">
           <div className="mb-12 text-center max-w-3xl mx-auto">
-            <h1 className="text-4xl md:text-5xl font-bold mb-4">Available Regattas</h1>
+            <h1 className="text-4xl md:text-5xl font-bold mb-4">Available Contests</h1>
             <p className="text-xl text-muted-foreground">
-              2026 Season • Select a regatta and choose from 4 entry options: 3 Head-to-Head ($10, $25, $100) or 1 5-Person ($20) contest
+              Browse open contests and enter to compete
             </p>
           </div>
 
@@ -129,31 +136,38 @@ const Lobby = () => {
             </Select>
           </div>
 
-          {/* Regatta Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {mockRegattas
-              .filter(regatta => regatta.id !== "1" && regatta.id !== "3") // Temporarily hide Eastern Sprints and Women's NCAA
-              .map((regatta) => (
+          {/* Loading State */}
+          {loading && (
+            <div className="flex justify-center py-16">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+          )}
+
+          {/* Contest Grid */}
+          {!loading && contests.length > 0 && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {contests.map((contest) => (
                 <ContestCard 
-                  key={regatta.id} 
-                  id={regatta.id}
-                  regattaName={regatta.regattaName}
-                  genderCategory={regatta.genderCategory}
-                  lockTime={regatta.lockTime}
-                  divisions={regatta.divisions}
-                  entryTiers={regatta.entryTiers}
+                  key={contest.id} 
+                  id={contest.id}
+                  regattaName={contest.regattaName}
+                  genderCategory={contest.genderCategory}
+                  lockTime={contest.lockTime}
+                  divisions={contest.divisions}
+                  entryTiers={contest.entryTiers}
                 />
               ))}
-          </div>
+            </div>
+          )}
 
-          {/* Empty State (hidden when contests exist) */}
-          {mockRegattas.length === 0 && (
+          {/* Empty State */}
+          {!loading && contests.length === 0 && (
             <div className="text-center py-16">
               <p className="text-xl text-muted-foreground mb-4">
-                No regattas available right now
+                No contests available right now
               </p>
               <p className="text-muted-foreground">
-                Check back soon for new rowing contests
+                Check back soon for new contests
               </p>
             </div>
           )}
