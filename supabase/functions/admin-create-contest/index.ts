@@ -14,15 +14,22 @@ interface CrewInput {
 
 interface CreateContestRequest {
   regattaName: string;
+  genderCategory: string;
   entryFeeCents: number;
   maxEntries: number;
   lockTime: string;
   crews: CrewInput[];
 }
 
+const VALID_GENDER_CATEGORIES = ["Men's", "Women's", "Mixed"];
+
 function validateRequest(body: CreateContestRequest): string | null {
   if (!body.regattaName || body.regattaName.trim() === '') {
     return 'Regatta name is required';
+  }
+  
+  if (!body.genderCategory || !VALID_GENDER_CATEGORIES.includes(body.genderCategory)) {
+    return `Gender category must be one of: ${VALID_GENDER_CATEGORIES.join(', ')}`;
   }
   
   if (typeof body.entryFeeCents !== 'number' || body.entryFeeCents < 0) {
@@ -106,6 +113,7 @@ Deno.serve(async (req) => {
 
     console.log('Creating contest:', { 
       regattaName: body.regattaName, 
+      genderCategory: body.genderCategory,
       entryFeeCents: body.entryFeeCents,
       maxEntries: body.maxEntries,
       crewCount: body.crews.length,
@@ -115,6 +123,7 @@ Deno.serve(async (req) => {
     // Call the atomic database function
     const { data, error } = await supabaseAdmin.rpc('admin_create_contest', {
       p_regatta_name: body.regattaName,
+      p_gender_category: body.genderCategory,
       p_entry_fee_cents: body.entryFeeCents,
       p_max_entries: body.maxEntries,
       p_lock_time: body.lockTime,

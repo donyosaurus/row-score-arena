@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Users, DollarSign, Trophy, Shield, Download, Settings, Loader2, Plus, X } from "lucide-react";
@@ -37,6 +38,7 @@ interface NewCrew {
 
 interface CreateContestForm {
   regattaName: string;
+  genderCategory: string;
   entryFee: string;
   maxEntries: string;
   lockTime: string;
@@ -79,6 +81,7 @@ const Admin = () => {
   const [creatingContest, setCreatingContest] = useState(false);
   const [createForm, setCreateForm] = useState<CreateContestForm>({
     regattaName: "",
+    genderCategory: "Men's",
     entryFee: "",
     maxEntries: "",
     lockTime: "",
@@ -320,6 +323,7 @@ const Admin = () => {
   const resetCreateForm = () => {
     setCreateForm({
       regattaName: "",
+      genderCategory: "Men's",
       entryFee: "",
       maxEntries: "",
       lockTime: "",
@@ -360,6 +364,11 @@ const Admin = () => {
       return;
     }
     
+    if (!createForm.genderCategory) {
+      toast.error("Gender category is required");
+      return;
+    }
+    
     const entryFeeDollars = parseFloat(createForm.entryFee);
     if (isNaN(entryFeeDollars) || entryFeeDollars < 0) {
       toast.error("Entry fee must be a valid non-negative number");
@@ -394,6 +403,7 @@ const Admin = () => {
       const { data, error } = await supabase.functions.invoke("admin-create-contest", {
         body: {
           regattaName: createForm.regattaName.trim(),
+          genderCategory: createForm.genderCategory,
           entryFeeCents: Math.round(entryFeeDollars * 100),
           maxEntries: maxEntries,
           lockTime: lockDate.toISOString(),
@@ -409,7 +419,21 @@ const Admin = () => {
       loadDashboardData();
     } catch (error: any) {
       console.error("Error creating contest:", error);
-      toast.error(error.message || "Failed to create contest");
+      // Parse error context for better error messages
+      let errorMessage = "Failed to create contest";
+      if (error.context?.json) {
+        try {
+          const contextData = typeof error.context.json === 'string' 
+            ? JSON.parse(error.context.json) 
+            : error.context.json;
+          errorMessage = contextData.error || contextData.message || errorMessage;
+        } catch {
+          errorMessage = error.message || errorMessage;
+        }
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      toast.error(errorMessage);
     } finally {
       setCreatingContest(false);
     }
@@ -944,6 +968,23 @@ const Admin = () => {
                   value={createForm.regattaName}
                   onChange={(e) => setCreateForm(prev => ({ ...prev, regattaName: e.target.value }))}
                 />
+              </div>
+              
+              <div>
+                <Label htmlFor="genderCategory">Gender Category *</Label>
+                <Select
+                  value={createForm.genderCategory}
+                  onValueChange={(value) => setCreateForm(prev => ({ ...prev, genderCategory: value }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Men's">Men's</SelectItem>
+                    <SelectItem value="Women's">Women's</SelectItem>
+                    <SelectItem value="Mixed">Mixed</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               
               <div className="grid grid-cols-2 gap-4">
