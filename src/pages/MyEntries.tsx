@@ -8,20 +8,29 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Trophy, Calendar, DollarSign, TrendingUp } from "lucide-react";
+import { Trophy, Calendar, DollarSign, TrendingUp, Users } from "lucide-react";
+
+interface PickNew {
+  crewId: string;
+  predictedMargin: number;
+}
 
 interface Entry {
   id: string;
   created_at: string;
   status: string;
   entry_fee_cents: number;
+  pool_id: string;
+  picks: PickNew[] | string[] | unknown;
   contest_templates: {
     regatta_name: string;
     lock_time: string;
   };
-  contest_instances: {
-    pool_number: string;
+  contest_pools: {
     status: string;
+    prize_pool_cents: number;
+    max_entries: number;
+    current_entries: number;
   };
   contest_scores?: Array<{
     rank: number;
@@ -32,10 +41,17 @@ interface Entry {
   }>;
 }
 
+interface CrewInfo {
+  crew_id: string;
+  crew_name: string;
+  contest_pool_id: string;
+}
+
 const MyEntries = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [entries, setEntries] = useState<Entry[]>([]);
+  const [crewMap, setCrewMap] = useState<Map<string, CrewInfo>>(new Map());
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
     totalEntries: 0,
@@ -60,9 +76,14 @@ const MyEntries = () => {
       const { data, error } = await supabase
         .from('contest_entries')
         .select(`
-          *,
+          id,
+          created_at,
+          status,
+          entry_fee_cents,
+          pool_id,
+          picks,
           contest_templates!inner (regatta_name, lock_time),
-          contest_instances!inner (pool_number, status),
+          contest_pools!inner (status, prize_pool_cents, max_entries, current_entries),
           contest_scores (rank, total_points, margin_bonus, is_winner, payout_cents)
         `)
         .eq('user_id', user.id)
@@ -73,10 +94,30 @@ const MyEntries = () => {
         return;
       }
 
-      setEntries(data as any || []);
+      const entriesData = (data || []) as unknown as Entry[];
+      setEntries(entriesData);
+
+      // Collect all pool IDs to fetch crew info
+      const poolIds = [...new Set(entriesData.map(e => e.pool_id).filter(Boolean))];
+      
+      if (poolIds.length > 0) {
+        const { data: crewsData, error: crewsError } = await supabase
+          .from('contest_pool_crews')
+          .select('crew_id, crew_name, contest_pool_id')
+          .in('contest_pool_id', poolIds);
+
+        if (!crewsError && crewsData) {
+          const newCrewMap = new Map<string, CrewInfo>();
+          crewsData.forEach(crew => {
+            // Key by pool_id + crew_id for uniqueness
+            newCrewMap.set(`${crew.contest_pool_id}-${crew.crew_id}`, crew);
+          });
+          setCrewMap(newCrewMap);
+        }
+      }
 
       // Calculate stats
-      const completed = data?.filter(e => e.contest_instances?.status === 'completed') || [];
+      const completed = entriesData.filter(e => e.contest_pools?.status === 'completed');
       const wins = completed.filter(e => e.contest_scores?.[0]?.is_winner);
       const totalWinnings = completed.reduce(
         (sum, e) => sum + (e.contest_scores?.[0]?.payout_cents || 0),
@@ -84,8 +125,8 @@ const MyEntries = () => {
       );
 
       setStats({
-        totalEntries: data?.length || 0,
-        activeEntries: data?.filter(e => e.status === 'active' && e.contest_instances?.status !== 'completed').length || 0,
+        totalEntries: entriesData.length,
+        activeEntries: entriesData.filter(e => e.status === 'active' && e.contest_pools?.status !== 'completed').length,
         totalWinnings: totalWinnings / 100,
         winRate: completed.length > 0 ? (wins.length / completed.length) * 100 : 0,
       });
@@ -98,8 +139,8 @@ const MyEntries = () => {
 
   const getStatusBadge = (status: string) => {
     const statusMap = {
-      open: { label: 'Active', variant: 'default' as const },
-      locked: { label: 'In Progress', variant: 'secondary' as const },
+      open: { label: 'Open', variant: 'default' as const },
+      locked: { label: 'Live', variant: 'secondary' as const },
       completed: { label: 'Completed', variant: 'outline' as const },
       cancelled: { label: 'Cancelled', variant: 'destructive' as const },
     };
@@ -107,11 +148,38 @@ const MyEntries = () => {
     return <Badge variant={config.variant}>{config.label}</Badge>;
   };
 
+  // Parse picks and get crew names with margins
+  const getParsedPicks = (entry: Entry): { crewName: string; margin: number | null }[] => {
+    const picks = entry.picks;
+    if (!picks || !Array.isArray(picks)) return [];
+
+    return picks.map((pick) => {
+      // New format: { crewId, predictedMargin }
+      if (typeof pick === 'object' && pick !== null && 'crewId' in pick) {
+        const pickObj = pick as PickNew;
+        const crewInfo = crewMap.get(`${entry.pool_id}-${pickObj.crewId}`);
+        return {
+          crewName: crewInfo?.crew_name || pickObj.crewId,
+          margin: pickObj.predictedMargin,
+        };
+      }
+      // Old format: just crew ID string
+      if (typeof pick === 'string') {
+        const crewInfo = crewMap.get(`${entry.pool_id}-${pick}`);
+        return {
+          crewName: crewInfo?.crew_name || pick,
+          margin: null,
+        };
+      }
+      return { crewName: 'Unknown', margin: null };
+    });
+  };
+
   const activeEntries = entries.filter(
-    e => e.status === 'active' && e.contest_instances?.status !== 'completed'
+    e => e.status === 'active' && e.contest_pools?.status !== 'completed'
   );
   const completedEntries = entries.filter(
-    e => e.contest_instances?.status === 'completed'
+    e => e.contest_pools?.status === 'completed'
   );
 
   if (loading) {
@@ -128,6 +196,79 @@ const MyEntries = () => {
       </div>
     );
   }
+
+  const renderEntryCard = (entry: Entry, showScore = false) => {
+    const score = entry.contest_scores?.[0];
+    const parsedPicks = getParsedPicks(entry);
+    const potentialPrize = entry.contest_pools?.prize_pool_cents 
+      ? (entry.contest_pools.prize_pool_cents / 100).toFixed(2)
+      : '0.00';
+
+    return (
+      <Card key={entry.id}>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div className="flex-1">
+              <CardTitle className="text-lg">
+                {entry.contest_templates.regatta_name}
+              </CardTitle>
+              <CardDescription className="space-y-1">
+                <div>
+                  Entry Fee: ${(entry.entry_fee_cents / 100).toFixed(2)} • 
+                  Prize Pool: ${potentialPrize}
+                </div>
+                {!showScore && (
+                  <div>Locks: {new Date(entry.contest_templates.lock_time).toLocaleString()}</div>
+                )}
+                {showScore && (
+                  <div>Entered: {new Date(entry.created_at).toLocaleDateString()}</div>
+                )}
+              </CardDescription>
+            </div>
+            {getStatusBadge(entry.contest_pools?.status || 'open')}
+          </div>
+        </CardHeader>
+        <CardContent>
+          {/* Display Picks */}
+          <div className="mb-4">
+            <div className="flex items-center gap-2 mb-2 text-sm font-medium text-muted-foreground">
+              <Users className="h-4 w-4" />
+              <span>Your Picks ({parsedPicks.length})</span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {parsedPicks.map((pick, idx) => (
+                <Badge key={idx} variant="secondary" className="text-sm">
+                  {pick.crewName}
+                  {pick.margin !== null && (
+                    <span className="ml-1 text-primary font-semibold">
+                      (+{pick.margin.toFixed(1)}s)
+                    </span>
+                  )}
+                </Badge>
+              ))}
+              {parsedPicks.length === 0 && (
+                <span className="text-sm text-muted-foreground">No picks recorded</span>
+              )}
+            </div>
+          </div>
+
+          {/* Show score for completed entries */}
+          {showScore && score && (
+            <div className="flex items-center gap-4 text-sm pt-3 border-t">
+              <span className="font-semibold">Rank: #{score.rank}</span>
+              <span>Points: {score.total_points}</span>
+              <span>Margin Bonus: +{score.margin_bonus}</span>
+              {score.is_winner && (
+                <Badge variant="default" className="bg-green-600 hover:bg-green-700">
+                  Won ${(score.payout_cents / 100).toFixed(2)}
+                </Badge>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    );
+  };
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -198,6 +339,7 @@ const MyEntries = () => {
               {activeEntries.length === 0 ? (
                 <Card>
                   <CardContent className="py-12 text-center">
+                    <Trophy className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                     <p className="text-muted-foreground mb-4">You don't have any active entries</p>
                     <Button onClick={() => navigate('/lobby')} variant="hero">
                       Browse Contests
@@ -205,24 +347,7 @@ const MyEntries = () => {
                   </CardContent>
                 </Card>
               ) : (
-                activeEntries.map((entry) => (
-                  <Card key={entry.id}>
-                    <CardHeader>
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <CardTitle className="text-lg">
-                            {entry.contest_templates.regatta_name} - Pool {entry.contest_instances.pool_number}
-                          </CardTitle>
-                          <CardDescription>
-                            Entry Fee: ${(entry.entry_fee_cents / 100).toFixed(2)} • 
-                            Locks: {new Date(entry.contest_templates.lock_time).toLocaleString()}
-                          </CardDescription>
-                        </div>
-                        {getStatusBadge(entry.contest_instances.status)}
-                      </div>
-                    </CardHeader>
-                  </Card>
-                ))
+                activeEntries.map((entry) => renderEntryCard(entry, false))
               )}
             </TabsContent>
 
@@ -230,42 +355,12 @@ const MyEntries = () => {
               {completedEntries.length === 0 ? (
                 <Card>
                   <CardContent className="py-12 text-center">
+                    <Calendar className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                     <p className="text-muted-foreground">No completed entries yet</p>
                   </CardContent>
                 </Card>
               ) : (
-                completedEntries.map((entry) => {
-                  const score = entry.contest_scores?.[0];
-                  return (
-                    <Card key={entry.id}>
-                      <CardHeader>
-                        <div className="flex items-center justify-between">
-                          <div className="flex-1">
-                            <CardTitle className="text-lg">
-                              {entry.contest_templates.regatta_name} - Pool {entry.contest_instances.pool_number}
-                            </CardTitle>
-                            <CardDescription>
-                              Entry Fee: ${(entry.entry_fee_cents / 100).toFixed(2)} • 
-                              Completed: {new Date(entry.created_at).toLocaleDateString()}
-                            </CardDescription>
-                            {score && (
-                              <div className="mt-2 flex items-center gap-4 text-sm">
-                                <span className="font-semibold">Rank: #{score.rank}</span>
-                                <span>Points: {score.total_points}</span>
-                                {score.is_winner && (
-                                  <Badge variant="default" className="bg-green-600">
-                                    Won ${(score.payout_cents / 100).toFixed(2)}
-                                  </Badge>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                          {getStatusBadge(entry.contest_instances.status)}
-                        </div>
-                      </CardHeader>
-                    </Card>
-                  );
-                })
+                completedEntries.map((entry) => renderEntryCard(entry, true))
               )}
             </TabsContent>
           </Tabs>
