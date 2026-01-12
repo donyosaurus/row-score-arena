@@ -34,13 +34,17 @@ Deno.serve(async (req) => {
     // Geolocation check - block restricted states
     checkLocationEligibility(req);
 
-    // Validate input with Zod schema
+    // Validate input with Zod schema - picks now include per-crew predicted margins
+    const pickSchema = z.object({
+      crewId: z.string().min(1, 'Crew ID required'),
+      predictedMargin: z.number().min(0, 'Predicted margin must be non-negative')
+    });
+
     const entrySchema = z.object({
       contestPoolId: z.string().uuid('Invalid contest pool ID'),
-      picks: z.array(z.string().min(1, 'Crew ID required'))
+      picks: z.array(pickSchema)
         .min(2, 'Minimum 2 picks required')
-        .max(10, 'Maximum 10 picks allowed'),
-      tiebreakerMargin: z.number().min(0, 'Tiebreaker must be non-negative')
+        .max(10, 'Maximum 10 picks allowed')
     });
 
     let body;
@@ -58,7 +62,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { contestPoolId, picks, tiebreakerMargin } = body;
+    const { contestPoolId, picks } = body;
 
     console.log('[contest-enter] Request:', { userId: user.id, contestPoolId, picksCount: picks.length });
 
@@ -90,14 +94,14 @@ Deno.serve(async (req) => {
       crewToEventMap.set(crew.crew_id, crew.event_id);
     }
 
-    // Validate every pick exists in the allowed list
+    // Validate every pick exists in the allowed list (extract crewId from pick objects)
     const invalidPicks: string[] = [];
     const pickedEventIds = new Set<string>();
 
-    for (const crewId of picks) {
-      const eventId = crewToEventMap.get(crewId);
+    for (const pick of picks) {
+      const eventId = crewToEventMap.get(pick.crewId);
       if (!eventId) {
-        invalidPicks.push(crewId);
+        invalidPicks.push(pick.crewId);
       } else {
         pickedEventIds.add(eventId);
       }
@@ -120,12 +124,12 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Step C: Tiebreaker already validated by Zod schema
+    // Step C: Per-crew margins already validated by Zod schema
 
     // Step D: Construct validated roster and call RPC
+    // The roster now contains picks with individual predicted margins
     const roster = {
-      crews: picks,
-      tiebreaker_margin: tiebreakerMargin
+      crews: picks // Array of { crewId, predictedMargin }
     };
 
     console.log('[contest-enter] Calling RPC with validated roster:', { 

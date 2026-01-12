@@ -20,6 +20,11 @@ interface PoolCrew {
   event_id: string;
 }
 
+interface CrewPick {
+  crewId: string;
+  predictedMargin: number;
+}
+
 interface ContestPool {
   id: string;
   lock_time: string;
@@ -47,9 +52,8 @@ const RegattaDetail = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Selection state
-  const [selectedCrews, setSelectedCrews] = useState<string[]>([]);
-  const [tiebreakerMargin, setTiebreakerMargin] = useState<number>(0);
+  // Selection state - now stores per-crew predicted margins
+  const [crewPicks, setCrewPicks] = useState<Map<string, number>>(new Map());
   const [submitting, setSubmitting] = useState(false);
 
   // Auth redirect
@@ -124,20 +128,35 @@ const RegattaDetail = () => {
 
   const divisions = Object.keys(crewsByDivision);
 
-  // Handle crew selection
+  // Handle crew selection toggle
   const toggleCrewSelection = (crewId: string) => {
-    setSelectedCrews(prev => {
-      if (prev.includes(crewId)) {
-        return prev.filter(id => id !== crewId);
+    setCrewPicks(prev => {
+      const newPicks = new Map(prev);
+      if (newPicks.has(crewId)) {
+        newPicks.delete(crewId);
+      } else {
+        // Max 10 picks
+        if (newPicks.size >= 10) {
+          toast.error("Maximum 10 picks allowed");
+          return prev;
+        }
+        newPicks.set(crewId, 0); // Default margin of 0
       }
-      // Max 10 picks
-      if (prev.length >= 10) {
-        toast.error("Maximum 10 picks allowed");
-        return prev;
-      }
-      return [...prev, crewId];
+      return newPicks;
     });
   };
+
+  // Handle margin update for a selected crew
+  const updateCrewMargin = (crewId: string, margin: number) => {
+    setCrewPicks(prev => {
+      const newPicks = new Map(prev);
+      newPicks.set(crewId, margin);
+      return newPicks;
+    });
+  };
+
+  // Get selected crew IDs as array
+  const selectedCrewIds = Array.from(crewPicks.keys());
 
   // Check if contest is still open
   const isContestOpen = contestPool?.status === "open" && 
@@ -161,18 +180,35 @@ const RegattaDetail = () => {
     ? (contestPool.entry_fee_cents / 100).toFixed(2) 
     : "0.00";
 
+  // Validate all selected crews have margins entered
+  const allMarginsValid = useMemo(() => {
+    for (const [_, margin] of crewPicks) {
+      if (margin === undefined || margin < 0) return false;
+    }
+    return true;
+  }, [crewPicks]);
+
   // Submit entry
   const handleSubmitEntry = async () => {
     if (!id || !user) return;
 
-    if (selectedCrews.length < 2) {
+    if (crewPicks.size < 2) {
       toast.error("Please select at least 2 crews");
       return;
     }
 
+    // Validate all margins are entered
+    for (const [crewId, margin] of crewPicks) {
+      if (margin === undefined || margin < 0) {
+        const crew = contestPool?.contest_pool_crews.find(c => c.crew_id === crewId);
+        toast.error(`Please enter a valid margin for ${crew?.crew_name || crewId}`);
+        return;
+      }
+    }
+
     // Count unique divisions in selection
     const selectedDivisions = new Set<string>();
-    for (const crewId of selectedCrews) {
+    for (const crewId of selectedCrewIds) {
       const crew = contestPool?.contest_pool_crews.find(c => c.crew_id === crewId);
       if (crew) {
         selectedDivisions.add(crew.event_id);
@@ -186,12 +222,17 @@ const RegattaDetail = () => {
 
     setSubmitting(true);
 
+    // Transform picks to new format: { crewId, predictedMargin }[]
+    const picks: CrewPick[] = Array.from(crewPicks.entries()).map(([crewId, margin]) => ({
+      crewId,
+      predictedMargin: margin
+    }));
+
     try {
       const { data, error } = await supabase.functions.invoke("contest-enter", {
         body: {
           contestPoolId: id,
-          picks: selectedCrews,
-          tiebreakerMargin: tiebreakerMargin
+          picks
         }
       });
 
@@ -347,31 +388,56 @@ const RegattaDetail = () => {
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         {crewsByDivision[divisionId].map((crew) => {
-                          const isSelected = selectedCrews.includes(crew.crew_id);
+                          const isSelected = crewPicks.has(crew.crew_id);
+                          const currentMargin = crewPicks.get(crew.crew_id) ?? 0;
                           return (
                             <div
                               key={crew.id}
-                              onClick={() => isContestOpen && toggleCrewSelection(crew.crew_id)}
                               className={`
-                                flex items-center gap-3 p-3 rounded-lg border-2 transition-all
-                                ${isContestOpen ? "cursor-pointer hover:border-primary/50" : "opacity-60 cursor-not-allowed"}
+                                p-3 rounded-lg border-2 transition-all
+                                ${!isContestOpen ? "opacity-60" : ""}
                                 ${isSelected ? "border-primary bg-primary/5" : "border-border"}
                               `}
                             >
-                              <Checkbox
-                                checked={isSelected}
-                                disabled={!isContestOpen}
-                                onCheckedChange={() => toggleCrewSelection(crew.crew_id)}
-                                className="pointer-events-none"
-                              />
-                              <div className="flex-1">
-                                <p className="font-medium">{crew.crew_name}</p>
-                                <p className="text-xs text-muted-foreground">{crew.crew_id}</p>
+                              <div 
+                                onClick={() => isContestOpen && toggleCrewSelection(crew.crew_id)}
+                                className={`flex items-center gap-3 ${isContestOpen ? "cursor-pointer" : "cursor-not-allowed"}`}
+                              >
+                                <Checkbox
+                                  checked={isSelected}
+                                  disabled={!isContestOpen}
+                                  onCheckedChange={() => toggleCrewSelection(crew.crew_id)}
+                                  className="pointer-events-none"
+                                />
+                                <div className="flex-1">
+                                  <p className="font-medium">{crew.crew_name}</p>
+                                  <p className="text-xs text-muted-foreground">{crew.crew_id}</p>
+                                </div>
+                                {isSelected && (
+                                  <Check className="h-4 w-4 text-primary" />
+                                )}
                               </div>
-                              {isSelected && (
-                                <Check className="h-4 w-4 text-primary" />
+                              
+                              {/* Margin input shown when crew is selected */}
+                              {isSelected && isContestOpen && (
+                                <div className="mt-3 pt-3 border-t border-border/50">
+                                  <Label htmlFor={`margin-${crew.crew_id}`} className="text-xs text-muted-foreground">
+                                    Predicted Margin (seconds)
+                                  </Label>
+                                  <Input
+                                    id={`margin-${crew.crew_id}`}
+                                    type="number"
+                                    min="0"
+                                    step="0.1"
+                                    placeholder="e.g., 2.5"
+                                    value={currentMargin || ""}
+                                    onChange={(e) => updateCrewMargin(crew.crew_id, parseFloat(e.target.value) || 0)}
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="mt-1 h-8"
+                                  />
+                                </div>
                               )}
                             </div>
                           );
@@ -384,28 +450,29 @@ const RegattaDetail = () => {
             )}
           </div>
 
-          {/* Tiebreaker Input */}
-          {isContestOpen && (
+          {/* Instructions Card - replaces global tiebreaker */}
+          {isContestOpen && crewPicks.size > 0 && (
             <Card className="mb-8">
               <CardHeader>
-                <CardTitle className="text-lg">Tiebreaker</CardTitle>
+                <CardTitle className="text-lg">Your Predictions</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="max-w-xs">
-                  <Label htmlFor="tiebreaker">Predicted Winning Margin (seconds)</Label>
-                  <Input
-                    id="tiebreaker"
-                    type="number"
-                    min="0"
-                    step="0.1"
-                    placeholder="e.g., 5.5"
-                    value={tiebreakerMargin || ""}
-                    onChange={(e) => setTiebreakerMargin(parseFloat(e.target.value) || 0)}
-                    className="mt-1"
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Used to break ties if you have the same score as another player.
-                  </p>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Enter a predicted margin (in seconds) for each crew you selected. 
+                  This represents how much you think they'll win their race by.
+                </p>
+                <div className="space-y-2">
+                  {Array.from(crewPicks.entries()).map(([crewId, margin]) => {
+                    const crew = contestPool?.contest_pool_crews.find(c => c.crew_id === crewId);
+                    return (
+                      <div key={crewId} className="flex items-center justify-between text-sm">
+                        <span className="font-medium">{crew?.crew_name || crewId}</span>
+                        <span className={margin > 0 ? "text-primary" : "text-muted-foreground"}>
+                          {margin > 0 ? `+${margin}s` : "Not set"}
+                        </span>
+                      </div>
+                    );
+                  })}
                 </div>
               </CardContent>
             </Card>
@@ -420,18 +487,20 @@ const RegattaDetail = () => {
             <div className="flex items-center justify-between gap-4">
               <div>
                 <p className="font-semibold">
-                  {selectedCrews.length} crew{selectedCrews.length !== 1 ? "s" : ""} selected
+                  {crewPicks.size} crew{crewPicks.size !== 1 ? "s" : ""} selected
                 </p>
                 <p className="text-sm text-muted-foreground">
-                  {selectedCrews.length < 2 
+                  {crewPicks.size < 2 
                     ? "Select at least 2 crews to enter" 
+                    : !allMarginsValid
+                    ? "Enter margins for all crews"
                     : `Entry fee: $${entryFeeDollars}`}
                 </p>
               </div>
               <Button
                 size="lg"
                 onClick={handleSubmitEntry}
-                disabled={submitting || selectedCrews.length < 2}
+                disabled={submitting || crewPicks.size < 2 || !allMarginsValid}
               >
                 {submitting ? (
                   <>
