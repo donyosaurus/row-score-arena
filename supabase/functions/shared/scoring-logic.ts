@@ -1,26 +1,32 @@
 // Shared Scoring Logic - Extracted for direct use without HTTP calls
 
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.76.1';
-
-// Scoring rules
-const FINISH_POINTS: Record<number, number> = {
+// Updated Points Distribution per requirements:
+// 1st: 100, 2nd: 75, 3rd: 60, 4th: 45, 5th: 35, 6th: 25, 7th: 15, 8th+: 10
+export const FINISH_POINTS: Record<number, number> = {
   1: 100,
-  2: 80,
+  2: 75,
   3: 60,
-  4: 40,
-  5: 20,
-  6: 0,
-  7: 0,
+  4: 45,
+  5: 35,
+  6: 25,
+  7: 15,
 };
 
 export function getFinishPoints(position: number): number {
-  return FINISH_POINTS[position] || 0;
+  if (position < 1) return 0;
+  if (position >= 8) return 10; // 8th place and beyond get 10 points
+  return FINISH_POINTS[position] || 10;
 }
 
 export function calculateMarginBonus(predictedMargin: number, actualMargin: number): number {
+  if (actualMargin === undefined || actualMargin === null) return 0;
+  
   const error = Math.abs(predictedMargin - actualMargin);
-  const bonus = Math.max(0, 10 - error);
-  return Math.min(10, bonus);
+  // Perfect prediction: 20 bonus points
+  // Error reduces bonus: -2 points per 0.5 seconds of error
+  // Minimum 0 bonus
+  const bonus = Math.max(0, 20 - Math.floor(error / 0.5) * 2);
+  return bonus;
 }
 
 /**
@@ -71,47 +77,68 @@ export function calculateOfficialMargin(
     return 0; // Can't calculate if times are missing/invalid
   }
 
-  return Math.abs(secondPlaceTime - firstPlaceTime);
+  return Math.round(Math.abs(secondPlaceTime - firstPlaceTime) * 100) / 100;
 }
 
+// Race result interface for scoring - uses eventId instead of divisionId
 export interface RaceResult {
   crewId: string;
-  divisionId: string;
-  finishPosition: number;
-  finishTime?: number | string;
-  marginSeconds?: number;
+  eventId: string;
+  finishOrder: number;
+  actualMargin?: number; // Only for 1st place finishers
 }
 
-export async function scoreContestInstance(
+// Entry pick interface (as stored in contest_entries.picks)
+interface EntryPick {
+  crewId: string;
+  predictedMargin: number;
+}
+
+/**
+ * Score a contest pool by calculating points and rankings for all entries
+ * Uses contest_pools table instead of contest_instances
+ */
+export async function scoreContestPool(
   supabase: any,
-  instanceId: string,
+  contestPoolId: string,
   results: RaceResult[]
 ): Promise<{ entriesScored: number; winnerId?: string }> {
-  console.log('[scoring-logic] Processing results for instance:', instanceId);
+  console.log('[scoring-logic] Processing results for pool:', contestPoolId);
 
-  // Get instance
-  const { data: instance, error: instanceError } = await supabase
-    .from('contest_instances')
+  // Get pool details
+  const { data: pool, error: poolError } = await supabase
+    .from('contest_pools')
     .select('*, contest_templates(*)')
-    .eq('id', instanceId)
+    .eq('id', contestPoolId)
     .single();
 
-  if (instanceError || !instance) {
-    throw new Error('Contest instance not found');
+  if (poolError || !pool) {
+    throw new Error('Contest pool not found');
   }
 
-  // Get all entries for this instance
+  // Get all entries for this pool (using pool_id column)
   const { data: entries, error: entriesError } = await supabase
     .from('contest_entries')
     .select('*')
-    .eq('instance_id', instanceId)
-    .eq('status', 'active');
+    .eq('pool_id', contestPoolId)
+    .eq('status', 'confirmed');
 
   if (entriesError || !entries) {
     throw new Error('Failed to fetch entries');
   }
 
+  if (entries.length === 0) {
+    console.log('[scoring-logic] No entries to score');
+    return { entriesScored: 0 };
+  }
+
   console.log('[scoring-logic] Scoring', entries.length, 'entries');
+
+  // Build a map of crewId -> result for quick lookup
+  const resultMap = new Map<string, RaceResult>();
+  for (const r of results) {
+    resultMap.set(r.crewId, r);
+  }
 
   // Score each entry
   interface EntryScore {
@@ -120,41 +147,57 @@ export async function scoreContestInstance(
     total_points: number;
     margin_bonus: number;
     rank?: number;
+    payout_cents?: number;
     is_tiebreak_resolved?: boolean;
+    is_winner?: boolean;
     crew_scores: any[];
   }
   
   const scores: EntryScore[] = [];
+  
   for (const entry of entries) {
-    const picks = entry.picks as any[];
+    let picks: EntryPick[] = [];
+    
+    // Parse picks - handle both old and new formats
+    try {
+      if (Array.isArray(entry.picks)) {
+        picks = entry.picks.map((p: any) => {
+          if (typeof p === 'string') {
+            return { crewId: p, predictedMargin: 0 };
+          }
+          return { crewId: p.crewId, predictedMargin: p.predictedMargin || 0 };
+        });
+      }
+    } catch (e) {
+      console.error('[scoring-logic] Failed to parse picks for entry:', entry.id, e);
+      continue;
+    }
+
     let totalPoints = 0;
     let totalMarginBonus = 0;
     const crewScores = [];
 
     for (const pick of picks) {
-      // Find result for this crew
-      const result = results.find(
-        r => r.crewId === pick.crewId && r.divisionId === pick.divisionId
-      );
+      const result = resultMap.get(pick.crewId);
 
       if (result) {
         // Calculate finish points (primary scoring)
-        const finishPoints = getFinishPoints(result.finishPosition);
+        const finishPoints = getFinishPoints(result.finishOrder);
         totalPoints += finishPoints;
 
-        // Calculate margin bonus (tie-breaker only)
+        // Calculate margin bonus - only for 1st place finishers with predicted margin
         let marginBonus = 0;
-        if (result.marginSeconds !== undefined && pick.predictedMargin !== undefined) {
-          marginBonus = calculateMarginBonus(pick.predictedMargin, result.marginSeconds);
+        if (result.finishOrder === 1 && result.actualMargin !== undefined && pick.predictedMargin > 0) {
+          marginBonus = calculateMarginBonus(pick.predictedMargin, result.actualMargin);
           totalMarginBonus += marginBonus;
         }
 
         crewScores.push({
           crew_id: pick.crewId,
-          division_id: pick.divisionId,
+          event_id: result.eventId,
           predicted_margin: pick.predictedMargin,
-          actual_margin: result.marginSeconds,
-          finish_position: result.finishPosition,
+          actual_margin: result.actualMargin,
+          finish_order: result.finishOrder,
           finish_points: finishPoints,
           margin_bonus: marginBonus,
         });
@@ -162,9 +205,8 @@ export async function scoreContestInstance(
         console.warn('[scoring-logic] No result found for crew:', pick.crewId);
         crewScores.push({
           crew_id: pick.crewId,
-          division_id: pick.divisionId,
           predicted_margin: pick.predictedMargin,
-          finish_position: null,
+          finish_order: null,
           finish_points: 0,
           margin_bonus: 0,
         });
@@ -212,52 +254,80 @@ export async function scoreContestInstance(
     currentRank++;
   }
 
-  // Insert/update scores
+  // Determine winners (rank 1)
+  const winnerIds = scores
+    .filter(s => s.rank === 1)
+    .map(s => s.user_id);
+
+  // Calculate payouts based on prize structure
+  const prizePool = pool.prize_pool_cents || 0;
+  const prizeStructure = pool.prize_structure || { 1: 1.0 }; // Default: winner takes all
+
+  for (const score of scores) {
+    const payoutPercent = (prizeStructure as Record<number, number>)[score.rank!] || 0;
+    score.payout_cents = Math.floor(prizePool * payoutPercent);
+    score.is_winner = score.rank === 1;
+  }
+
+  // Insert/update scores - using instance_id column (which maps to pool)
   for (const score of scores) {
     const { error: upsertError } = await supabase
       .from('contest_scores')
       .upsert({
         entry_id: score.entry_id,
-        instance_id: instanceId,
+        instance_id: contestPoolId, // Using instance_id column for pool reference
         user_id: score.user_id,
         total_points: score.total_points,
         margin_bonus: score.margin_bonus,
         rank: score.rank,
+        payout_cents: score.payout_cents,
         is_tiebreak_resolved: score.is_tiebreak_resolved,
+        is_winner: score.is_winner,
         crew_scores: score.crew_scores,
       }, { onConflict: 'entry_id' });
 
     if (upsertError) {
       console.error('[scoring-logic] Error upserting score:', upsertError);
     }
+
+    // Also update the contest_entries table with score summary
+    await supabase
+      .from('contest_entries')
+      .update({
+        total_points: score.total_points,
+        rank: score.rank,
+        payout_cents: score.payout_cents,
+        status: 'scored',
+      })
+      .eq('id', score.entry_id);
   }
 
-  // Update instance status
+  // Update pool status
   await supabase
-    .from('contest_instances')
+    .from('contest_pools')
     .update({ 
-      status: 'completed',
-      completed_at: new Date().toISOString(),
+      status: 'scoring_completed',
+      winner_ids: winnerIds,
     })
-    .eq('id', instanceId);
+    .eq('id', contestPoolId);
 
   // Log to compliance
   await supabase.from('compliance_audit_logs').insert({
     event_type: 'contest_scored',
     severity: 'info',
-    description: `Contest scored: ${instance.contest_templates.regatta_name} - Pool ${instance.pool_number}`,
+    description: `Contest scored: ${pool.contest_templates?.regatta_name || 'Unknown'} - Pool ${contestPoolId}`,
     metadata: {
-      instance_id: instanceId,
+      contest_pool_id: contestPoolId,
       entries_scored: scores.length,
-      winner_id: scores[0]?.entry_id,
+      winner_ids: winnerIds,
       winner_points: scores[0]?.total_points,
     },
   });
 
-  console.log('[scoring-logic] Scoring complete for instance:', instanceId);
+  console.log('[scoring-logic] Scoring complete for pool:', contestPoolId);
 
   return {
     entriesScored: scores.length,
-    winnerId: scores[0]?.entry_id,
+    winnerId: winnerIds[0],
   };
 }
