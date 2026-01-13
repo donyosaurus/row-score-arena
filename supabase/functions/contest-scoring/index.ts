@@ -2,8 +2,11 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.76.1';
 import { z } from 'https://deno.land/x/zod@v3.22.4/mod.ts';
-import { requireAdmin } from '../shared/auth-helpers.ts';
-import { parseRaceTime, calculateOfficialMargin } from '../shared/scoring-logic.ts';
+import { 
+  scoreContestPool, 
+  calculateOfficialMargin,
+  type RaceResult 
+} from '../shared/scoring-logic.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -35,8 +38,20 @@ Deno.serve(async (req) => {
       );
     }
 
-    // SECURITY: Require admin authentication
-    await requireAdmin(supabase, user.id);
+    // SECURITY: Check if user is admin
+    const { data: roleData } = await supabase
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', user.id)
+      .eq('role', 'admin')
+      .single();
+
+    if (!roleData) {
+      return new Response(
+        JSON.stringify({ error: 'Admin access required' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     // Validate input
     const scoreSchema = z.object({
@@ -80,7 +95,7 @@ Deno.serve(async (req) => {
     // Fetch crew results from contest_pool_crews
     const { data: crews, error: crewsError } = await supabaseAdmin
       .from('contest_pool_crews')
-      .select('crew_id, manual_finish_order, manual_result_time')
+      .select('crew_id, event_id, crew_name, manual_finish_order, manual_result_time')
       .eq('contest_pool_id', contestPoolId);
 
     if (crewsError || !crews || crews.length === 0) {
@@ -90,24 +105,55 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Calculate official margin using TypeScript (easier to parse string times)
-    const officialMarginSeconds = calculateOfficialMargin(crews);
-
-    console.log('[scoring] Official margin calculated:', officialMarginSeconds, 'seconds');
-
-    // Call the atomic RPC to calculate and assign scores
-    const { data: rpcResult, error: rpcError } = await supabaseAdmin.rpc('calculate_pool_scores', {
-      p_contest_pool_id: contestPoolId,
-      p_official_margin_seconds: officialMarginSeconds,
-    });
-
-    if (rpcError) {
-      console.error('[scoring] RPC error:', rpcError);
-      return new Response(
-        JSON.stringify({ error: rpcError.message || 'Failed to calculate scores' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    // Group crews by event_id
+    const eventGroups = new Map<string, typeof crews>();
+    for (const crew of crews) {
+      const eventId = crew.event_id;
+      if (!eventGroups.has(eventId)) {
+        eventGroups.set(eventId, []);
+      }
+      eventGroups.get(eventId)!.push(crew);
     }
+
+    console.log('[scoring] Found', eventGroups.size, 'events to process');
+
+    // Calculate race results with margins per event
+    const results: RaceResult[] = [];
+
+    for (const [eventId, eventCrews] of eventGroups) {
+      // Sort by finish order within this event
+      const sorted = eventCrews
+        .filter(c => c.manual_finish_order !== null)
+        .sort((a, b) => (a.manual_finish_order || 0) - (b.manual_finish_order || 0));
+
+      if (sorted.length === 0) continue;
+
+      // Calculate official margin for this event (time between 1st and 2nd)
+      const officialMargin = calculateOfficialMargin(sorted);
+
+      console.log('[scoring] Event', eventId, '- Official margin:', officialMargin, 'seconds');
+
+      // Create result entries for each crew in this event
+      for (const crew of sorted) {
+        const result: RaceResult = {
+          crewId: crew.crew_id,
+          eventId: eventId,
+          finishOrder: crew.manual_finish_order!,
+        };
+
+        // Only 1st place gets the actualMargin for margin bonus calculation
+        if (crew.manual_finish_order === 1) {
+          result.actualMargin = officialMargin;
+        }
+
+        results.push(result);
+      }
+    }
+
+    console.log('[scoring] Prepared', results.length, 'race results');
+
+    // Execute scoring using TypeScript logic (no RPC call)
+    const scoringResult = await scoreContestPool(supabaseAdmin, contestPoolId, results);
 
     // Log admin action to compliance
     await supabaseAdmin.from('compliance_audit_logs').insert({
@@ -117,8 +163,10 @@ Deno.serve(async (req) => {
       description: `Admin scored contest pool ${contestPoolId}${forceRescore ? ' (forced rescore)' : ''}`,
       metadata: {
         contest_pool_id: contestPoolId,
-        official_margin_seconds: officialMarginSeconds,
-        entries_processed: rpcResult?.entries_processed || 0,
+        events_processed: eventGroups.size,
+        results_count: results.length,
+        entries_scored: scoringResult.entriesScored,
+        winner_id: scoringResult.winnerId,
         force_rescore: forceRescore,
       },
     });
@@ -127,8 +175,10 @@ Deno.serve(async (req) => {
       JSON.stringify({
         success: true,
         contestPoolId,
-        officialMarginSeconds,
-        entriesProcessed: rpcResult?.entries_processed || 0,
+        eventsProcessed: eventGroups.size,
+        resultsCount: results.length,
+        entriesScored: scoringResult.entriesScored,
+        winnerId: scoringResult.winnerId,
         message: 'Scoring completed successfully',
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -145,7 +195,7 @@ Deno.serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({ error: 'An error occurred' }),
+      JSON.stringify({ error: error.message || 'An error occurred' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }

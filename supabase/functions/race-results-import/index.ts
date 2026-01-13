@@ -3,7 +3,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.76.1';
 import { z } from 'https://deno.land/x/zod@v3.22.4/mod.ts';
 import { crypto } from "https://deno.land/std@0.177.0/crypto/mod.ts";
-import { scoreContestInstance } from '../shared/scoring-logic.ts';
+import { scoreContestPool, calculateOfficialMargin, type RaceResult } from '../shared/scoring-logic.ts';
 import { createErrorResponse } from '../shared/error-handler.ts';
 import { requireAdmin } from '../shared/auth-helpers.ts';
 
@@ -19,6 +19,7 @@ Deno.serve(async (req) => {
 
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const authHeader = req.headers.get('Authorization')!;
     const supabase = createClient(supabaseUrl, Deno.env.get('SUPABASE_ANON_KEY')!, {
       global: { headers: { Authorization: authHeader } },
@@ -35,6 +36,9 @@ Deno.serve(async (req) => {
 
     // Require admin role - throws if not admin
     await requireAdmin(supabase, user.id);
+
+    // Create service client after admin verification
+    const supabaseAdmin = createClient(supabaseUrl, serviceKey);
 
     // Validate input
     const importSchema = z.object({
@@ -56,7 +60,7 @@ Deno.serve(async (req) => {
     console.log('[race-results-import] Processing', body.results.length, 'results for', body.regattaName);
 
     // Validate contest template exists
-    const { data: template, error: templateError } = await supabase
+    const { data: template, error: templateError } = await supabaseAdmin
       .from('contest_templates')
       .select('*')
       .eq('id', body.contestTemplateId)
@@ -77,7 +81,7 @@ Deno.serve(async (req) => {
     const fileHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 
     // Check for duplicate import
-    const { data: existingImport } = await supabase
+    const { data: existingImport } = await supabaseAdmin
       .from('race_results_imports')
       .select('id')
       .eq('file_hash', fileHash)
@@ -118,7 +122,7 @@ Deno.serve(async (req) => {
     }
 
     // Store import record
-    const { data: importRecord, error: importError } = await supabase
+    const { data: importRecord, error: importError } = await supabaseAdmin
       .from('race_results_imports')
       .insert({
         contest_template_id: body.contestTemplateId,
@@ -142,7 +146,7 @@ Deno.serve(async (req) => {
     }
 
     // Update contest template with results
-    await supabase
+    await supabaseAdmin
       .from('contest_templates')
       .update({ 
         results: body.results,
@@ -150,37 +154,75 @@ Deno.serve(async (req) => {
       })
       .eq('id', body.contestTemplateId);
 
-    // Get all instances for this template that are completed
-    const { data: instances } = await supabase
-      .from('contest_instances')
+    // Get all pools for this template that are locked (ready for scoring)
+    const { data: pools } = await supabaseAdmin
+      .from('contest_pools')
       .select('id')
       .eq('contest_template_id', body.contestTemplateId)
-      .eq('status', 'completed');
+      .in('status', ['locked', 'live']);
 
-    // Trigger scoring for all completed instances directly (no HTTP calls)
-    console.log('[race-results] Triggering scoring for', instances?.length || 0, 'instances');
+    // Convert imported results to RaceResult format for scoring
+    // Group by division to calculate margins per event
+    const divisionGroups = new Map<string, typeof body.results>();
+    for (const result of body.results) {
+      if (!divisionGroups.has(result.divisionId)) {
+        divisionGroups.set(result.divisionId, []);
+      }
+      divisionGroups.get(result.divisionId)!.push(result);
+    }
+
+    // Build race results with margin calculation
+    const raceResults: RaceResult[] = [];
+    for (const [divisionId, divisionResults] of divisionGroups) {
+      // Sort by finish position
+      const sorted = [...divisionResults].sort((a, b) => a.finishPosition - b.finishPosition);
+      
+      // Calculate margin (time between 1st and 2nd)
+      let officialMargin = 0;
+      if (sorted.length >= 2 && sorted[0].marginSeconds !== undefined) {
+        officialMargin = sorted[0].marginSeconds;
+      }
+
+      for (const result of sorted) {
+        const raceResult: RaceResult = {
+          crewId: result.crewId,
+          eventId: result.divisionId, // Using divisionId as eventId
+          finishOrder: result.finishPosition,
+        };
+
+        // Only 1st place gets actualMargin for margin bonus
+        if (result.finishPosition === 1) {
+          raceResult.actualMargin = officialMargin;
+        }
+
+        raceResults.push(raceResult);
+      }
+    }
+
+    // Trigger scoring for all locked pools
+    console.log('[race-results] Triggering scoring for', pools?.length || 0, 'pools');
     
     const scoringResults = [];
-    if (instances) {
-      for (const instance of instances) {
+    if (pools) {
+      for (const pool of pools) {
         try {
-          const result = await scoreContestInstance(
-            supabase,
-            instance.id,
-            body.results
+          const result = await scoreContestPool(
+            supabaseAdmin,
+            pool.id,
+            raceResults
           );
           
           scoringResults.push({
-            instanceId: instance.id,
+            poolId: pool.id,
             success: true,
             entriesScored: result.entriesScored,
           });
           
-          console.log('[race-results] Scoring completed for instance:', instance.id);
+          console.log('[race-results] Scoring completed for pool:', pool.id);
         } catch (error: any) {
-          console.error('[race-results] Scoring failed for instance:', instance.id, error);
+          console.error('[race-results] Scoring failed for pool:', pool.id, error);
           scoringResults.push({
-            instanceId: instance.id,
+            poolId: pool.id,
             success: false,
             error: error.message,
           });
@@ -189,8 +231,9 @@ Deno.serve(async (req) => {
     }
 
     // Log to compliance
-    await supabase.from('compliance_audit_logs').insert({
+    await supabaseAdmin.from('compliance_audit_logs').insert({
       user_id: user.id,
+      admin_id: user.id,
       event_type: 'race_results_imported',
       severity: 'info',
       description: `Race results imported for ${body.regattaName}`,
@@ -198,7 +241,7 @@ Deno.serve(async (req) => {
         import_id: importRecord.id,
         contest_template_id: body.contestTemplateId,
         results_count: body.results.length,
-        instances_scored: scoringResults.length,
+        pools_scored: scoringResults.length,
       },
     });
 
@@ -209,7 +252,7 @@ Deno.serve(async (req) => {
         success: true,
         importId: importRecord.id,
         rowsProcessed: body.results.length,
-        instancesScored: instances?.length || 0,
+        poolsScored: pools?.length || 0,
         scoringResults,
         message: 'Results imported and scoring completed successfully',
       }),
