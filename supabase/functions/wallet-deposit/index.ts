@@ -1,9 +1,8 @@
-// Wallet Deposit - Process deposit using ledger system with responsible gaming checks
+// Wallet Deposit - Process deposit using wallet system with responsible gaming checks
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.76.1';
 import { z } from 'https://deno.land/x/zod@v3.22.4/mod.ts';
 import { MockPaymentAdapter } from '../shared/payment-providers/mock-adapter.ts';
-import { checkLocationEligibility } from '../shared/geo-eligibility.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -33,12 +32,9 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Geolocation check - block restricted states
-    checkLocationEligibility(req);
-
-    // Validate input
+    // Validate input (amount in cents)
     const depositSchema = z.object({
-      amount: z.number().int().positive().min(100).max(10000000), // $1 - $100k in cents
+      amount: z.number().int().positive().min(500).max(50000), // $5 - $500 in cents
     });
 
     let body;
@@ -47,7 +43,7 @@ Deno.serve(async (req) => {
       body = depositSchema.parse(rawBody);
     } catch (error) {
       return new Response(
-        JSON.stringify({ error: 'Invalid input: amount must be a positive integer in cents' }),
+        JSON.stringify({ error: 'Invalid input: amount must be between 500 and 50000 cents ($5-$500)' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -63,12 +59,36 @@ Deno.serve(async (req) => {
 
     if (limitError) {
       console.error('[wallet-deposit] Responsible gaming check failed:', limitError);
-      // Extract user-friendly message from error
       const errorMessage = limitError.message || 'Deposit not allowed';
       return new Response(
         JSON.stringify({ error: errorMessage }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
+    }
+
+    // Get or create user's wallet
+    let { data: wallet, error: walletError } = await adminClient
+      .from('wallets')
+      .select('id')
+      .eq('user_id', user.id)
+      .single();
+
+    if (walletError || !wallet) {
+      // Create wallet if it doesn't exist
+      const { data: newWallet, error: createError } = await adminClient
+        .from('wallets')
+        .insert({ user_id: user.id })
+        .select('id')
+        .single();
+
+      if (createError) {
+        console.error('[wallet-deposit] Failed to create wallet:', createError);
+        return new Response(
+          JSON.stringify({ error: 'Failed to create wallet' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      wallet = newWallet;
     }
 
     // Process payment with mock adapter
@@ -82,33 +102,68 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { error: ledgerError } = await adminClient
-      .from('ledger_entries')
-      .insert({
-        user_id: user.id,
-        amount: amount, // Positive for deposit
-        transaction_type: 'DEPOSIT',
-        description: 'Deposit via Mock Adapter',
-        reference_id: null,
-      });
+    // Update wallet balance using RPC
+    const { data: balanceResult, error: balanceUpdateError } = await adminClient.rpc('update_wallet_balance', {
+      _wallet_id: wallet.id,
+      _available_delta: amount,
+      _pending_delta: 0,
+      _lifetime_deposits_delta: amount,
+      _lifetime_winnings_delta: 0,
+      _lifetime_withdrawals_delta: 0,
+    });
 
-    if (ledgerError) {
-      console.error('[wallet-deposit] Ledger insert error:', ledgerError);
+    if (balanceUpdateError) {
+      console.error('[wallet-deposit] Wallet update error:', balanceUpdateError);
       return new Response(
-        JSON.stringify({ error: 'Failed to record deposit' }),
+        JSON.stringify({ error: 'Failed to update wallet balance' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Get new balance
-    const { data: balanceData, error: balanceError } = await adminClient
-      .rpc('get_user_balance', { target_user_id: user.id });
+    // Create transaction record
+    const { error: txError } = await adminClient
+      .from('transactions')
+      .insert({
+        user_id: user.id,
+        wallet_id: wallet.id,
+        type: 'deposit',
+        amount: amount,
+        status: 'completed',
+        completed_at: new Date().toISOString(),
+        deposit_timestamp: new Date().toISOString(),
+        description: 'Deposit via Mock Payment',
+        reference_id: paymentResult.transactionId,
+        reference_type: 'payment_provider',
+        metadata: {
+          provider: 'mock',
+          transaction_id: paymentResult.transactionId,
+        },
+      });
 
-    if (balanceError) {
-      console.error('[wallet-deposit] Balance fetch error:', balanceError);
+    if (txError) {
+      console.error('[wallet-deposit] Transaction record error:', txError);
+      // Non-fatal - wallet was already updated
     }
 
-    const balanceCents = Number(balanceData) || 0;
+    // Also create ledger entry for audit trail
+    await adminClient
+      .from('ledger_entries')
+      .insert({
+        user_id: user.id,
+        amount: amount,
+        transaction_type: 'DEPOSIT',
+        description: 'Deposit via Mock Payment',
+        reference_id: paymentResult.transactionId,
+      });
+
+    // Get new balance
+    const { data: updatedWallet } = await adminClient
+      .from('wallets')
+      .select('available_balance')
+      .eq('id', wallet.id)
+      .single();
+
+    const balanceCents = updatedWallet?.available_balance || 0;
     const balanceDisplay = `$${(balanceCents / 100).toFixed(2)}`;
 
     console.log('[wallet-deposit] Deposit successful:', { userId: user.id, amount, transactionId: paymentResult.transactionId });
@@ -118,6 +173,7 @@ Deno.serve(async (req) => {
         success: true,
         transactionId: paymentResult.transactionId,
         depositedAmount: amount,
+        depositedDisplay: `$${(amount / 100).toFixed(2)}`,
         balanceCents,
         balanceDisplay,
       }),
@@ -127,7 +183,7 @@ Deno.serve(async (req) => {
   } catch (error: any) {
     console.error('[wallet-deposit] Error:', error);
     return new Response(
-      JSON.stringify({ error: 'An unexpected error occurred' }),
+      JSON.stringify({ error: error.message || 'An unexpected error occurred' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }

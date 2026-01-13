@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { DollarSign, TrendingUp, Trophy, User, Edit2, ArrowUpDown, Loader2 } from "lucide-react";
+import { DollarSign, TrendingUp, Trophy, User, Edit2, ArrowUpDown, Loader2, ArrowDownCircle, ArrowUpCircle, CreditCard, Gift, RefreshCw } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -206,23 +206,28 @@ const Profile = () => {
 
     setIsSubmitting(true);
     try {
-      const { data, error } = await supabase.functions.invoke('wallet-deposit-init', {
-        body: { amount_cents: Math.floor(amount * 100) }
+      // Use wallet-deposit directly with mock adapter (amount in cents)
+      const { data, error } = await supabase.functions.invoke('wallet-deposit', {
+        body: { amount: Math.floor(amount * 100) }
       });
 
       if (error) {
-        toast.error(error.message || 'Failed to initialize deposit');
+        toast.error(error.message || 'Failed to process deposit');
         return;
       }
 
-      toast.info('Deposit session created (mock mode)');
-      toast.info(`Checkout URL: ${data.checkoutUrl}`);
+      if (data.error) {
+        toast.error(data.error);
+        return;
+      }
+
+      toast.success(`Deposit successful! New balance: ${data.balanceDisplay}`);
       setDepositDialogOpen(false);
       setDepositAmount("");
       fetchProfileData();
       fetchTransactions();
     } catch (error: any) {
-      toast.error('Failed to initialize deposit');
+      toast.error('Failed to process deposit');
     } finally {
       setIsSubmitting(false);
     }
@@ -531,8 +536,9 @@ const Profile = () => {
                             <SelectItem value="all">All Types</SelectItem>
                             <SelectItem value="deposit">Deposits</SelectItem>
                             <SelectItem value="withdrawal">Withdrawals</SelectItem>
-                            <SelectItem value="contest_winnings">Winnings</SelectItem>
+                            <SelectItem value="payout">Winnings</SelectItem>
                             <SelectItem value="entry_fee">Entry Fees</SelectItem>
+                            <SelectItem value="refund">Refunds</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
@@ -542,37 +548,72 @@ const Profile = () => {
                         {transactions.length === 0 ? (
                           <p className="text-center text-muted-foreground py-8">No transactions yet</p>
                         ) : (
-                          transactions.map((tx) => (
-                            <div 
-                              key={tx.id}
-                              className="p-4 rounded-lg border border-border hover:bg-accent/5 transition-base"
-                            >
-                              <div className="flex items-center justify-between">
-                                <div>
-                                  <p className="font-semibold capitalize">{tx.type.replace(/_/g, ' ')}</p>
-                                  <p className="text-sm text-muted-foreground">
-                                    {new Date(tx.created_at).toLocaleDateString()} {new Date(tx.created_at).toLocaleTimeString()}
-                                  </p>
-                                  {tx.description && (
-                                    <p className="text-xs text-muted-foreground mt-1">{tx.description}</p>
-                                  )}
-                                </div>
-                                <div className="text-right">
-                                  <p className={`font-semibold ${
-                                    tx.amount > 0 ? 'text-success' : 'text-foreground'
-                                  }`}>
-                                    {tx.amount > 0 ? '+' : ''}${Math.abs(tx.amount).toFixed(2)}
-                                  </p>
-                                  <Badge 
-                                    variant={tx.status === 'completed' ? 'default' : 'outline'}
-                                    className="text-xs mt-1"
-                                  >
-                                    {tx.status}
-                                  </Badge>
+                          transactions.map((tx) => {
+                            // Get transaction display info based on type
+                            const getTxDisplay = (type: string) => {
+                              switch (type) {
+                                case 'deposit':
+                                  return { icon: ArrowDownCircle, label: 'Deposit', color: 'text-success' };
+                                case 'withdrawal':
+                                  return { icon: ArrowUpCircle, label: 'Withdrawal', color: 'text-foreground' };
+                                case 'payout':
+                                  return { icon: Trophy, label: 'Winnings', color: 'text-accent' };
+                                case 'entry_fee':
+                                  return { icon: CreditCard, label: 'Entry Fee', color: 'text-foreground' };
+                                case 'entry_fee_hold':
+                                  return { icon: CreditCard, label: 'Entry Fee Hold', color: 'text-muted-foreground' };
+                                case 'entry_fee_release':
+                                  return { icon: RefreshCw, label: 'Entry Refund', color: 'text-success' };
+                                case 'refund':
+                                  return { icon: RefreshCw, label: 'Refund', color: 'text-success' };
+                                case 'bonus':
+                                  return { icon: Gift, label: 'Bonus', color: 'text-accent' };
+                                default:
+                                  return { icon: ArrowUpDown, label: type.replace(/_/g, ' '), color: 'text-foreground' };
+                              }
+                            };
+
+                            const txDisplay = getTxDisplay(tx.type);
+                            const TxIcon = txDisplay.icon;
+                            const isPositive = tx.amount > 0;
+
+                            return (
+                              <div 
+                                key={tx.id}
+                                className="p-4 rounded-lg border border-border hover:bg-accent/5 transition-base"
+                              >
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-3">
+                                    <div className={`p-2 rounded-full bg-muted ${txDisplay.color}`}>
+                                      <TxIcon className="h-4 w-4" />
+                                    </div>
+                                    <div>
+                                      <p className="font-semibold capitalize">{txDisplay.label}</p>
+                                      <p className="text-sm text-muted-foreground">
+                                        {new Date(tx.created_at).toLocaleDateString()} {new Date(tx.created_at).toLocaleTimeString()}
+                                      </p>
+                                      {tx.description && (
+                                        <p className="text-xs text-muted-foreground mt-1">{tx.description}</p>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <div className="text-right">
+                                    <p className={`font-semibold text-lg ${
+                                      isPositive ? 'text-success' : 'text-foreground'
+                                    }`}>
+                                      {isPositive ? '+' : ''}${(Math.abs(tx.amount) / 100).toFixed(2)}
+                                    </p>
+                                    <Badge 
+                                      variant={tx.status === 'completed' ? 'default' : tx.status === 'pending' ? 'secondary' : 'outline'}
+                                      className="text-xs mt-1"
+                                    >
+                                      {tx.status}
+                                    </Badge>
+                                  </div>
                                 </div>
                               </div>
-                            </div>
-                          ))
+                            );
+                          })
                         )}
                       </div>
                       {txTotal > 25 && (
@@ -658,13 +699,23 @@ const Profile = () => {
             <DialogTitle>Deposit Funds</DialogTitle>
             <DialogDescription>
               Add funds to your wallet. Minimum $5, maximum $500 per transaction.
-              <br />
-              <span className="text-xs text-muted-foreground">Note: Mock mode - no real money processed</span>
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
+            <div className="grid grid-cols-3 gap-2">
+              {[10, 25, 50, 100, 200, 500].map((amount) => (
+                <Button
+                  key={amount}
+                  variant={depositAmount === String(amount) ? "default" : "outline"}
+                  onClick={() => setDepositAmount(String(amount))}
+                  disabled={isSubmitting}
+                >
+                  ${amount}
+                </Button>
+              ))}
+            </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">Amount (USD)</label>
+              <label className="text-sm font-medium">Or enter custom amount (USD)</label>
               <Input
                 type="number"
                 value={depositAmount}
@@ -672,10 +723,15 @@ const Profile = () => {
                 placeholder="0.00"
                 min="5"
                 max="500"
-                step="0.01"
+                step="1"
                 disabled={isSubmitting}
               />
             </div>
+            {profileData.profile.depositLimitMonthly && (
+              <p className="text-xs text-muted-foreground">
+                Monthly deposit limit: ${profileData.profile.depositLimitMonthly.toFixed(2)}
+              </p>
+            )}
           </div>
           <DialogFooter>
             <Button
@@ -689,7 +745,8 @@ const Profile = () => {
               onClick={handleDeposit}
               disabled={isSubmitting || !depositAmount}
             >
-              {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Continue to Checkout"}
+              {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Deposit ${depositAmount || '0'}
             </Button>
           </DialogFooter>
         </DialogContent>
