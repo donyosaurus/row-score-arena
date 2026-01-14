@@ -31,6 +31,7 @@ interface Entry {
     prize_pool_cents: number;
     max_entries: number;
     current_entries: number;
+    payout_structure: Record<string, number> | null;
   };
   contest_scores?: Array<{
     rank: number;
@@ -83,7 +84,7 @@ const MyEntries = () => {
           pool_id,
           picks,
           contest_templates!inner (regatta_name, lock_time),
-          contest_pools!inner (status, prize_pool_cents, max_entries, current_entries),
+          contest_pools!inner (status, prize_pool_cents, max_entries, current_entries, payout_structure),
           contest_scores (rank, total_points, margin_bonus, is_winner, payout_cents)
         `)
         .eq('user_id', user.id)
@@ -200,9 +201,41 @@ const MyEntries = () => {
   const renderEntryCard = (entry: Entry, showScore = false) => {
     const score = entry.contest_scores?.[0];
     const parsedPicks = getParsedPicks(entry);
-    const potentialPrize = entry.contest_pools?.prize_pool_cents 
-      ? (entry.contest_pools.prize_pool_cents / 100).toFixed(2)
-      : '0.00';
+    const payoutStructure = entry.contest_pools?.payout_structure;
+    
+    // Get top prize from payout structure (rank 1)
+    const getTopPrize = (): number | null => {
+      if (!payoutStructure) return null;
+      return payoutStructure['1'] || null;
+    };
+    
+    const topPrizeCents = getTopPrize();
+    const prizePoolCents = entry.contest_pools?.prize_pool_cents || 0;
+    
+    // Determine prize display text based on entry state
+    const getPrizeDisplayText = (): string => {
+      const isCompleted = entry.contest_pools?.status === 'completed';
+      const isWinner = score?.is_winner;
+      
+      if (isCompleted) {
+        if (isWinner && score?.payout_cents) {
+          // Won - this will be shown separately with the badge
+          return topPrizeCents 
+            ? `Top Prize was $${(topPrizeCents / 100).toFixed(2)}`
+            : `Prize Pool: $${(prizePoolCents / 100).toFixed(2)}`;
+        } else {
+          // Lost
+          return topPrizeCents 
+            ? `Top Prize was $${(topPrizeCents / 100).toFixed(2)}`
+            : `Prize Pool: $${(prizePoolCents / 100).toFixed(2)}`;
+        }
+      } else {
+        // Active/Open
+        return topPrizeCents 
+          ? `Top Prize: $${(topPrizeCents / 100).toFixed(2)}`
+          : `Prize Pool: $${(prizePoolCents / 100).toFixed(2)}`;
+      }
+    };
 
     return (
       <Card key={entry.id}>
@@ -215,7 +248,7 @@ const MyEntries = () => {
               <CardDescription className="space-y-1">
                 <div>
                   Entry Fee: ${(entry.entry_fee_cents / 100).toFixed(2)} • 
-                  Prize Pool: ${potentialPrize}
+                  {getPrizeDisplayText()}
                 </div>
                 {!showScore && (
                   <div>Locks: {new Date(entry.contest_templates.lock_time).toLocaleString()}</div>
