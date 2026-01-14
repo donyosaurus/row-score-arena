@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Clock, Calendar } from "lucide-react";
+import { Clock, Trophy, Award, Medal } from "lucide-react";
 
 type GenderCategory = "Men's" | "Women's";
 
@@ -13,7 +13,21 @@ interface ContestCardProps {
   lockTime: string;
   divisions?: string[];
   entryTiers: number;
+  payoutStructure?: Record<string, number> | null;
+  prizePoolCents?: number;
 }
+
+// Format cents to dollars
+const formatCents = (cents: number): string => {
+  return `$${(cents / 100).toFixed(0)}`;
+};
+
+// Get ordinal suffix for ranks
+const getOrdinal = (n: number): string => {
+  const s = ["th", "st", "nd", "rd"];
+  const v = n % 100;
+  return n + (s[(v - 20) % 10] || s[v] || s[0]);
+};
 
 export const ContestCard = ({
   id,
@@ -22,7 +36,16 @@ export const ContestCard = ({
   lockTime,
   divisions = [],
   entryTiers,
+  payoutStructure,
+  prizePoolCents = 0,
 }: ContestCardProps) => {
+  // Calculate total prizes from payout structure
+  const hasPayoutStructure = payoutStructure && Object.keys(payoutStructure).length > 0;
+  const firstPlacePrize = hasPayoutStructure ? payoutStructure["1"] : 0;
+  const totalPrizes = hasPayoutStructure 
+    ? Object.values(payoutStructure).reduce((sum, val) => sum + val, 0)
+    : prizePoolCents;
+
   return (
     <Card className="flex flex-col h-full transition-smooth hover:shadow-md border-border/50">
       <CardContent className="flex-1 p-6 space-y-4">
@@ -41,6 +64,36 @@ export const ContestCard = ({
             Join fantasy contests at every popular regatta
           </p>
         </div>
+
+        {/* Prize Pool Display */}
+        {(hasPayoutStructure || totalPrizes > 0) && (
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <Badge variant="default" className="bg-amber-500/10 text-amber-600 border-amber-500/20">
+                <Trophy className="h-3 w-3 mr-1" />
+                Guaranteed Prizes
+              </Badge>
+            </div>
+            
+            {hasPayoutStructure ? (
+              <div className="p-3 rounded-lg bg-gradient-to-r from-amber-50 to-yellow-50 dark:from-amber-950/20 dark:to-yellow-950/20 border border-amber-200/50 dark:border-amber-800/30">
+                <div className="flex items-center gap-2 mb-1">
+                  <Trophy className="h-5 w-5 text-amber-500" />
+                  <span className="text-lg font-bold text-amber-600 dark:text-amber-400">
+                    1st Place: {formatCents(firstPlacePrize)}
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Total Prizes: {formatCents(totalPrizes)}
+                </p>
+              </div>
+            ) : (
+              <div className="p-3 rounded-lg bg-muted/30">
+                <span className="font-semibold">Prize Pool: {formatCents(totalPrizes)}</span>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Divisions */}
         {divisions.length > 0 && (
@@ -61,31 +114,13 @@ export const ContestCard = ({
           </div>
         )}
 
-        {/* Entry Options */}
-        <div className="space-y-3 pt-2">
-          <div className="p-3 rounded-lg bg-muted/30 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-semibold">Head-to-Head</span>
-              <span className="text-sm text-muted-foreground">3 options</span>
-            </div>
-            <p className="text-xs text-muted-foreground">$10, $25, or $100 entry</p>
-          </div>
-          
-          <div className="p-3 rounded-lg bg-muted/30 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-semibold">5-Person Contest</span>
-              <span className="text-sm text-muted-foreground">1 option</span>
-            </div>
-            <p className="text-xs text-muted-foreground">$20 entry</p>
-          </div>
-
-          <div className="flex items-center justify-between pt-2 border-t">
-            <span className="flex items-center gap-2 text-muted-foreground">
-              <Clock className="h-4 w-4" />
-              Locks in
-            </span>
-            <span className="font-semibold">{lockTime}</span>
-          </div>
+        {/* Lock Time */}
+        <div className="flex items-center justify-between pt-2 border-t">
+          <span className="flex items-center gap-2 text-muted-foreground">
+            <Clock className="h-4 w-4" />
+            Locks in
+          </span>
+          <span className="font-semibold">{lockTime}</span>
         </div>
       </CardContent>
 

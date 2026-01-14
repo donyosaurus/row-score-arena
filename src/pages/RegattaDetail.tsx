@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, Clock, DollarSign, Loader2, Check } from "lucide-react";
+import { ArrowLeft, Clock, DollarSign, Loader2, Check, Trophy, Award, Medal } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -33,6 +33,7 @@ interface ContestPool {
   max_entries: number;
   current_entries: number;
   prize_pool_cents: number;
+  payout_structure: Record<string, number> | null;
   contest_templates: {
     regatta_name: string;
     gender_category: string;
@@ -77,6 +78,7 @@ const RegattaDetail = () => {
           .from("contest_pools")
           .select(`
             *,
+            payout_structure,
             contest_templates (
               regatta_name,
               gender_category,
@@ -349,6 +351,75 @@ const RegattaDetail = () => {
                 </CardContent>
               </Card>
             </div>
+
+            {/* Prize Pool Section */}
+            {contestPool.payout_structure && Object.keys(contestPool.payout_structure).length > 0 && (
+              <Card className="mb-6 border-amber-200/50 dark:border-amber-800/30 bg-gradient-to-r from-amber-50/50 to-yellow-50/50 dark:from-amber-950/10 dark:to-yellow-950/10">
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <Trophy className="h-5 w-5 text-amber-500" />
+                    Prize Pool
+                    <Badge variant="secondary" className="ml-2 bg-amber-500/10 text-amber-600 border-amber-500/20">
+                      Guaranteed
+                    </Badge>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {Object.entries(contestPool.payout_structure)
+                      .sort(([a], [b]) => parseInt(a) - parseInt(b))
+                      .map(([rank, amountCents]) => {
+                        const rankNum = parseInt(rank);
+                        const isFirst = rankNum === 1;
+                        const isSecond = rankNum === 2;
+                        const isThird = rankNum === 3;
+                        
+                        const getIcon = () => {
+                          if (isFirst) return <Trophy className="h-6 w-6 text-amber-500" />;
+                          if (isSecond) return <Award className="h-5 w-5 text-slate-400" />;
+                          if (isThird) return <Medal className="h-5 w-5 text-amber-700" />;
+                          return <span className="w-5 h-5 flex items-center justify-center text-sm font-bold text-muted-foreground">{rank}</span>;
+                        };
+                        
+                        const getOrdinal = (n: number) => {
+                          const s = ["th", "st", "nd", "rd"];
+                          const v = n % 100;
+                          return n + (s[(v - 20) % 10] || s[v] || s[0]);
+                        };
+
+                        return (
+                          <div 
+                            key={rank}
+                            className={`flex items-center justify-between p-3 rounded-lg ${
+                              isFirst 
+                                ? "bg-gradient-to-r from-amber-100 to-yellow-100 dark:from-amber-900/30 dark:to-yellow-900/30 border border-amber-300/50" 
+                                : "bg-muted/30"
+                            }`}
+                          >
+                            <div className="flex items-center gap-3">
+                              {getIcon()}
+                              <span className={`font-semibold ${isFirst ? "text-lg" : ""}`}>
+                                {getOrdinal(rankNum)} Place
+                              </span>
+                            </div>
+                            <span className={`font-bold ${isFirst ? "text-2xl text-amber-600 dark:text-amber-400" : "text-lg"}`}>
+                              ${(amountCents / 100).toFixed(0)}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    
+                    {/* Total */}
+                    <div className="flex items-center justify-between pt-3 border-t border-amber-200/50 dark:border-amber-800/30">
+                      <span className="font-semibold text-muted-foreground">Total Prize Pool</span>
+                      <span className="font-bold text-lg">
+                        ${(Object.values(contestPool.payout_structure).reduce((sum, val) => sum + val, 0) / 100).toFixed(0)}
+                      </span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </div>
 
           {/* Contest Closed Warning */}
