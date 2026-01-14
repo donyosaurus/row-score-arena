@@ -319,6 +319,7 @@ export type Database = {
           id: string
           lock_time: string
           max_entries: number
+          payout_structure: Json | null
           prize_pool_cents: number
           prize_structure: Json | null
           settled_at: string | null
@@ -334,6 +335,7 @@ export type Database = {
           id?: string
           lock_time: string
           max_entries: number
+          payout_structure?: Json | null
           prize_pool_cents: number
           prize_structure?: Json | null
           settled_at?: string | null
@@ -349,6 +351,7 @@ export type Database = {
           id?: string
           lock_time?: string
           max_entries?: number
+          payout_structure?: Json | null
           prize_pool_cents?: number
           prize_structure?: Json | null
           settled_at?: string | null
@@ -1348,6 +1351,18 @@ export type Database = {
     }
     Functions: {
       admin_create_contest:
+        | {
+            Args: {
+              p_crews: Json
+              p_entry_fee_cents: number
+              p_gender_category?: string
+              p_lock_time: string
+              p_max_entries: number
+              p_payout_structure?: Json
+              p_regatta_name: string
+            }
+            Returns: Json
+          }
         | {
             Args: {
               p_crews: Json
