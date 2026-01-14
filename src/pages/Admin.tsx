@@ -36,6 +36,11 @@ interface NewCrew {
   event_id: string;
 }
 
+interface PrizeTier {
+  rank: number;
+  amount: string; // dollars, will convert to cents
+}
+
 interface CreateContestForm {
   regattaName: string;
   genderCategory: string;
@@ -43,6 +48,7 @@ interface CreateContestForm {
   maxEntries: string;
   lockTime: string;
   crews: NewCrew[];
+  prizes: PrizeTier[];
 }
 
 const Admin = () => {
@@ -85,7 +91,8 @@ const Admin = () => {
     entryFee: "",
     maxEntries: "",
     lockTime: "",
-    crews: []
+    crews: [],
+    prizes: [{ rank: 1, amount: "" }]
   });
   const [newCrewInput, setNewCrewInput] = useState<NewCrew>({
     crew_name: "",
@@ -327,7 +334,8 @@ const Admin = () => {
       entryFee: "",
       maxEntries: "",
       lockTime: "",
-      crews: []
+      crews: [],
+      prizes: [{ rank: 1, amount: "" }]
     });
     setNewCrewInput({ crew_name: "", crew_id: "", event_id: "" });
   };
@@ -355,6 +363,45 @@ const Admin = () => {
       ...prev,
       crews: prev.crews.filter(c => c.crew_id !== crewId)
     }));
+  };
+
+  // Prize tier management
+  const addPrizeTier = () => {
+    const nextRank = createForm.prizes.length + 1;
+    setCreateForm(prev => ({
+      ...prev,
+      prizes: [...prev.prizes, { rank: nextRank, amount: "" }]
+    }));
+  };
+
+  const removePrizeTier = (rank: number) => {
+    setCreateForm(prev => ({
+      ...prev,
+      prizes: prev.prizes.filter(p => p.rank !== rank).map((p, i) => ({ ...p, rank: i + 1 }))
+    }));
+  };
+
+  const updatePrizeAmount = (rank: number, amount: string) => {
+    setCreateForm(prev => ({
+      ...prev,
+      prizes: prev.prizes.map(p => p.rank === rank ? { ...p, amount } : p)
+    }));
+  };
+
+  // Calculate profit metrics
+  const calculateProfitMetrics = () => {
+    const entryFeeDollars = parseFloat(createForm.entryFee) || 0;
+    const maxEntries = parseInt(createForm.maxEntries) || 0;
+    const maxRevenue = entryFeeDollars * maxEntries;
+    
+    const totalPayout = createForm.prizes.reduce((sum, p) => {
+      const amt = parseFloat(p.amount) || 0;
+      return sum + amt;
+    }, 0);
+    
+    const projectedProfit = maxRevenue - totalPayout;
+    
+    return { maxRevenue, totalPayout, projectedProfit };
   };
 
   const submitCreateContest = async () => {
@@ -396,6 +443,22 @@ const Admin = () => {
       toast.error("At least 2 crews are required");
       return;
     }
+
+    // Validate prizes - at least 1st place must have a value
+    const firstPlacePrize = createForm.prizes.find(p => p.rank === 1);
+    if (!firstPlacePrize || !firstPlacePrize.amount || parseFloat(firstPlacePrize.amount) <= 0) {
+      toast.error("At least a 1st place prize is required");
+      return;
+    }
+
+    // Convert prizes to payout structure format
+    const payouts: Record<string, number> = {};
+    for (const prize of createForm.prizes) {
+      const amountDollars = parseFloat(prize.amount);
+      if (!isNaN(amountDollars) && amountDollars > 0) {
+        payouts[prize.rank.toString()] = Math.round(amountDollars * 100); // Convert to cents
+      }
+    }
     
     setCreatingContest(true);
     
@@ -407,7 +470,8 @@ const Admin = () => {
           entryFeeCents: Math.round(entryFeeDollars * 100),
           maxEntries: maxEntries,
           lockTime: lockDate.toISOString(),
-          crews: createForm.crews
+          crews: createForm.crews,
+          payouts: payouts
         }
       });
       
@@ -1025,6 +1089,82 @@ const Admin = () => {
                   Entries will be locked at this time
                 </p>
               </div>
+            </div>
+
+            {/* Prize Tiers & Profit Calculator */}
+            <div className="border-t pt-4">
+              <Label className="text-base font-semibold">Prize Structure</Label>
+              <p className="text-sm text-muted-foreground mb-3">
+                Define fixed payouts for each finishing position
+              </p>
+              
+              {/* Prize Tiers */}
+              <div className="space-y-2 mb-4">
+                {createForm.prizes.map((prize) => (
+                  <div 
+                    key={prize.rank} 
+                    className="flex items-center gap-3"
+                  >
+                    <div className="w-20 text-sm font-medium">
+                      {prize.rank === 1 ? "🥇 1st" : prize.rank === 2 ? "🥈 2nd" : prize.rank === 3 ? "🥉 3rd" : `${prize.rank}th`}
+                    </div>
+                    <div className="flex-1">
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder="50.00"
+                        value={prize.amount}
+                        onChange={(e) => updatePrizeAmount(prize.rank, e.target.value)}
+                      />
+                    </div>
+                    {prize.rank > 1 && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => removePrizeTier(prize.rank)}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                ))}
+              </div>
+              
+              <Button variant="outline" size="sm" onClick={addPrizeTier} className="mb-4">
+                <Plus className="mr-2 h-4 w-4" />
+                Add Prize Tier
+              </Button>
+
+              {/* Profit Calculator */}
+              {(() => {
+                const { maxRevenue, totalPayout, projectedProfit } = calculateProfitMetrics();
+                const hasData = createForm.entryFee && createForm.maxEntries;
+                
+                return hasData ? (
+                  <div className="bg-muted/50 rounded-lg p-4 space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Max Potential Revenue:</span>
+                      <span className="font-medium">${maxRevenue.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Total Guaranteed Payout:</span>
+                      <span className="font-medium">${totalPayout.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm border-t pt-2">
+                      <span className="font-medium">Projected Admin Fee (Profit):</span>
+                      <span className={`font-bold ${projectedProfit >= 0 ? 'text-green-600' : 'text-destructive'}`}>
+                        ${projectedProfit.toFixed(2)}
+                      </span>
+                    </div>
+                    {projectedProfit < 0 && (
+                      <p className="text-xs text-destructive">
+                        ⚠️ Warning: Payouts exceed max revenue. You will incur a loss.
+                      </p>
+                    )}
+                  </div>
+                ) : null;
+              })()}
             </div>
             
             {/* Crew Management */}

@@ -19,6 +19,7 @@ interface CreateContestRequest {
   maxEntries: number;
   lockTime: string;
   crews: CrewInput[];
+  payouts?: Record<string, number>; // e.g., {'1': 5000, '2': 2500}
 }
 
 const VALID_GENDER_CATEGORIES = ["Men's", "Women's", "Mixed"];
@@ -61,6 +62,29 @@ function validateRequest(body: CreateContestRequest): string | null {
     const crew = body.crews[i];
     if (!crew.crew_name || !crew.crew_id || !crew.event_id) {
       return `Crew at index ${i} is missing required fields (crew_name, crew_id, event_id)`;
+    }
+  }
+
+  // Validate payouts structure if provided
+  if (body.payouts) {
+    if (typeof body.payouts !== 'object') {
+      return 'Payouts must be an object mapping rank to amount in cents';
+    }
+    
+    // Must have at least 1st place prize
+    if (!body.payouts['1'] || body.payouts['1'] <= 0) {
+      return 'At least a 1st place prize is required';
+    }
+    
+    // All values must be positive integers
+    for (const [rank, amount] of Object.entries(body.payouts)) {
+      const rankNum = parseInt(rank);
+      if (isNaN(rankNum) || rankNum < 1) {
+        return `Invalid rank '${rank}' in payouts`;
+      }
+      if (typeof amount !== 'number' || amount <= 0 || !Number.isInteger(amount)) {
+        return `Invalid payout amount for rank ${rank}`;
+      }
     }
   }
   
@@ -111,12 +135,18 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Calculate total payout for logging
+    const totalPayoutCents = body.payouts 
+      ? Object.values(body.payouts).reduce((sum, val) => sum + val, 0)
+      : 0;
+
     console.log('Creating contest:', { 
       regattaName: body.regattaName, 
       genderCategory: body.genderCategory,
       entryFeeCents: body.entryFeeCents,
       maxEntries: body.maxEntries,
       crewCount: body.crews.length,
+      totalPayoutCents,
       admin: user.id 
     });
 
@@ -127,7 +157,8 @@ Deno.serve(async (req) => {
       p_entry_fee_cents: body.entryFeeCents,
       p_max_entries: body.maxEntries,
       p_lock_time: body.lockTime,
-      p_crews: body.crews
+      p_crews: body.crews,
+      p_payout_structure: body.payouts || null
     });
 
     if (error) {
@@ -150,6 +181,8 @@ Deno.serve(async (req) => {
         entry_fee_cents: body.entryFeeCents,
         max_entries: body.maxEntries,
         crews_count: body.crews.length,
+        payout_structure: body.payouts,
+        total_payout_cents: totalPayoutCents,
       },
     });
 
@@ -161,6 +194,7 @@ Deno.serve(async (req) => {
         contestTemplateId: data?.contest_template_id,
         contestPoolId: data?.contest_pool_id,
         crewsAdded: data?.crews_added,
+        totalPayoutCents: data?.total_payout_cents,
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
