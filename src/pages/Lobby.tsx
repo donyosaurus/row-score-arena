@@ -12,6 +12,8 @@ interface ContestPool {
   lock_time: string;
   status: string;
   entry_fee_cents: number;
+  prize_pool_cents: number;
+  payout_structure: Record<string, number> | null;
   contest_templates: {
     regatta_name: string;
   };
@@ -27,6 +29,8 @@ interface MappedContest {
   lockTime: string;
   divisions: string[];
   entryTiers: number;
+  payoutStructure: Record<string, number> | null;
+  prizePoolCents: number;
 }
 
 const Lobby = () => {
@@ -44,6 +48,8 @@ const Lobby = () => {
           lock_time,
           status,
           entry_fee_cents,
+          prize_pool_cents,
+          payout_structure,
           contest_templates(regatta_name),
           contest_pool_crews(event_id)
         `)
@@ -79,6 +85,8 @@ const Lobby = () => {
           lockTime,
           divisions,
           entryTiers: 1,
+          payoutStructure: pool.payout_structure,
+          prizePoolCents: pool.prize_pool_cents,
         };
       });
 
@@ -155,6 +163,8 @@ const Lobby = () => {
                   lockTime={contest.lockTime}
                   divisions={contest.divisions}
                   entryTiers={contest.entryTiers}
+                  payoutStructure={contest.payoutStructure}
+                  prizePoolCents={contest.prizePoolCents}
                 />
               ))}
             </div>
