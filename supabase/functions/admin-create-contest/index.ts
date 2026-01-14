@@ -19,7 +19,7 @@ interface CreateContestRequest {
   maxEntries: number;
   lockTime: string;
   crews: CrewInput[];
-  payouts?: Record<string, number>; // e.g., {'1': 5000, '2': 2500}
+  payouts: Record<string, number>; // Required: e.g., {'1': 5000, '2': 2500}
 }
 
 const VALID_GENDER_CATEGORIES = ["Men's", "Women's", "Mixed"];
@@ -65,26 +65,24 @@ function validateRequest(body: CreateContestRequest): string | null {
     }
   }
 
-  // Validate payouts structure if provided
-  if (body.payouts) {
-    if (typeof body.payouts !== 'object') {
-      return 'Payouts must be an object mapping rank to amount in cents';
+  // Validate payouts structure - REQUIRED
+  if (!body.payouts || typeof body.payouts !== 'object') {
+    return 'Payouts structure is required and must be an object mapping rank to amount in cents';
+  }
+  
+  // Must have at least 1st place prize
+  if (!body.payouts['1'] || body.payouts['1'] <= 0) {
+    return 'At least a 1st place prize is required';
+  }
+  
+  // All values must be positive integers
+  for (const [rank, amount] of Object.entries(body.payouts)) {
+    const rankNum = parseInt(rank);
+    if (isNaN(rankNum) || rankNum < 1) {
+      return `Invalid rank '${rank}' in payouts`;
     }
-    
-    // Must have at least 1st place prize
-    if (!body.payouts['1'] || body.payouts['1'] <= 0) {
-      return 'At least a 1st place prize is required';
-    }
-    
-    // All values must be positive integers
-    for (const [rank, amount] of Object.entries(body.payouts)) {
-      const rankNum = parseInt(rank);
-      if (isNaN(rankNum) || rankNum < 1) {
-        return `Invalid rank '${rank}' in payouts`;
-      }
-      if (typeof amount !== 'number' || amount <= 0 || !Number.isInteger(amount)) {
-        return `Invalid payout amount for rank ${rank}`;
-      }
+    if (typeof amount !== 'number' || amount <= 0 || !Number.isInteger(amount)) {
+      return `Invalid payout amount for rank ${rank}`;
     }
   }
   
@@ -135,10 +133,11 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Calculate total payout for logging
-    const totalPayoutCents = body.payouts 
-      ? Object.values(body.payouts).reduce((sum, val) => sum + val, 0)
-      : 0;
+    // Calculate total guaranteed payout and max revenue for rake projection
+    const totalGuaranteedPayout = Object.values(body.payouts).reduce((sum, val) => sum + val, 0);
+    const maxRevenue = body.entryFeeCents * body.maxEntries;
+    const projectedRake = maxRevenue - totalGuaranteedPayout;
+    const rakePercentage = maxRevenue > 0 ? ((projectedRake / maxRevenue) * 100).toFixed(2) : '0.00';
 
     console.log('Creating contest:', { 
       regattaName: body.regattaName, 
@@ -146,7 +145,10 @@ Deno.serve(async (req) => {
       entryFeeCents: body.entryFeeCents,
       maxEntries: body.maxEntries,
       crewCount: body.crews.length,
-      totalPayoutCents,
+      totalGuaranteedPayout,
+      maxRevenue,
+      projectedRake,
+      rakePercentage: `${rakePercentage}%`,
       admin: user.id 
     });
 
@@ -158,7 +160,7 @@ Deno.serve(async (req) => {
       p_max_entries: body.maxEntries,
       p_lock_time: body.lockTime,
       p_crews: body.crews,
-      p_payout_structure: body.payouts || null
+      p_payout_structure: body.payouts
     });
 
     if (error) {
@@ -182,7 +184,10 @@ Deno.serve(async (req) => {
         max_entries: body.maxEntries,
         crews_count: body.crews.length,
         payout_structure: body.payouts,
-        total_payout_cents: totalPayoutCents,
+        total_guaranteed_payout: totalGuaranteedPayout,
+        max_revenue: maxRevenue,
+        projected_rake: projectedRake,
+        rake_percentage: rakePercentage,
       },
     });
 
