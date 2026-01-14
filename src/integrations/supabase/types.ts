@@ -1388,6 +1388,18 @@ export type Database = {
             Args: {
               p_crews: Json
               p_entry_fee_cents: number
+              p_gender_category: string
+              p_lock_time: string
+              p_max_entries: number
+              p_payout_structure?: Json
+              p_regatta_name: string
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_crews: Json
+              p_entry_fee_cents: number
               p_gender_category?: string
               p_lock_time: string
               p_max_entries: number
