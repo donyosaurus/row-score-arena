@@ -1406,21 +1406,37 @@ export type Database = {
         Args: { p_contest_pool_id: string }
         Returns: Json
       }
-      update_wallet_balance: {
-        Args: {
-          _available_delta: number
-          _lifetime_deposits_delta?: number
-          _lifetime_winnings_delta?: number
-          _lifetime_withdrawals_delta?: number
-          _pending_delta: number
-          _wallet_id: string
-        }
-        Returns: {
-          available_balance: number
-          pending_balance: number
-          success: boolean
-        }[]
-      }
+      update_wallet_balance:
+        | {
+            Args: {
+              _available_delta: number
+              _lifetime_deposits_delta?: number
+              _lifetime_winnings_delta?: number
+              _lifetime_withdrawals_delta?: number
+              _pending_delta: number
+              _wallet_id: string
+            }
+            Returns: {
+              available_balance: number
+              pending_balance: number
+              success: boolean
+            }[]
+          }
+        | {
+            Args: {
+              _available_delta: number
+              _lifetime_deposits_delta?: number
+              _lifetime_winnings_delta?: number
+              _lifetime_withdrawals_delta?: number
+              _pending_delta: number
+              _wallet_id: string
+            }
+            Returns: {
+              available_balance: number
+              pending_balance: number
+              success: boolean
+            }[]
+          }
       withdraw_contest_entry: {
         Args: { p_contest_pool_id: string; p_user_id: string }
         Returns: Json
