@@ -104,11 +104,11 @@ Deno.serve(async (req) => {
           depositLimitMonthly: Number(profile.deposit_limit_monthly),
         },
         wallet: {
-          availableBalance: Number(wallet.available_balance),
-          pendingBalance: Number(wallet.pending_balance),
-          lifetimeDeposits: Number(wallet.lifetime_deposits),
-          lifetimeWithdrawals: Number(wallet.lifetime_withdrawals),
-          lifetimeWinnings: Number(wallet.lifetime_winnings),
+          availableBalance: Number(wallet.available_balance) / 100, // convert cents to dollars
+          pendingBalance: Number(wallet.pending_balance) / 100,
+          lifetimeDeposits: Number(wallet.lifetime_deposits) / 100,
+          lifetimeWithdrawals: Number(wallet.lifetime_withdrawals) / 100,
+          lifetimeWinnings: Number(wallet.lifetime_winnings) / 100,
         },
         stats,
       }),
