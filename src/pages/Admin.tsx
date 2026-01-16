@@ -680,7 +680,7 @@ const Admin = () => {
                                 <span className="text-yellow-600">Pending</span>
                               )}
                             </td>
-                            <td className="text-right p-2">${Number(user.balance).toFixed(2)}</td>
+                            <td className="text-right p-2">${(Number(user.balance) / 100).toFixed(2)}</td>
                           </tr>
                         ))}
                       </tbody>
