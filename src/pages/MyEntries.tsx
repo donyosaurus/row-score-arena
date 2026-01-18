@@ -152,9 +152,20 @@ const MyEntries = () => {
   // Parse picks and get crew names with margins
   const getParsedPicks = (entry: Entry): { crewName: string; margin: number | null }[] => {
     const picks = entry.picks;
-    if (!picks || !Array.isArray(picks)) return [];
+    if (!picks) return [];
 
-    return picks.map((pick) => {
+    // Handle nested format: { crews: [{ crewId, predictedMargin }] }
+    let picksArray: unknown[];
+    if (typeof picks === 'object' && !Array.isArray(picks) && 'crews' in (picks as Record<string, unknown>)) {
+      const picksObj = picks as { crews: unknown[] };
+      picksArray = picksObj.crews || [];
+    } else if (Array.isArray(picks)) {
+      picksArray = picks;
+    } else {
+      return [];
+    }
+
+    return picksArray.map((pick) => {
       // New format: { crewId, predictedMargin }
       if (typeof pick === 'object' && pick !== null && 'crewId' in pick) {
         const pickObj = pick as PickNew;
