@@ -92,6 +92,18 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Validate pool is ready for scoring (results_entered or locked)
+    const validScoringStatuses = ['results_entered', 'locked', 'settling'];
+    if (!validScoringStatuses.includes(pool.status) && !forceRescore) {
+      return new Response(
+        JSON.stringify({
+          error: `Pool status '${pool.status}' is not ready for scoring. Expected: ${validScoringStatuses.join(', ')}`,
+          currentStatus: pool.status,
+        }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // Fetch crew results from contest_pool_crews
     const { data: crews, error: crewsError } = await supabaseAdmin
       .from('contest_pool_crews')

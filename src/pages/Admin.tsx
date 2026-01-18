@@ -767,10 +767,12 @@ const Admin = () => {
                               <Badge variant={
                                 contest.status === "settled" ? "default" :
                                 contest.status === "scoring_completed" ? "secondary" :
+                                contest.status === "results_entered" ? "secondary" :
+                                contest.status === "settling" ? "outline" :
                                 contest.status === "locked" ? "outline" :
                                 "secondary"
                               }>
-                                {contest.status}
+                                {contest.status === "results_entered" ? "results entered" : contest.status}
                               </Badge>
                             </td>
                             <td className="p-2">
@@ -786,8 +788,8 @@ const Admin = () => {
                                   </Button>
                                 )}
                                 
-                                {/* Calculate Scores: show for scoring_processing */}
-                                {contest.status === "scoring_processing" && (
+                                {/* Calculate Scores: show for results_entered (after race results submitted) */}
+                                {contest.status === "results_entered" && (
                                   <Button 
                                     size="sm" 
                                     variant="secondary"
@@ -822,6 +824,14 @@ const Admin = () => {
                                       "Settle Payouts"
                                     )}
                                   </Button>
+                                )}
+                                
+                                {/* Settling in progress indicator */}
+                                {contest.status === "settling" && (
+                                  <span className="text-sm text-muted-foreground flex items-center gap-1">
+                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                    Processing...
+                                  </span>
                                 )}
                                 
                                 {contest.status === "settled" && (
