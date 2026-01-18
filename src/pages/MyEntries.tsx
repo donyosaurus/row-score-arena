@@ -151,14 +151,28 @@ const MyEntries = () => {
 
   // Parse picks and get crew names with margins
   const getParsedPicks = (entry: Entry): { crewName: string; margin: number | null }[] => {
-    const picks = entry.picks;
+    let picks: unknown = entry.picks;
     if (!picks) return [];
+
+    // Sometimes JSON fields can come through as a string depending on how they were written.
+    if (typeof picks === 'string') {
+      try {
+        picks = JSON.parse(picks);
+      } catch {
+        return [];
+      }
+    }
 
     // Handle nested format: { crews: [{ crewId, predictedMargin }] }
     let picksArray: unknown[];
-    if (typeof picks === 'object' && !Array.isArray(picks) && 'crews' in (picks as Record<string, unknown>)) {
+    if (
+      typeof picks === 'object' &&
+      picks !== null &&
+      !Array.isArray(picks) &&
+      'crews' in (picks as Record<string, unknown>)
+    ) {
       const picksObj = picks as { crews: unknown[] };
-      picksArray = picksObj.crews || [];
+      picksArray = Array.isArray(picksObj.crews) ? picksObj.crews : [];
     } else if (Array.isArray(picks)) {
       picksArray = picks;
     } else {
