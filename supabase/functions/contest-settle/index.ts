@@ -1,5 +1,5 @@
 // Contest Settlement & Payout Engine - Admin-only
-// Supports multi-tier fixed payouts from payout_structure
+// Ensures ALL entries are settled and contests move to History
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.76.1';
 import { z } from 'https://deno.land/x/zod@v3.22.4/mod.ts';
@@ -11,15 +11,6 @@ const corsHeaders = {
 
 interface PayoutStructure {
   [rank: string]: number; // rank -> cents
-}
-
-interface WinnerRecord {
-  id: string;
-  user_id: string;
-  entry_id: string;
-  rank: number;
-  total_points: number;
-  payout_cents: number | null;
 }
 
 Deno.serve(async (req) => {
@@ -75,7 +66,9 @@ Deno.serve(async (req) => {
     // ONLY NOW create service client after admin verification
     const supabaseAdmin = createClient(SUPABASE_URL, SERVICE_KEY);
 
-    // Fetch pool details including payout_structure
+    // ========== STEP 1: FETCH ALL DATA ==========
+    
+    // 1a. Fetch pool details
     const { data: pool, error: poolError } = await supabaseAdmin
       .from('contest_pools')
       .select('id, status, prize_pool_cents, contest_template_id, payout_structure, entry_fee_cents, current_entries')
@@ -83,9 +76,60 @@ Deno.serve(async (req) => {
       .single();
 
     if (poolError || !pool) {
+      console.error('[settle] Pool not found:', poolError);
       return new Response(
         JSON.stringify({ error: 'Contest pool not found' }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    console.log('[settle] Pool fetched:', { id: pool.id, status: pool.status, entries: pool.current_entries });
+
+    // 1b. Fetch ALL contest_entries for this pool (regardless of status)
+    const { data: allEntries, error: entriesError } = await supabaseAdmin
+      .from('contest_entries')
+      .select('id, user_id, status, payout_cents')
+      .eq('pool_id', contestPoolId);
+
+    if (entriesError) {
+      console.error('[settle] Error fetching entries:', entriesError);
+      return new Response(
+        JSON.stringify({ error: 'Failed to fetch contest entries' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    console.log('[settle] Found', allEntries?.length || 0, 'total entries in pool');
+
+    // 1c. Fetch ALL contest_scores for this pool
+    const { data: allScores, error: scoresError } = await supabaseAdmin
+      .from('contest_scores')
+      .select('id, entry_id, user_id, rank, total_points, payout_cents')
+      .eq('instance_id', contestPoolId)
+      .order('rank', { ascending: true });
+
+    if (scoresError) {
+      console.error('[settle] Error fetching scores:', scoresError);
+      return new Response(
+        JSON.stringify({ error: 'Failed to fetch contest scores' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    console.log('[settle] Found', allScores?.length || 0, 'scored entries');
+
+    // ========== STEP 2: VALIDATE ==========
+    
+    // Idempotency: Already settled
+    if (pool.status === 'settled') {
+      console.log('[settle] Pool already settled, returning success');
+      return new Response(
+        JSON.stringify({ 
+          success: true,
+          message: 'Pool has already been settled',
+          alreadySettled: true,
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -100,45 +144,19 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Already settled check (idempotency)
-    if (pool.status === 'settled') {
+    if (!allEntries || allEntries.length === 0) {
       return new Response(
-        JSON.stringify({ 
-          message: 'Pool has already been settled',
-          alreadySettled: true,
-        }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    const payoutStructure = pool.payout_structure as PayoutStructure | null;
-    const collectedRevenue = pool.entry_fee_cents * pool.current_entries;
-
-    // Get all scored entries (ranked)
-    const { data: scoredEntries, error: scoresError } = await supabaseAdmin
-      .from('contest_scores')
-      .select('id, user_id, entry_id, rank, total_points, payout_cents')
-      .eq('instance_id', contestPoolId)
-      .order('rank', { ascending: true });
-
-    if (scoresError) {
-      console.error('[settle] Error fetching scores:', scoresError);
-      return new Response(
-        JSON.stringify({ error: 'Failed to fetch contest scores' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    if (!scoredEntries || scoredEntries.length === 0) {
-      return new Response(
-        JSON.stringify({ error: 'No scored entries found for this pool' }),
+        JSON.stringify({ error: 'No entries found for this pool' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log('[settle] Found', scoredEntries.length, 'scored entries');
-
-    // Calculate payouts based on structure
+    // ========== STEP 3: PROCESS WINNERS ==========
+    
+    const payoutStructure = pool.payout_structure as PayoutStructure | null;
+    const collectedRevenue = pool.entry_fee_cents * pool.current_entries;
+    const processedEntryIds = new Set<string>();
+    
     const payoutResults: Array<{
       userId: string;
       entryId: string;
@@ -150,35 +168,41 @@ Deno.serve(async (req) => {
 
     let totalPayoutCents = 0;
 
+    // Create a map of entry_id -> score for quick lookup
+    const scoreByEntryId = new Map<string, { id: string; user_id: string; rank: number; total_points: number }>();
+    for (const score of (allScores || [])) {
+      scoreByEntryId.set(score.entry_id, score);
+    }
+
     if (payoutStructure && Object.keys(payoutStructure).length > 0) {
-      // Multi-tier fixed payouts
+      // Multi-tier fixed payouts from payout_structure
       console.log('[settle] Using payout structure:', payoutStructure);
 
-      // Group entries by rank to handle ties
-      const entriesByRank: Record<number, WinnerRecord[]> = {};
-      for (const entry of scoredEntries) {
-        const rank = entry.rank || 999;
-        if (!entriesByRank[rank]) {
-          entriesByRank[rank] = [];
+      // Group scores by rank to handle ties
+      const scoresByRank: Record<number, typeof allScores> = {};
+      for (const score of (allScores || [])) {
+        const rank = score.rank || 999;
+        if (!scoresByRank[rank]) {
+          scoresByRank[rank] = [];
         }
-        entriesByRank[rank].push(entry as WinnerRecord);
+        scoresByRank[rank].push(score);
       }
 
       // Process each rank that has a payout defined
       for (const [rankStr, payoutAmountCents] of Object.entries(payoutStructure)) {
         const rank = parseInt(rankStr);
-        const entriesAtRank = entriesByRank[rank] || [];
+        const scoresAtRank = scoresByRank[rank] || [];
 
-        if (entriesAtRank.length === 0) {
+        if (scoresAtRank.length === 0) {
           console.log(`[settle] No entries at rank ${rank}, skipping payout of ${payoutAmountCents} cents`);
           continue;
         }
 
         // Split this rank's prize among tied entries
-        const payoutPerEntry = Math.floor(payoutAmountCents / entriesAtRank.length);
-        console.log(`[settle] Rank ${rank}: ${entriesAtRank.length} entries split ${payoutAmountCents} cents (${payoutPerEntry} each)`);
+        const payoutPerEntry = Math.floor(payoutAmountCents / scoresAtRank.length);
+        console.log(`[settle] Rank ${rank}: ${scoresAtRank.length} entries split ${payoutAmountCents} cents (${payoutPerEntry} each)`);
 
-        for (const winner of entriesAtRank) {
+        for (const winner of scoresAtRank) {
           try {
             // Get user's wallet
             const { data: wallet, error: walletError } = await supabaseAdmin
@@ -191,7 +215,7 @@ Deno.serve(async (req) => {
               throw new Error(`Wallet not found for user ${winner.user_id}`);
             }
 
-            // 1. Wallet Update
+            // 1. Update wallet balance via RPC
             const { error: balanceError } = await supabaseAdmin.rpc('update_wallet_balance', {
               _wallet_id: wallet.id,
               _available_delta: payoutPerEntry,
@@ -205,7 +229,7 @@ Deno.serve(async (req) => {
               throw new Error(`Failed to update wallet balance: ${balanceError.message}`);
             }
 
-            // 2. Ledger Entry
+            // 2. Insert ledger entry
             await supabaseAdmin.from('ledger_entries').insert({
               user_id: winner.user_id,
               transaction_type: 'PRIZE_PAYOUT',
@@ -214,7 +238,7 @@ Deno.serve(async (req) => {
               reference_id: contestPoolId,
             });
 
-            // 3. Transaction Record
+            // 3. Insert transaction record
             await supabaseAdmin.from('transactions').insert({
               user_id: winner.user_id,
               wallet_id: wallet.id,
@@ -231,7 +255,6 @@ Deno.serve(async (req) => {
                 contest_pool_id: contestPoolId,
                 rank: rank,
                 total_points: winner.total_points,
-                payout_structure_used: true,
               },
             });
 
@@ -241,12 +264,17 @@ Deno.serve(async (req) => {
               .update({ payout_cents: payoutPerEntry })
               .eq('id', winner.id);
 
-            // 5. Update contest_entries
+            // 5. Update contest_entries - mark as settled with payout
             await supabaseAdmin
               .from('contest_entries')
-              .update({ payout_cents: payoutPerEntry, status: 'settled' })
+              .update({ 
+                payout_cents: payoutPerEntry, 
+                status: 'settled' 
+              })
               .eq('id', winner.entry_id);
 
+            // Track this entry as processed
+            processedEntryIds.add(winner.entry_id);
             totalPayoutCents += payoutPerEntry;
 
             payoutResults.push({
@@ -256,6 +284,8 @@ Deno.serve(async (req) => {
               payoutCents: payoutPerEntry,
               success: true,
             });
+
+            console.log(`[settle] Paid ${payoutPerEntry} cents to user ${winner.user_id} (rank ${rank})`);
 
           } catch (error: any) {
             console.error(`[settle] Payout failed for user ${winner.user_id}:`, error);
@@ -267,6 +297,8 @@ Deno.serve(async (req) => {
               success: false,
               error: error.message,
             });
+            // Still mark as processed to avoid double processing
+            processedEntryIds.add(winner.entry_id);
           }
         }
       }
@@ -274,78 +306,96 @@ Deno.serve(async (req) => {
       // Legacy: split entire prize pool among rank 1 winners
       console.log('[settle] No payout structure, using legacy winner-takes-all');
       const prizePoolCents = pool.prize_pool_cents || 0;
-      const winners = scoredEntries.filter(e => e.rank === 1);
+      const winners = (allScores || []).filter(s => s.rank === 1);
 
-      if (winners.length === 0) {
-        return new Response(
-          JSON.stringify({ error: 'No rank 1 winners found' }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
+      if (winners.length > 0) {
+        const payoutPerWinner = Math.floor(prizePoolCents / winners.length);
 
-      const payoutPerWinner = Math.floor(prizePoolCents / winners.length);
+        for (const winner of winners) {
+          try {
+            const { data: wallet } = await supabaseAdmin
+              .from('wallets')
+              .select('id')
+              .eq('user_id', winner.user_id)
+              .single();
 
-      for (const winner of winners) {
-        try {
-          const { data: wallet } = await supabaseAdmin
-            .from('wallets')
-            .select('id')
-            .eq('user_id', winner.user_id)
-            .single();
+            if (!wallet) throw new Error('Wallet not found');
 
-          if (!wallet) throw new Error('Wallet not found');
+            await supabaseAdmin.rpc('update_wallet_balance', {
+              _wallet_id: wallet.id,
+              _available_delta: payoutPerWinner,
+              _pending_delta: 0,
+              _lifetime_winnings_delta: payoutPerWinner,
+              _lifetime_deposits_delta: 0,
+              _lifetime_withdrawals_delta: 0,
+            });
 
-          await supabaseAdmin.rpc('update_wallet_balance', {
-            _wallet_id: wallet.id,
-            _available_delta: payoutPerWinner,
-            _pending_delta: 0,
-            _lifetime_winnings_delta: payoutPerWinner,
-            _lifetime_deposits_delta: 0,
-            _lifetime_withdrawals_delta: 0,
-          });
+            await supabaseAdmin.from('ledger_entries').insert({
+              user_id: winner.user_id,
+              transaction_type: 'PRIZE_PAYOUT',
+              amount: payoutPerWinner,
+              description: `Contest payout - Pool ${contestPoolId}`,
+              reference_id: contestPoolId,
+            });
 
-          await supabaseAdmin.from('ledger_entries').insert({
-            user_id: winner.user_id,
-            transaction_type: 'PRIZE_PAYOUT',
-            amount: payoutPerWinner,
-            description: `Contest payout - Pool ${contestPoolId}`,
-            reference_id: contestPoolId,
-          });
+            await supabaseAdmin.from('transactions').insert({
+              user_id: winner.user_id,
+              wallet_id: wallet.id,
+              type: 'payout',
+              amount: payoutPerWinner,
+              status: 'completed',
+              completed_at: new Date().toISOString(),
+              description: `Contest winnings`,
+              reference_id: winner.entry_id,
+              reference_type: 'contest_entry',
+              is_taxable: true,
+              tax_year: new Date().getFullYear(),
+            });
 
-          await supabaseAdmin.from('transactions').insert({
-            user_id: winner.user_id,
-            wallet_id: wallet.id,
-            type: 'payout',
-            amount: payoutPerWinner,
-            status: 'completed',
-            completed_at: new Date().toISOString(),
-            description: `Contest winnings`,
-            reference_id: winner.entry_id,
-            reference_type: 'contest_entry',
-            is_taxable: true,
-            tax_year: new Date().getFullYear(),
-          });
+            await supabaseAdmin.from('contest_scores').update({ payout_cents: payoutPerWinner }).eq('id', winner.id);
+            await supabaseAdmin.from('contest_entries').update({ payout_cents: payoutPerWinner, status: 'settled' }).eq('id', winner.entry_id);
 
-          await supabaseAdmin.from('contest_scores').update({ payout_cents: payoutPerWinner }).eq('id', winner.id);
-          await supabaseAdmin.from('contest_entries').update({ payout_cents: payoutPerWinner, status: 'settled' }).eq('id', winner.entry_id);
-
-          totalPayoutCents += payoutPerWinner;
-          payoutResults.push({ userId: winner.user_id, entryId: winner.entry_id, rank: 1, payoutCents: payoutPerWinner, success: true });
-        } catch (error: any) {
-          payoutResults.push({ userId: winner.user_id, entryId: winner.entry_id, rank: 1, payoutCents: 0, success: false, error: error.message });
+            processedEntryIds.add(winner.entry_id);
+            totalPayoutCents += payoutPerWinner;
+            payoutResults.push({ userId: winner.user_id, entryId: winner.entry_id, rank: 1, payoutCents: payoutPerWinner, success: true });
+          } catch (error: any) {
+            payoutResults.push({ userId: winner.user_id, entryId: winner.entry_id, rank: 1, payoutCents: 0, success: false, error: error.message });
+            processedEntryIds.add(winner.entry_id);
+          }
         }
       }
     }
 
-    // Update non-winning entries to settled status
-    await supabaseAdmin
-      .from('contest_entries')
-      .update({ status: 'settled' })
-      .eq('pool_id', contestPoolId)
-      .is('payout_cents', null);
+    // ========== STEP 4: PROCESS NON-WINNERS (ALL REMAINING ENTRIES) ==========
+    
+    // Find all entries that were NOT processed as winners
+    const nonWinnerEntries = allEntries.filter(entry => !processedEntryIds.has(entry.id));
+    
+    console.log(`[settle] Processing ${nonWinnerEntries.length} non-winning entries`);
 
-    // Close Pool: Update contest_pools status to settled
-    await supabaseAdmin
+    if (nonWinnerEntries.length > 0) {
+      // Get all non-winner entry IDs
+      const nonWinnerIds = nonWinnerEntries.map(e => e.id);
+      
+      // Batch update ALL non-winner entries to settled with payout_cents = 0
+      const { error: nonWinnerUpdateError } = await supabaseAdmin
+        .from('contest_entries')
+        .update({ 
+          status: 'settled', 
+          payout_cents: 0 
+        })
+        .in('id', nonWinnerIds);
+
+      if (nonWinnerUpdateError) {
+        console.error('[settle] Error updating non-winners:', nonWinnerUpdateError);
+      } else {
+        console.log(`[settle] Successfully settled ${nonWinnerIds.length} non-winning entries`);
+      }
+    }
+
+    // ========== STEP 5: FINALIZE POOL ==========
+    
+    const { error: poolUpdateError } = await supabaseAdmin
       .from('contest_pools')
       .update({
         status: 'settled',
@@ -353,10 +403,14 @@ Deno.serve(async (req) => {
       })
       .eq('id', contestPoolId);
 
-    // Calculate admin profit (surplus)
+    if (poolUpdateError) {
+      console.error('[settle] Error updating pool status:', poolUpdateError);
+    }
+
+    // ========== STEP 6: LOG TO COMPLIANCE ==========
+    
     const adminProfit = collectedRevenue - totalPayoutCents;
 
-    // Log to compliance_audit_logs
     await supabaseAdmin.from('compliance_audit_logs').insert({
       admin_id: user.id,
       event_type: 'pool_settled',
@@ -368,13 +422,19 @@ Deno.serve(async (req) => {
         collected_revenue_cents: collectedRevenue,
         total_payout_cents: totalPayoutCents,
         admin_profit_cents: adminProfit,
-        successful_payouts: payoutResults.filter(p => p.success).length,
+        total_entries: allEntries.length,
+        winners_paid: payoutResults.filter(p => p.success).length,
+        non_winners_settled: nonWinnerEntries.length,
         failed_payouts: payoutResults.filter(p => !p.success).length,
         payout_results: payoutResults,
       },
     });
 
-    console.log('[settle] Pool settled successfully:', contestPoolId);
+    console.log('[settle] ===== SETTLEMENT COMPLETE =====');
+    console.log('[settle] Pool:', contestPoolId);
+    console.log('[settle] Total Entries:', allEntries.length);
+    console.log('[settle] Winners Paid:', payoutResults.filter(p => p.success).length);
+    console.log('[settle] Non-Winners Settled:', nonWinnerEntries.length);
     console.log('[settle] Revenue:', collectedRevenue, 'Payouts:', totalPayoutCents, 'Profit:', adminProfit);
 
     return new Response(
@@ -384,13 +444,14 @@ Deno.serve(async (req) => {
         collectedRevenueCents: collectedRevenue,
         totalPayoutCents,
         adminProfitCents: adminProfit,
-        payoutStructure,
-        successfulPayouts: payoutResults.filter(p => p.success).length,
+        totalEntries: allEntries.length,
+        winnersCount: payoutResults.filter(p => p.success).length,
+        nonWinnersSettled: nonWinnerEntries.length,
         failedPayouts: payoutResults.filter(p => !p.success).length,
         payoutResults,
         message: payoutResults.some(p => !p.success)
           ? `Settlement completed with ${payoutResults.filter(p => !p.success).length} failed payout(s)`
-          : 'Settlement completed successfully',
+          : 'Settlement completed successfully - all entries marked as settled',
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
@@ -406,7 +467,7 @@ Deno.serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({ error: error.message || 'An error occurred' }),
+      JSON.stringify({ error: error.message || 'An error occurred during settlement' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
