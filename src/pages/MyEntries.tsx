@@ -22,6 +22,8 @@ interface Entry {
   entry_fee_cents: number;
   pool_id: string;
   picks: PickNew[] | string[] | unknown;
+  payout_cents?: number;
+  rank?: number;
   contest_templates: {
     regatta_name: string;
     lock_time: string;
@@ -68,6 +70,28 @@ const MyEntries = () => {
     }
 
     loadEntries();
+
+    // Realtime subscription for instant updates when contests are settled
+    const channel = supabase
+      .channel('my-entries-updates')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'contest_entries',
+          filter: `user_id=eq.${user.id}`,
+        },
+        () => {
+          // Reload entries when any of user's entries are updated
+          loadEntries();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [user, navigate]);
 
   const loadEntries = async () => {
@@ -83,6 +107,8 @@ const MyEntries = () => {
           entry_fee_cents,
           pool_id,
           picks,
+          payout_cents,
+          rank,
           contest_templates!inner (regatta_name, lock_time),
           contest_pools!inner (status, prize_pool_cents, max_entries, current_entries, payout_structure),
           contest_scores (rank, total_points, margin_bonus, is_winner, payout_cents)
@@ -201,11 +227,15 @@ const MyEntries = () => {
     });
   };
 
+  // Active = entry is active AND pool is open/locked (not settled/completed/voided)
   const activeEntries = entries.filter(
-    e => e.status === 'active' && e.contest_pools?.status !== 'completed'
+    e => e.status === 'active' && 
+      !['settled', 'completed', 'voided'].includes(e.contest_pools?.status || '')
   );
+  // History = pool is settled, completed, or voided
   const completedEntries = entries.filter(
-    e => e.contest_pools?.status === 'completed'
+    e => ['settled', 'completed', 'voided'].includes(e.contest_pools?.status || '') ||
+      ['settled', 'voided'].includes(e.status)
   );
 
   if (loading) {
@@ -227,6 +257,9 @@ const MyEntries = () => {
     const score = entry.contest_scores?.[0];
     const parsedPicks = getParsedPicks(entry);
     const payoutStructure = entry.contest_pools?.payout_structure;
+    const poolStatus = entry.contest_pools?.status || '';
+    const isSettled = ['settled', 'completed', 'voided'].includes(poolStatus) || 
+      ['settled', 'voided'].includes(entry.status);
     
     // Get top prize from payout structure (rank 1)
     const getTopPrize = (): number | null => {
@@ -239,28 +272,55 @@ const MyEntries = () => {
     
     // Determine prize display text based on entry state
     const getPrizeDisplayText = (): string => {
-      const isCompleted = entry.contest_pools?.status === 'completed';
-      const isWinner = score?.is_winner;
-      
-      if (isCompleted) {
-        if (isWinner && score?.payout_cents) {
-          // Won - this will be shown separately with the badge
-          return topPrizeCents 
-            ? `Top Prize was $${(topPrizeCents / 100).toFixed(2)}`
-            : `Prize Pool: $${(prizePoolCents / 100).toFixed(2)}`;
-        } else {
-          // Lost
-          return topPrizeCents 
-            ? `Top Prize was $${(topPrizeCents / 100).toFixed(2)}`
-            : `Prize Pool: $${(prizePoolCents / 100).toFixed(2)}`;
-        }
-      } else {
-        // Active/Open
-        return topPrizeCents 
-          ? `Top Prize: $${(topPrizeCents / 100).toFixed(2)}`
-          : `Prize Pool: $${(prizePoolCents / 100).toFixed(2)}`;
+      // For settled contests, don't show prize info (it's confusing for losers)
+      if (isSettled) {
+        return ''; // We'll show result separately
       }
+      // Active/Open - show what they can win
+      return topPrizeCents 
+        ? `Top Prize: $${(topPrizeCents / 100).toFixed(2)}`
+        : `Prize Pool: $${(prizePoolCents / 100).toFixed(2)}`;
     };
+    
+    // Get result display for settled contests
+    const getResultDisplay = () => {
+      if (!isSettled) return null;
+      
+      // Check if voided
+      if (entry.status === 'voided' || poolStatus === 'voided') {
+        return <Badge variant="secondary">Refunded</Badge>;
+      }
+      
+      // Check payout from contest_scores or entry directly
+      const payoutCents = score?.payout_cents || 0;
+      const rank = score?.rank || entry.rank;
+      
+      if (payoutCents > 0) {
+        return (
+          <Badge className="bg-green-600 hover:bg-green-700 text-white">
+            Won ${(payoutCents / 100).toFixed(2)}
+          </Badge>
+        );
+      }
+      
+      // Did not win
+      if (rank) {
+        return (
+          <Badge variant="outline" className="text-muted-foreground">
+            Finished #{rank}
+          </Badge>
+        );
+      }
+      
+      return (
+        <Badge variant="outline" className="text-muted-foreground">
+          Did Not Win
+        </Badge>
+      );
+    };
+
+    const prizeText = getPrizeDisplayText();
+    const resultDisplay = getResultDisplay();
 
     return (
       <Card key={entry.id}>
@@ -272,8 +332,8 @@ const MyEntries = () => {
               </CardTitle>
               <CardDescription className="space-y-1">
                 <div>
-                  Entry Fee: ${(entry.entry_fee_cents / 100).toFixed(2)} • 
-                  {getPrizeDisplayText()}
+                  Entry Fee: ${(entry.entry_fee_cents / 100).toFixed(2)}
+                  {prizeText && ` • ${prizeText}`}
                 </div>
                 {!showScore && (
                   <div>Locks: {new Date(entry.contest_templates.lock_time).toLocaleString()}</div>
@@ -283,7 +343,10 @@ const MyEntries = () => {
                 )}
               </CardDescription>
             </div>
-            {getStatusBadge(entry.contest_pools?.status || 'open')}
+            <div className="flex items-center gap-2">
+              {showScore && resultDisplay}
+              {!showScore && getStatusBadge(entry.contest_pools?.status || 'open')}
+            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -310,17 +373,12 @@ const MyEntries = () => {
             </div>
           </div>
 
-          {/* Show score for completed entries */}
+          {/* Show score details for completed entries */}
           {showScore && score && (
-            <div className="flex items-center gap-4 text-sm pt-3 border-t">
-              <span className="font-semibold">Rank: #{score.rank}</span>
+            <div className="flex flex-wrap items-center gap-4 text-sm pt-3 border-t text-muted-foreground">
+              <span>Rank: #{score.rank}</span>
               <span>Points: {score.total_points}</span>
-              <span>Margin Bonus: +{score.margin_bonus}</span>
-              {score.is_winner && (
-                <Badge variant="default" className="bg-green-600 hover:bg-green-700">
-                  Won ${(score.payout_cents / 100).toFixed(2)}
-                </Badge>
-              )}
+              {score.margin_bonus > 0 && <span>Margin Bonus: +{score.margin_bonus}</span>}
             </div>
           )}
         </CardContent>
