@@ -7,9 +7,13 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Waves } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import ReactMarkdown from "react-markdown";
 
 const Signup = () => {
   const [fullName, setFullName] = useState("");
@@ -21,8 +25,45 @@ const Signup = () => {
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [ageConfirmed, setAgeConfirmed] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [termsDialogOpen, setTermsDialogOpen] = useState(false);
+  const [privacyDialogOpen, setPrivacyDialogOpen] = useState(false);
+  const [termsContent, setTermsContent] = useState<string | null>(null);
+  const [privacyContent, setPrivacyContent] = useState<string | null>(null);
+  const [loadingContent, setLoadingContent] = useState(false);
   const { signUp, user } = useAuth();
   const navigate = useNavigate();
+
+  const fetchContent = async (slug: string) => {
+    setLoadingContent(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('cms-get', {
+        body: { slug }
+      });
+      if (error) throw error;
+      return data?.body_md || null;
+    } catch (err) {
+      console.error(`Error fetching ${slug}:`, err);
+      return null;
+    } finally {
+      setLoadingContent(false);
+    }
+  };
+
+  const openTermsDialog = async () => {
+    setTermsDialogOpen(true);
+    if (!termsContent) {
+      const content = await fetchContent('terms');
+      setTermsContent(content);
+    }
+  };
+
+  const openPrivacyDialog = async () => {
+    setPrivacyDialogOpen(true);
+    if (!privacyContent) {
+      const content = await fetchContent('privacy');
+      setPrivacyContent(content);
+    }
+  };
 
   // Redirect if already logged in
   useEffect(() => {
@@ -225,13 +266,21 @@ const Signup = () => {
                   className="text-sm text-muted-foreground leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                 >
                   I agree to the{" "}
-                  <Link to="/terms" className="text-accent hover:underline">
+                  <button
+                    type="button"
+                    onClick={openTermsDialog}
+                    className="text-accent hover:underline"
+                  >
                     Terms of Use
-                  </Link>{" "}
+                  </button>{" "}
                   and{" "}
-                  <Link to="/privacy" className="text-accent hover:underline">
+                  <button
+                    type="button"
+                    onClick={openPrivacyDialog}
+                    className="text-accent hover:underline"
+                  >
                     Privacy Policy
-                  </Link>
+                  </button>
                 </label>
               </div>
             </CardContent>
@@ -258,6 +307,54 @@ const Signup = () => {
       </main>
 
       <Footer />
+
+      {/* Terms of Use Dialog */}
+      <Dialog open={termsDialogOpen} onOpenChange={setTermsDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle>Terms of Use</DialogTitle>
+          </DialogHeader>
+          <ScrollArea className="h-[60vh] pr-4">
+            {loadingContent ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+              </div>
+            ) : termsContent ? (
+              <div className="prose prose-sm dark:prose-invert max-w-none">
+                <ReactMarkdown>{termsContent}</ReactMarkdown>
+              </div>
+            ) : (
+              <p className="text-muted-foreground text-center py-8">
+                Unable to load Terms of Use. Please try again later.
+              </p>
+            )}
+          </ScrollArea>
+        </DialogContent>
+      </Dialog>
+
+      {/* Privacy Policy Dialog */}
+      <Dialog open={privacyDialogOpen} onOpenChange={setPrivacyDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle>Privacy Policy</DialogTitle>
+          </DialogHeader>
+          <ScrollArea className="h-[60vh] pr-4">
+            {loadingContent ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+              </div>
+            ) : privacyContent ? (
+              <div className="prose prose-sm dark:prose-invert max-w-none">
+                <ReactMarkdown>{privacyContent}</ReactMarkdown>
+              </div>
+            ) : (
+              <p className="text-muted-foreground text-center py-8">
+                Unable to load Privacy Policy. Please try again later.
+              </p>
+            )}
+          </ScrollArea>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
