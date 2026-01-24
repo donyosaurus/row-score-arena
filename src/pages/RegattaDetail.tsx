@@ -403,7 +403,7 @@ const RegattaDetail = () => {
                               </span>
                             </div>
                             <span className={`font-bold ${isFirst ? "text-2xl text-amber-600 dark:text-amber-400" : "text-lg"}`}>
-                              ${Number.isInteger(amountCents / 100) ? (amountCents / 100) : (amountCents / 100).toFixed(2)}
+                              ${(amountCents / 100).toFixed(2)}
                             </span>
                           </div>
                         );
@@ -413,10 +413,7 @@ const RegattaDetail = () => {
                     <div className="flex items-center justify-between pt-3 border-t border-amber-200/50 dark:border-amber-800/30">
                       <span className="font-semibold text-muted-foreground">Total Prize Pool</span>
                       <span className="font-bold text-lg">
-                        ${(() => {
-                          const total = Object.values(contestPool.payout_structure).reduce((sum, val) => sum + val, 0) / 100;
-                          return Number.isInteger(total) ? total : total.toFixed(2);
-                        })()}
+                        ${(Object.values(contestPool.payout_structure).reduce((sum, val) => sum + val, 0) / 100).toFixed(2)}
                       </span>
                     </div>
                   </div>
