@@ -17,9 +17,15 @@ interface ContestCardProps {
   prizePoolCents?: number;
 }
 
-// Format cents to dollars
+// Format cents to dollars (show decimals only when needed)
 const formatCents = (cents: number): string => {
-  return `$${(cents / 100).toFixed(0)}`;
+  const dollars = cents / 100;
+  // If it's a whole number, don't show decimals
+  if (Number.isInteger(dollars)) {
+    return `$${dollars}`;
+  }
+  // Otherwise show up to 2 decimal places
+  return `$${dollars.toFixed(2)}`;
 };
 
 // Get ordinal suffix for ranks
