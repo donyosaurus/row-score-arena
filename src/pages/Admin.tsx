@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Users, DollarSign, Trophy, Shield, Download, Settings, Loader2, Plus, X } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 
 interface CrewResult {
@@ -49,6 +50,7 @@ interface CreateContestForm {
   lockTime: string;
   crews: NewCrew[];
   prizes: PrizeTier[];
+  allowOverflow: boolean;
 }
 
 const Admin = () => {
@@ -92,7 +94,8 @@ const Admin = () => {
     maxEntries: "",
     lockTime: "",
     crews: [],
-    prizes: [{ rank: 1, amount: "" }]
+    prizes: [{ rank: 1, amount: "" }],
+    allowOverflow: false
   });
   const [newCrewInput, setNewCrewInput] = useState<NewCrew>({
     crew_name: "",
@@ -335,7 +338,8 @@ const Admin = () => {
       maxEntries: "",
       lockTime: "",
       crews: [],
-      prizes: [{ rank: 1, amount: "" }]
+      prizes: [{ rank: 1, amount: "" }],
+      allowOverflow: false
     });
     setNewCrewInput({ crew_name: "", crew_id: "", event_id: "" });
   };
@@ -471,7 +475,8 @@ const Admin = () => {
           maxEntries: maxEntries,
           lockTime: lockDate.toISOString(),
           crews: createForm.crews,
-          payouts: payouts
+          payouts: payouts,
+          allowOverflow: createForm.allowOverflow
         }
       });
       
@@ -1098,6 +1103,28 @@ const Admin = () => {
                 <p className="text-xs text-muted-foreground mt-1">
                   Entries will be locked at this time
                 </p>
+              </div>
+              
+              {/* Auto-Pooling Checkbox */}
+              <div className="flex items-start space-x-3 pt-2">
+                <Checkbox
+                  id="allowOverflow"
+                  checked={createForm.allowOverflow}
+                  onCheckedChange={(checked) => 
+                    setCreateForm(prev => ({ ...prev, allowOverflow: checked === true }))
+                  }
+                />
+                <div className="grid gap-1.5 leading-none">
+                  <Label 
+                    htmlFor="allowOverflow" 
+                    className="text-sm font-medium cursor-pointer"
+                  >
+                    Enable Auto-Pooling
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    If checked, the system will automatically create a new pool when this one fills up.
+                  </p>
+                </div>
               </div>
             </div>
 

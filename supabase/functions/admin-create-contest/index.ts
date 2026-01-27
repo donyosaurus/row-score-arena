@@ -20,6 +20,7 @@ interface CreateContestRequest {
   lockTime: string;
   crews: CrewInput[];
   payouts: Record<string, number>; // Required: e.g., {'1': 5000, '2': 2500}
+  allowOverflow?: boolean; // If true, system will auto-create new pool when full
 }
 
 const VALID_GENDER_CATEGORIES = ["Men's", "Women's", "Mixed"];
@@ -160,7 +161,8 @@ Deno.serve(async (req) => {
       p_max_entries: body.maxEntries,
       p_lock_time: body.lockTime,
       p_crews: body.crews,
-      p_payout_structure: body.payouts
+      p_payout_structure: body.payouts,
+      p_allow_overflow: body.allowOverflow ?? false
     });
 
     if (error) {
