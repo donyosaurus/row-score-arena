@@ -286,17 +286,31 @@ const Admin = () => {
     setScoringPoolId(contestPoolId);
     
     try {
-      const { data, error } = await supabase.functions.invoke("contest-scoring", {
+      // Step 1: Calculate scores for all sibling pools
+      const { data: scoringData, error: scoringError } = await supabase.functions.invoke("contest-scoring", {
         body: { contestPoolId }
       });
       
-      if (error) throw error;
+      if (scoringError) throw scoringError;
       
-      toast.success("Scores calculated successfully");
+      const poolsScored = scoringData?.poolsScored || 1;
+      toast.success(`Scores calculated for ${poolsScored} pool(s). Settling payouts...`);
+      
+      // Step 2: Immediately settle payouts for all sibling pools
+      const { data: settleData, error: settleError } = await supabase.functions.invoke("contest-settle", {
+        body: { contestPoolId }
+      });
+      
+      if (settleError) throw settleError;
+      
+      const poolsSettled = settleData?.poolsSettled || 1;
+      const totalProfit = settleData?.totalProfit || 0;
+      toast.success(`Settlement complete! ${poolsSettled} pool(s) settled. Total profit: $${(totalProfit / 100).toFixed(2)}`);
+      
       loadDashboardData();
     } catch (error: any) {
-      console.error("Error calculating scores:", error);
-      toast.error(error.message || "Failed to calculate scores");
+      console.error("Error in scoring/settlement:", error);
+      toast.error(error.message || "Failed to complete scoring and settlement");
     } finally {
       setScoringPoolId(null);
     }
