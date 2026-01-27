@@ -14,6 +14,9 @@ interface ContestPool {
   entry_fee_cents: number;
   prize_pool_cents: number;
   payout_structure: Record<string, number> | null;
+  current_entries: number;
+  max_entries: number;
+  allow_overflow: boolean;
   contest_templates: {
     regatta_name: string;
   };
@@ -31,6 +34,9 @@ interface MappedContest {
   entryTiers: number;
   payoutStructure: Record<string, number> | null;
   prizePoolCents: number;
+  currentEntries: number;
+  maxEntries: number;
+  allowOverflow: boolean;
 }
 
 const Lobby = () => {
@@ -50,6 +56,9 @@ const Lobby = () => {
           entry_fee_cents,
           prize_pool_cents,
           payout_structure,
+          current_entries,
+          max_entries,
+          allow_overflow,
           contest_templates(regatta_name),
           contest_pool_crews(event_id)
         `)
@@ -87,6 +96,9 @@ const Lobby = () => {
           entryTiers: 1,
           payoutStructure: pool.payout_structure,
           prizePoolCents: pool.prize_pool_cents,
+          currentEntries: pool.current_entries || 0,
+          maxEntries: pool.max_entries || 0,
+          allowOverflow: pool.allow_overflow || false,
         };
       });
 
@@ -165,6 +177,9 @@ const Lobby = () => {
                   entryTiers={contest.entryTiers}
                   payoutStructure={contest.payoutStructure}
                   prizePoolCents={contest.prizePoolCents}
+                  currentEntries={contest.currentEntries}
+                  maxEntries={contest.maxEntries}
+                  allowOverflow={contest.allowOverflow}
                 />
               ))}
             </div>

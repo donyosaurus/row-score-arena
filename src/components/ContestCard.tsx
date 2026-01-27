@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Clock, Trophy, Award, Medal } from "lucide-react";
+import { Clock, Trophy, Users, Infinity } from "lucide-react";
 
 type GenderCategory = "Men's" | "Women's";
 
@@ -15,19 +15,15 @@ interface ContestCardProps {
   entryTiers: number;
   payoutStructure?: Record<string, number> | null;
   prizePoolCents?: number;
+  currentEntries?: number;
+  maxEntries?: number;
+  allowOverflow?: boolean;
 }
 
 // Format cents to dollars (always show 2 decimal places)
 const formatCents = (cents: number): string => {
   const dollars = cents / 100;
   return `$${dollars.toFixed(2)}`;
-};
-
-// Get ordinal suffix for ranks
-const getOrdinal = (n: number): string => {
-  const s = ["th", "st", "nd", "rd"];
-  const v = n % 100;
-  return n + (s[(v - 20) % 10] || s[v] || s[0]);
 };
 
 export const ContestCard = ({
@@ -39,6 +35,9 @@ export const ContestCard = ({
   entryTiers,
   payoutStructure,
   prizePoolCents = 0,
+  currentEntries = 0,
+  maxEntries = 0,
+  allowOverflow = false,
 }: ContestCardProps) => {
   // Calculate total prizes from payout structure
   const hasPayoutStructure = payoutStructure && Object.keys(payoutStructure).length > 0;
@@ -46,6 +45,11 @@ export const ContestCard = ({
   const totalPrizes = hasPayoutStructure 
     ? Object.values(payoutStructure).reduce((sum, val) => sum + val, 0)
     : prizePoolCents;
+
+  // Determine pool status
+  const isFull = maxEntries > 0 && currentEntries >= maxEntries;
+  const hasAutoPool = allowOverflow;
+  const showEntriesCount = maxEntries > 0;
 
   return (
     <Card className="flex flex-col h-full transition-smooth hover:shadow-md border-border/50">
@@ -96,6 +100,32 @@ export const ContestCard = ({
           </div>
         )}
 
+        {/* Pool Capacity */}
+        {showEntriesCount && (
+          <div className="flex items-center justify-between text-sm">
+            <span className="flex items-center gap-2 text-muted-foreground">
+              <Users className="h-4 w-4" />
+              Entries
+            </span>
+            <div className="flex items-center gap-2">
+              <span className="font-medium">
+                {currentEntries}/{maxEntries}
+              </span>
+              {isFull && hasAutoPool && (
+                <Badge variant="secondary" className="bg-blue-500/10 text-blue-600 border-blue-500/20 text-xs">
+                  <Infinity className="h-3 w-3 mr-1" />
+                  Auto-Pool
+                </Badge>
+              )}
+              {isFull && !hasAutoPool && (
+                <Badge variant="destructive" className="text-xs">
+                  Full
+                </Badge>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Divisions */}
         {divisions.length > 0 && (
           <div className="space-y-2">
@@ -129,8 +159,14 @@ export const ContestCard = ({
         <Link to={`/regatta/${id}`} className="w-full">
           <Button 
             className="w-full bg-primary hover:bg-primary/90 text-white font-semibold py-6 rounded-xl"
+            disabled={isFull && !hasAutoPool}
           >
-            View Entry Options
+            {isFull && hasAutoPool 
+              ? "Join Overflow Pool" 
+              : isFull 
+                ? "Contest Full" 
+                : "View Entry Options"
+            }
           </Button>
         </Link>
       </CardFooter>

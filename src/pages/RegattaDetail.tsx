@@ -240,7 +240,17 @@ const RegattaDetail = () => {
 
       if (error) throw error;
 
-      toast.success("Entry Confirmed! Good luck!");
+      // Check if user was placed in overflow pool
+      if (data?.wasOverflow) {
+        toast.info("The original contest was full. You have been placed in a new overflow pool!", {
+          duration: 5000,
+        });
+      } else {
+        toast.success("Entry Confirmed! Good luck!");
+      }
+
+      // Navigate to the actual pool the user joined (may be different from clicked pool)
+      const actualPoolId = data?.actualPoolId || id;
       navigate("/my-entries");
     } catch (err: any) {
       console.error("Error submitting entry:", err);
