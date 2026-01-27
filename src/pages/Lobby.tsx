@@ -17,6 +17,7 @@ interface ContestPool {
   current_entries: number;
   max_entries: number;
   allow_overflow: boolean;
+  created_at: string;
   contest_templates: {
     regatta_name: string;
   };
@@ -32,11 +33,13 @@ interface MappedContest {
   lockTime: string;
   divisions: string[];
   entryTiers: number;
+  entryFeeCents: number;
   payoutStructure: Record<string, number> | null;
   prizePoolCents: number;
   currentEntries: number;
   maxEntries: number;
   allowOverflow: boolean;
+  createdAt: string;
 }
 
 const Lobby = () => {
@@ -59,6 +62,7 @@ const Lobby = () => {
           current_entries,
           max_entries,
           allow_overflow,
+          created_at,
           contest_templates(regatta_name),
           contest_pool_crews(event_id)
         `)
@@ -94,15 +98,45 @@ const Lobby = () => {
           lockTime,
           divisions,
           entryTiers: 1,
+          entryFeeCents: pool.entry_fee_cents,
           payoutStructure: pool.payout_structure,
           prizePoolCents: pool.prize_pool_cents,
           currentEntries: pool.current_entries || 0,
           maxEntries: pool.max_entries || 0,
           allowOverflow: pool.allow_overflow || false,
+          createdAt: pool.created_at,
         };
       });
 
-      setContests(mapped);
+      // Group by unique event (regattaName + genderCategory + entryFee)
+      const grouped = mapped.reduce((acc, contest) => {
+        const key = `${contest.regattaName}|${contest.genderCategory}|${contest.entryFeeCents}`;
+        if (!acc[key]) {
+          acc[key] = [];
+        }
+        acc[key].push(contest);
+        return acc;
+      }, {} as Record<string, MappedContest[]>);
+
+      // Select best pool per group
+      const deduplicated = Object.values(grouped).map((pools) => {
+        // Prefer open pools with space available
+        const openWithSpace = pools.filter(p => p.currentEntries < p.maxEntries);
+        
+        if (openWithSpace.length > 0) {
+          // Pick most recently created among those with space
+          return openWithSpace.sort((a, b) => 
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          )[0];
+        }
+        
+        // All full - pick most recently created (shows Auto-Pool badge)
+        return pools.sort((a, b) => 
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        )[0];
+      });
+
+      setContests(deduplicated);
       setLoading(false);
     };
 
