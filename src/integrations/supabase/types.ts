@@ -1394,6 +1394,10 @@ export type Database = {
       }
       cleanup_old_rate_limits: { Args: never; Returns: undefined }
       cleanup_old_webhooks: { Args: never; Returns: undefined }
+      clone_contest_pool: {
+        Args: { p_original_pool_id: string }
+        Returns: string
+      }
       enter_contest_pool: {
         Args: { p_contest_pool_id: string; p_picks: Json; p_user_id: string }
         Returns: Json
