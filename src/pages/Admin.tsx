@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -344,6 +344,40 @@ const Admin = () => {
     return new Date() > new Date(contest.lock_time);
   };
 
+  // Group contest pools by event signature (template + fee + tier)
+  const groupedContests = useMemo(() => {
+    const groups = new Map<string, any[]>();
+    for (const pool of contests) {
+      const key = `${pool.contest_template_id}_${pool.entry_fee_cents}_${pool.tier_id}`;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(pool);
+    }
+    return Array.from(groups.values()).map(pools => {
+      // Sort by created_at desc so first is most recent
+      pools.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      const primary = pools[0];
+      const totalEntries = pools.reduce((sum: number, p: any) => sum + p.current_entries, 0);
+      const totalMaxEntries = pools.reduce((sum: number, p: any) => sum + p.max_entries, 0);
+      const totalPrize = pools.reduce((sum: number, p: any) => sum + p.prize_pool_cents, 0);
+      // Overall status: if any open → open, else if any locked → locked, else if any results_entered → results_entered, etc.
+      const statusPriority = ['open', 'locked', 'results_entered', 'scoring_completed', 'settling', 'settled', 'voided'];
+      let overallStatus = 'settled';
+      for (const s of statusPriority) {
+        if (pools.some((p: any) => p.status === s)) { overallStatus = s; break; }
+      }
+      return {
+        primary,
+        pools,
+        poolCount: pools.length,
+        totalEntries,
+        totalMaxEntries,
+        totalPrize,
+        overallStatus,
+        regattaName: primary.contest_templates?.regatta_name || 'Unknown',
+      };
+    });
+  }, [contests]);
+
   const resetCreateForm = () => {
     setCreateForm({
       regattaName: "",
@@ -644,7 +678,7 @@ const Admin = () => {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {contests.filter(c => c.status === "open" || c.status === "locked").length}
+                  {groupedContests.filter(g => g.overallStatus === "open" || g.overallStatus === "locked").length}
                 </div>
               </CardContent>
             </Card>
@@ -774,119 +808,124 @@ const Admin = () => {
                         </tr>
                       </thead>
                       <tbody>
-                        {contests.map((contest) => (
-                          <tr key={contest.id} className="border-b hover:bg-muted/50">
-                            <td className="p-2">{contest.contest_templates?.regatta_name}</td>
-                            <td className="p-2">${(contest.entry_fee_cents / 100).toFixed(2)}</td>
-                            <td className="p-2">
-                              {contest.current_entries} / {contest.max_entries}
-                            </td>
-                            <td className="p-2">${(contest.prize_pool_cents / 100).toFixed(2)}</td>
-                            <td className="p-2">
-                              <Badge variant={
-                                contest.status === "settled" ? "default" :
-                                contest.status === "scoring_completed" ? "secondary" :
-                                contest.status === "results_entered" ? "secondary" :
-                                contest.status === "settling" ? "outline" :
-                                contest.status === "locked" ? "outline" :
-                                "secondary"
-                              }>
-                                {contest.status === "results_entered" ? "results entered" : contest.status}
-                              </Badge>
-                            </td>
-                            <td className="p-2">
-                              <div className="flex gap-2 flex-wrap">
-                                {/* Enter Results: show for locked OR open past lock time */}
-                                {(contest.status === "locked" || (contest.status === "open" && isContestPastLockTime(contest))) && (
-                                  <Button 
-                                    size="sm" 
-                                    variant="outline"
-                                    onClick={() => openResultsModal(contest)}
-                                  >
-                                    Enter Results
-                                  </Button>
+                        {groupedContests.map((group) => {
+                          const { primary, poolCount, totalEntries, totalMaxEntries, totalPrize, overallStatus, regattaName } = group;
+                          return (
+                            <tr key={primary.id} className="border-b hover:bg-muted/50">
+                              <td className="p-2">
+                                <span>{regattaName}</span>
+                                {poolCount > 1 && (
+                                  <Badge variant="outline" className="ml-2 text-xs">
+                                    {poolCount} Pools
+                                  </Badge>
                                 )}
-                                
-                                {/* Calculate Scores: show for results_entered (after race results submitted) */}
-                                {contest.status === "results_entered" && (
-                                  <Button 
-                                    size="sm" 
-                                    variant="secondary"
-                                    disabled={scoringPoolId === contest.id}
-                                    onClick={() => calculateScores(contest.id)}
-                                  >
-                                    {scoringPoolId === contest.id ? (
-                                      <>
-                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                        Scoring...
-                                      </>
-                                    ) : (
-                                      "Calculate Scores"
-                                    )}
-                                  </Button>
-                                )}
-                                
-                                {/* Settle Payouts: show for scoring_completed */}
-                                {contest.status === "scoring_completed" && (
-                                  <Button 
-                                    size="sm" 
-                                    variant="default"
-                                    disabled={settlingPoolId === contest.id}
-                                    onClick={() => settlePayouts(contest.id)}
-                                  >
-                                    {settlingPoolId === contest.id ? (
-                                      <>
-                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                        Settling...
-                                      </>
-                                    ) : (
-                                      "Settle Payouts"
-                                    )}
-                                  </Button>
-                                )}
-                                
-                                {/* Settling in progress indicator */}
-                                {contest.status === "settling" && (
-                                  <span className="text-sm text-muted-foreground flex items-center gap-1">
-                                    <Loader2 className="h-3 w-3 animate-spin" />
-                                    Processing...
-                                  </span>
-                                )}
-                                
-                                {contest.status === "settled" && (
-                                  <span className="text-sm text-muted-foreground">Completed</span>
-                                )}
-                                
-                                {contest.status === "open" && !isContestPastLockTime(contest) && (
-                                  <span className="text-sm text-muted-foreground">Awaiting lock</span>
-                                )}
-                                
-                                {/* Void button: show for non-settled contests */}
-                                {contest.status !== "settled" && contest.status !== "voided" && (
-                                  <Button 
-                                    size="sm" 
-                                    variant="destructive"
-                                    disabled={voidingPoolId === contest.id}
-                                    onClick={() => voidContest(contest.id)}
-                                  >
-                                    {voidingPoolId === contest.id ? (
-                                      <>
-                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                        Voiding...
-                                      </>
-                                    ) : (
-                                      "Void"
-                                    )}
-                                  </Button>
-                                )}
-                                
-                                {contest.status === "voided" && (
-                                  <span className="text-sm text-destructive">Voided</span>
-                                )}
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
+                              </td>
+                              <td className="p-2">${(primary.entry_fee_cents / 100).toFixed(2)}</td>
+                              <td className="p-2">
+                                {totalEntries} / {totalMaxEntries}
+                              </td>
+                              <td className="p-2">${(totalPrize / 100).toFixed(2)}</td>
+                              <td className="p-2">
+                                <Badge variant={
+                                  overallStatus === "settled" ? "default" :
+                                  overallStatus === "scoring_completed" ? "secondary" :
+                                  overallStatus === "results_entered" ? "secondary" :
+                                  overallStatus === "settling" ? "outline" :
+                                  overallStatus === "locked" ? "outline" :
+                                  "secondary"
+                                }>
+                                  {overallStatus === "results_entered" ? "results entered" : overallStatus}
+                                </Badge>
+                              </td>
+                              <td className="p-2">
+                                <div className="flex gap-2 flex-wrap">
+                                  {(overallStatus === "locked" || (overallStatus === "open" && isContestPastLockTime(primary))) && (
+                                    <Button 
+                                      size="sm" 
+                                      variant="outline"
+                                      onClick={() => openResultsModal(primary)}
+                                    >
+                                      Enter Results
+                                    </Button>
+                                  )}
+                                  
+                                  {overallStatus === "results_entered" && (
+                                    <Button 
+                                      size="sm" 
+                                      variant="secondary"
+                                      disabled={scoringPoolId === primary.id}
+                                      onClick={() => calculateScores(primary.id)}
+                                    >
+                                      {scoringPoolId === primary.id ? (
+                                        <>
+                                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                          Scoring...
+                                        </>
+                                      ) : (
+                                        "Calculate Scores"
+                                      )}
+                                    </Button>
+                                  )}
+                                  
+                                  {overallStatus === "scoring_completed" && (
+                                    <Button 
+                                      size="sm" 
+                                      variant="default"
+                                      disabled={settlingPoolId === primary.id}
+                                      onClick={() => settlePayouts(primary.id)}
+                                    >
+                                      {settlingPoolId === primary.id ? (
+                                        <>
+                                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                          Settling...
+                                        </>
+                                      ) : (
+                                        "Settle Payouts"
+                                      )}
+                                    </Button>
+                                  )}
+                                  
+                                  {overallStatus === "settling" && (
+                                    <span className="text-sm text-muted-foreground flex items-center gap-1">
+                                      <Loader2 className="h-3 w-3 animate-spin" />
+                                      Processing...
+                                    </span>
+                                  )}
+                                  
+                                  {overallStatus === "settled" && (
+                                    <span className="text-sm text-muted-foreground">Completed</span>
+                                  )}
+                                  
+                                  {overallStatus === "open" && !isContestPastLockTime(primary) && (
+                                    <span className="text-sm text-muted-foreground">Awaiting lock</span>
+                                  )}
+                                  
+                                  {overallStatus !== "settled" && overallStatus !== "voided" && (
+                                    <Button 
+                                      size="sm" 
+                                      variant="destructive"
+                                      disabled={voidingPoolId === primary.id}
+                                      onClick={() => voidContest(primary.id)}
+                                    >
+                                      {voidingPoolId === primary.id ? (
+                                        <>
+                                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                          Voiding...
+                                        </>
+                                      ) : (
+                                        "Void"
+                                      )}
+                                    </Button>
+                                  )}
+                                  
+                                  {overallStatus === "voided" && (
+                                    <span className="text-sm text-destructive">Voided</span>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
