@@ -1,0 +1,2 @@
+ALTER TABLE public.contest_entries DROP CONSTRAINT contest_entries_status_check;
+ALTER TABLE public.contest_entries ADD CONSTRAINT contest_entries_status_check CHECK (status = ANY (ARRAY['active'::text, 'withdrawn'::text, 'settled'::text, 'refunded'::text, 'voided'::text]));
