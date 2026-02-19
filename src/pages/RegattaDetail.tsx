@@ -432,6 +432,51 @@ const RegattaDetail = () => {
             )}
           </div>
 
+          {/* How Scoring Works */}
+          <Card className="mb-6">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Award className="h-5 w-5 text-primary" />
+                How Scoring Works
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground mb-4">
+                Your drafted crews earn points based on their actual finish position.
+              </p>
+              <div className="space-y-1.5">
+                {[
+                  { place: "1st", pts: 100, highlight: true },
+                  { place: "2nd", pts: 75, highlight: false },
+                  { place: "3rd", pts: 60, highlight: false },
+                  { place: "4th", pts: 45, highlight: false },
+                  { place: "5th", pts: 30, highlight: false },
+                  { place: "6th", pts: 15, highlight: false },
+                  { place: "7th+", pts: 10, highlight: false },
+                ].map(({ place, pts, highlight }) => (
+                  <div
+                    key={place}
+                    className={`flex items-center justify-between px-3 py-2 rounded-lg ${
+                      highlight
+                        ? "bg-gradient-to-r from-amber-100 to-yellow-100 dark:from-amber-900/30 dark:to-yellow-900/30 border border-amber-300/50"
+                        : "bg-muted/30"
+                    }`}
+                  >
+                    <span className={`font-semibold ${highlight ? "text-amber-700 dark:text-amber-400" : ""}`}>
+                      {place} Place
+                    </span>
+                    <span className={`font-bold ${highlight ? "text-amber-600 dark:text-amber-400" : "text-foreground"}`}>
+                      {pts} pts
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground mt-4">
+                Margin predictions are used only as a tiebreaker if two users finish with identical points — they do not add to your score.
+              </p>
+            </CardContent>
+          </Card>
+
           {/* Contest Closed Warning */}
           {!isContestOpen && (
             <Card className="mb-6 border-destructive/50 bg-destructive/5">
