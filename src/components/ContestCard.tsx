@@ -18,12 +18,11 @@ interface ContestCardProps {
   currentEntries?: number;
   maxEntries?: number;
   allowOverflow?: boolean;
+  siblingPoolCount?: number;
 }
 
-// Format cents to dollars (always show 2 decimal places)
 const formatCents = (cents: number): string => {
-  const dollars = cents / 100;
-  return `$${dollars.toFixed(2)}`;
+  return `$${(cents / 100).toFixed(2)}`;
 };
 
 export const ContestCard = ({
@@ -38,17 +37,16 @@ export const ContestCard = ({
   currentEntries = 0,
   maxEntries = 0,
   allowOverflow = false,
+  siblingPoolCount = 1,
 }: ContestCardProps) => {
-  // Calculate total prizes from payout structure
   const hasPayoutStructure = payoutStructure && Object.keys(payoutStructure).length > 0;
   const firstPlacePrize = hasPayoutStructure ? payoutStructure["1"] : 0;
-  const totalPrizes = hasPayoutStructure 
+  const totalPrizes = hasPayoutStructure
     ? Object.values(payoutStructure).reduce((sum, val) => sum + val, 0)
     : prizePoolCents;
 
-  // Determine pool status
   const isFull = maxEntries > 0 && currentEntries >= maxEntries;
-  const hasAutoPool = allowOverflow;
+  const hasMultiplePools = siblingPoolCount > 1;
   const showEntriesCount = maxEntries > 0;
 
   return (
@@ -58,19 +56,25 @@ export const ContestCard = ({
         <div className="space-y-3">
           <div className="flex items-start justify-between gap-3">
             <h3 className="font-bold text-xl leading-tight">{regattaName}</h3>
-            <Badge 
-              variant="secondary" 
-              className="flex-shrink-0 bg-primary/10 text-primary border-primary/20 font-medium px-3 py-1"
-            >
-              {genderCategory}
-            </Badge>
+            <div className="flex flex-col items-end gap-1">
+              <Badge
+                variant="secondary"
+                className="flex-shrink-0 bg-primary/10 text-primary border-primary/20 font-medium px-3 py-1"
+              >
+                {genderCategory}
+              </Badge>
+              {hasMultiplePools && (
+                <Badge variant="secondary" className="bg-blue-500/10 text-blue-600 border-blue-500/20 text-xs">
+                  <Infinity className="h-3 w-3 mr-1" />
+                  Auto-Pool
+                </Badge>
+              )}
+            </div>
           </div>
-          <p className="text-sm text-muted-foreground">
-            Join fantasy contests at every popular regatta
-          </p>
+          <p className="text-sm text-muted-foreground">Join fantasy contests at every popular regatta</p>
         </div>
 
-        {/* Prize Pool Display */}
+        {/* Prize Pool */}
         {(hasPayoutStructure || totalPrizes > 0) && (
           <div className="space-y-2">
             <div className="flex items-center gap-2">
@@ -79,7 +83,7 @@ export const ContestCard = ({
                 Guaranteed Prizes
               </Badge>
             </div>
-            
+
             {hasPayoutStructure ? (
               <div className="p-3 rounded-lg bg-gradient-to-r from-amber-50 to-yellow-50 dark:from-amber-950/20 dark:to-yellow-950/20 border border-amber-200/50 dark:border-amber-800/30">
                 <div className="flex items-center gap-2 mb-1">
@@ -88,9 +92,7 @@ export const ContestCard = ({
                     1st Place: {formatCents(firstPlacePrize)}
                   </span>
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  Total Prizes: {formatCents(totalPrizes)}
-                </p>
+                <p className="text-xs text-muted-foreground">Total Prizes: {formatCents(totalPrizes)}</p>
               </div>
             ) : (
               <div className="p-3 rounded-lg bg-muted/30">
@@ -111,13 +113,7 @@ export const ContestCard = ({
               <span className="font-medium">
                 {currentEntries}/{maxEntries}
               </span>
-              {isFull && hasAutoPool && (
-                <Badge variant="secondary" className="bg-blue-500/10 text-blue-600 border-blue-500/20 text-xs">
-                  <Infinity className="h-3 w-3 mr-1" />
-                  Auto-Pool
-                </Badge>
-              )}
-              {isFull && !hasAutoPool && (
+              {isFull && !hasMultiplePools && (
                 <Badge variant="destructive" className="text-xs">
                   Full
                 </Badge>
@@ -149,24 +145,23 @@ export const ContestCard = ({
         <div className="flex items-center justify-between pt-2 border-t">
           <span className="flex items-center gap-2 text-muted-foreground">
             <Clock className="h-4 w-4" />
-            Locks in
+            Locks
           </span>
-          <span className="font-semibold">{lockTime}</span>
+          <span className="font-semibold text-sm">{lockTime}</span>
         </div>
       </CardContent>
 
       <CardFooter className="p-6 pt-0">
         <Link to={`/regatta/${id}`} className="w-full">
-          <Button 
+          <Button
             className="w-full bg-primary hover:bg-primary/90 text-white font-semibold py-6 rounded-xl"
-            disabled={isFull && !hasAutoPool}
+            disabled={isFull && !allowOverflow && !hasMultiplePools}
           >
-            {isFull && hasAutoPool 
-              ? "Join Overflow Pool" 
-              : isFull 
-                ? "Contest Full" 
-                : "View Entry Options"
-            }
+            {isFull && (allowOverflow || hasMultiplePools)
+              ? "Join Next Pool"
+              : isFull
+                ? "Contest Full"
+                : "View Entry Options"}
           </Button>
         </Link>
       </CardFooter>
