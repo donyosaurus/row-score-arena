@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { ContestCard } from "@/components/ContestCard";
@@ -31,6 +31,7 @@ interface MappedContest {
   regattaName: string;
   genderCategory: "Men's" | "Women's";
   lockTime: string;
+  lockTimeRaw: string;
   divisions: string[];
   entryTiers: number;
   entryFeeCents: number;
@@ -40,19 +41,24 @@ interface MappedContest {
   maxEntries: number;
   allowOverflow: boolean;
   createdAt: string;
+  siblingPoolCount: number;
 }
 
 const Lobby = () => {
   const [contests, setContests] = useState<MappedContest[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [genderFilter, setGenderFilter] = useState("all");
+  const [lockFilter, setLockFilter] = useState("all");
 
   useEffect(() => {
     const fetchContests = async () => {
       setLoading(true);
-      
+
       const { data, error } = await supabase
         .from("contest_pools")
-        .select(`
+        .select(
+          `
           id,
           lock_time,
           status,
@@ -65,7 +71,8 @@ const Lobby = () => {
           created_at,
           contest_templates(regatta_name),
           contest_pool_crews(event_id)
-        `)
+        `,
+        )
         .in("status", ["open", "locked"]);
 
       if (error) {
@@ -76,12 +83,10 @@ const Lobby = () => {
 
       const mapped: MappedContest[] = (data as unknown as ContestPool[]).map((pool) => {
         const regattaName = pool.contest_templates?.regatta_name || "Unknown Regatta";
-        const genderCategory: "Men's" | "Women's" = regattaName.toLowerCase().includes("women") 
-          ? "Women's" 
-          : "Men's";
-        
-        const divisions = [...new Set(pool.contest_pool_crews?.map(c => c.event_id) || [])];
-        
+        const genderCategory: "Men's" | "Women's" = regattaName.toLowerCase().includes("women") ? "Women's" : "Men's";
+
+        const divisions = [...new Set(pool.contest_pool_crews?.map((c) => c.event_id) || [])];
+
         const lockTime = new Date(pool.lock_time).toLocaleString("en-US", {
           month: "long",
           day: "numeric",
@@ -96,6 +101,7 @@ const Lobby = () => {
           regattaName,
           genderCategory,
           lockTime,
+          lockTimeRaw: pool.lock_time,
           divisions,
           entryTiers: 1,
           entryFeeCents: pool.entry_fee_cents,
@@ -105,35 +111,36 @@ const Lobby = () => {
           maxEntries: pool.max_entries || 0,
           allowOverflow: pool.allow_overflow || false,
           createdAt: pool.created_at,
+          siblingPoolCount: 1, // will be updated after grouping
         };
       });
 
       // Group by unique event (regattaName + genderCategory + entryFee)
-      const grouped = mapped.reduce((acc, contest) => {
-        const key = `${contest.regattaName}|${contest.genderCategory}|${contest.entryFeeCents}`;
-        if (!acc[key]) {
-          acc[key] = [];
-        }
-        acc[key].push(contest);
-        return acc;
-      }, {} as Record<string, MappedContest[]>);
+      const grouped = mapped.reduce(
+        (acc, contest) => {
+          const key = `${contest.regattaName}|${contest.genderCategory}|${contest.entryFeeCents}`;
+          if (!acc[key]) acc[key] = [];
+          acc[key].push(contest);
+          return acc;
+        },
+        {} as Record<string, MappedContest[]>,
+      );
 
-      // Select best pool per group
+      // Select best pool per group — oldest open pool with space first (fills A→B→C in order)
       const deduplicated = Object.values(grouped).map((pools) => {
-        // Prefer open pools with space available
-        const openWithSpace = pools.filter(p => p.currentEntries < p.maxEntries);
-        
+        const siblingPoolCount = pools.length;
+        const openWithSpace = pools.filter((p) => p.currentEntries < p.maxEntries);
+
+        let best: MappedContest;
         if (openWithSpace.length > 0) {
-          // Pick most recently created among those with space
-          return openWithSpace.sort((a, b) => 
-            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-          )[0];
+          // Oldest pool with space — so pools fill sequentially
+          best = openWithSpace.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())[0];
+        } else {
+          // All full — show most recent (will display Auto-Pool badge)
+          best = pools.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
         }
-        
-        // All full - pick most recently created (shows Auto-Pool badge)
-        return pools.sort((a, b) => 
-          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-        )[0];
+
+        return { ...best, siblingPoolCount };
       });
 
       setContests(deduplicated);
@@ -143,17 +150,38 @@ const Lobby = () => {
     fetchContests();
   }, []);
 
+  // Apply search and filter — runs client-side on the deduplicated list
+  const filteredContests = useMemo(() => {
+    const now = new Date();
+    return contests.filter((c) => {
+      const matchSearch = c.regattaName.toLowerCase().includes(searchTerm.toLowerCase());
+
+      const matchGender =
+        genderFilter === "all" ||
+        (genderFilter === "mens" && c.genderCategory === "Men's") ||
+        (genderFilter === "womens" && c.genderCategory === "Women's");
+
+      const lockDate = new Date(c.lockTimeRaw);
+      const hoursUntilLock = (lockDate.getTime() - now.getTime()) / (1000 * 60 * 60);
+      const matchLock =
+        lockFilter === "all" ||
+        (lockFilter === "soon" && hoursUntilLock > 0 && hoursUntilLock <= 6) ||
+        (lockFilter === "today" && lockDate.toDateString() === now.toDateString()) ||
+        (lockFilter === "week" && hoursUntilLock > 0 && hoursUntilLock <= 168);
+
+      return matchSearch && matchGender && matchLock;
+    });
+  }, [contests, searchTerm, genderFilter, lockFilter]);
+
   return (
     <div className="flex flex-col min-h-screen">
       <Header />
-      
+
       <main className="flex-1 bg-background py-16">
         <div className="container mx-auto px-4">
           <div className="mb-12 text-center max-w-3xl mx-auto">
             <h1 className="text-4xl md:text-5xl font-bold mb-4">Available Contests</h1>
-            <p className="text-xl text-muted-foreground">
-              Browse open contests and enter to compete
-            </p>
+            <p className="text-xl text-muted-foreground">Browse open contests and enter to compete</p>
           </div>
 
           {/* Filters */}
@@ -163,10 +191,12 @@ const Lobby = () => {
               <Input
                 placeholder="Search by event or race..."
                 className="pl-10"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
-            
-            <Select defaultValue="all">
+
+            <Select value={genderFilter} onValueChange={setGenderFilter}>
               <SelectTrigger>
                 <SelectValue placeholder="Gender" />
               </SelectTrigger>
@@ -177,7 +207,7 @@ const Lobby = () => {
               </SelectContent>
             </Select>
 
-            <Select defaultValue="all">
+            <Select value={lockFilter} onValueChange={setLockFilter}>
               <SelectTrigger>
                 <SelectValue placeholder="Lock Time" />
               </SelectTrigger>
@@ -190,7 +220,7 @@ const Lobby = () => {
             </Select>
           </div>
 
-          {/* Loading State */}
+          {/* Loading */}
           {loading && (
             <div className="flex justify-center py-16">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -198,11 +228,11 @@ const Lobby = () => {
           )}
 
           {/* Contest Grid */}
-          {!loading && contests.length > 0 && (
+          {!loading && filteredContests.length > 0 && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {contests.map((contest) => (
-                <ContestCard 
-                  key={contest.id} 
+              {filteredContests.map((contest) => (
+                <ContestCard
+                  key={contest.id}
                   id={contest.id}
                   regattaName={contest.regattaName}
                   genderCategory={contest.genderCategory}
@@ -214,19 +244,24 @@ const Lobby = () => {
                   currentEntries={contest.currentEntries}
                   maxEntries={contest.maxEntries}
                   allowOverflow={contest.allowOverflow}
+                  siblingPoolCount={contest.siblingPoolCount}
                 />
               ))}
             </div>
           )}
 
-          {/* Empty State */}
-          {!loading && contests.length === 0 && (
+          {/* Empty state */}
+          {!loading && filteredContests.length === 0 && (
             <div className="text-center py-16">
               <p className="text-xl text-muted-foreground mb-4">
-                No contests available right now
+                {searchTerm || genderFilter !== "all" || lockFilter !== "all"
+                  ? "No contests match your filters"
+                  : "No contests available right now"}
               </p>
               <p className="text-muted-foreground">
-                Check back soon for new contests
+                {searchTerm || genderFilter !== "all" || lockFilter !== "all"
+                  ? "Try adjusting your search or filters"
+                  : "Check back soon for new contests"}
               </p>
             </div>
           )}
