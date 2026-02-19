@@ -225,54 +225,69 @@ const Admin = () => {
     ));
   };
 
+  // Single entry point: save results → score all sibling pools → settle all sibling pools
   const submitResults = async () => {
     if (!selectedContest) return;
-    
-    // Validate all crews have finish_order
+
     const invalidEntries = resultsForm.filter(r => !r.finish_order);
     if (invalidEntries.length > 0) {
       toast.error("Please enter finish order for all crews");
       return;
     }
-    
+
     setSubmittingResults(true);
-    
+
     try {
+      // Step 1: Save race results
       const results = resultsForm.map(r => ({
         crew_id: r.crew_id,
         finish_order: parseInt(r.finish_order),
-        finish_time: r.finish_time || null
+        finish_time: r.finish_time || null,
       }));
-      
-      const { data, error } = await supabase.functions.invoke("admin-contest-results", {
-        body: { contestPoolId: selectedContest.id, results }
+
+      const { error: resultsError } = await supabase.functions.invoke("admin-contest-results", {
+        body: { contestPoolId: selectedContest.id, results },
       });
-      
-      if (error) throw error;
-      
-      toast.success("Results submitted successfully");
+      if (resultsError) throw new Error(`Saving results failed: ${resultsError.message}`);
+      toast.success("Results saved. Calculating scores...");
+
+      // Step 2: Score all sibling pools
+      const { data: scoringData, error: scoringError } = await supabase.functions.invoke("contest-scoring", {
+        body: { contestPoolId: selectedContest.id },
+      });
+      if (scoringError) throw new Error(`Scoring failed: ${scoringError.message}`);
+      const poolsScored = scoringData?.poolsScored || 1;
+      toast.success(`Scored ${poolsScored} pool(s). Settling payouts...`);
+
+      // Step 3: Settle payouts for all sibling pools
+      const { data: settleData, error: settleError } = await supabase.functions.invoke("contest-settlement", {
+        body: { contestPoolId: selectedContest.id },
+      });
+      if (settleError) throw new Error(`Settlement failed: ${settleError.message}`);
+
+      const winnersCount = settleData?.winnersCount || 0;
+      toast.success(`Done! ${winnersCount} winner(s) paid out across all pools.`);
+
       setResultsModalOpen(false);
       setSelectedContest(null);
       loadDashboardData();
     } catch (error: any) {
-      console.error("Error submitting results:", error);
-      toast.error(error.message || "Failed to submit results");
+      console.error("Error in results/scoring/settlement:", error);
+      toast.error(error.message || "Failed to complete results entry");
     } finally {
       setSubmittingResults(false);
     }
   };
 
+  // Manual re-settle if something went wrong
   const settlePayouts = async (contestPoolId: string) => {
     setSettlingPoolId(contestPoolId);
-    
     try {
-      const { data, error } = await supabase.functions.invoke("contest-settle", {
-        body: { contestPoolId }
+      const { data, error } = await supabase.functions.invoke("contest-settlement", {
+        body: { contestPoolId },
       });
-      
       if (error) throw error;
-      
-      toast.success(`Payouts settled! ${data?.winners_count || 0} winner(s) paid`);
+      toast.success(`Payouts settled! ${data?.winnersCount || 0} winner(s) paid`);
       loadDashboardData();
     } catch (error: any) {
       console.error("Error settling payouts:", error);
@@ -282,35 +297,19 @@ const Admin = () => {
     }
   };
 
+  // Manual re-score if something went wrong
   const calculateScores = async (contestPoolId: string) => {
     setScoringPoolId(contestPoolId);
-    
     try {
-      // Step 1: Calculate scores for all sibling pools
       const { data: scoringData, error: scoringError } = await supabase.functions.invoke("contest-scoring", {
-        body: { contestPoolId }
+        body: { contestPoolId },
       });
-      
       if (scoringError) throw scoringError;
-      
-      const poolsScored = scoringData?.poolsScored || 1;
-      toast.success(`Scores calculated for ${poolsScored} pool(s). Settling payouts...`);
-      
-      // Step 2: Immediately settle payouts for all sibling pools
-      const { data: settleData, error: settleError } = await supabase.functions.invoke("contest-settle", {
-        body: { contestPoolId }
-      });
-      
-      if (settleError) throw settleError;
-      
-      const poolsSettled = settleData?.poolsSettled || 1;
-      const totalProfit = settleData?.totalProfit || 0;
-      toast.success(`Settlement complete! ${poolsSettled} pool(s) settled. Total profit: $${(totalProfit / 100).toFixed(2)}`);
-      
+      toast.success(`Scores recalculated for ${scoringData?.poolsScored || 1} pool(s)`);
       loadDashboardData();
     } catch (error: any) {
-      console.error("Error in scoring/settlement:", error);
-      toast.error(error.message || "Failed to complete scoring and settlement");
+      console.error("Error calculating scores:", error);
+      toast.error(error.message || "Failed to calculate scores");
     } finally {
       setScoringPoolId(null);
     }
