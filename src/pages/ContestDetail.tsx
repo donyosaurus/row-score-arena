@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -10,351 +10,410 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Clock, DollarSign, Info, Target, Plus, Trash2, Trophy, Loader2 } from "lucide-react";
-import { Regatta, DraftPick, FINISH_POINTS, EntryTier } from "@/types/contest";
+import { ArrowLeft, Clock, DollarSign, Info, Plus, Trash2, Trophy, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
-// Mock regatta data - must match RegattaDetail data
-const mockRegattas: Record<string, Regatta> = {
-  "1": {
-    id: "1",
-    regattaName: "Eastern Sprints Regatta 2026",
-    genderCategory: "Men's",
-    lockTime: "May 17, 2026 at 8:00 AM EST",
-    minPicks: 2,
-    maxPicks: 3,
-    divisions: [
-      { id: "div1", name: "Heavyweight Varsity 8+", boatClass: "Varsity 8+", category: "Heavyweight" },
-      { id: "div2", name: "Lightweight Varsity 8+", boatClass: "Varsity 8+", category: "Lightweight" },
-      { id: "div3", name: "Varsity 4+", boatClass: "Four", category: "Heavyweight" },
-    ],
-    crews: [
-      { id: "crew1", name: "Harvard", institution: "Harvard University", divisionId: "div1", seedPosition: 1 },
-      { id: "crew2", name: "Yale", institution: "Yale University", divisionId: "div1", seedPosition: 2 },
-      { id: "crew3", name: "Princeton", institution: "Princeton University", divisionId: "div1", seedPosition: 3 },
-      { id: "crew4", name: "Brown", institution: "Brown University", divisionId: "div1", seedPosition: 4 },
-      { id: "crew5", name: "Cornell", institution: "Cornell University", divisionId: "div2", seedPosition: 1 },
-      { id: "crew6", name: "Columbia", institution: "Columbia University", divisionId: "div2", seedPosition: 2 },
-      { id: "crew7", name: "Princeton", institution: "Princeton University", divisionId: "div2", seedPosition: 3 },
-      { id: "crew8", name: "Harvard", institution: "Harvard University", divisionId: "div3", seedPosition: 1 },
-    ],
-    entryTiers: [
-      { id: "h2h-10", type: "H2H", entryFee: 10, prize: 18.50, capacity: 2, filled: 0 },
-      { id: "h2h-25", type: "H2H", entryFee: 25, prize: 47.50, capacity: 2, filled: 1 },
-      { id: "h2h-100", type: "H2H", entryFee: 100, prize: 195.50, capacity: 2, filled: 0 },
-      { id: "5p-20", type: "5_PERSON", entryFee: 20, prize: 62.50, capacity: 5, filled: 2 },
-    ],
-  },
-  "2": {
-    id: "2",
-    regattaName: "IRA National Championship 2026",
-    genderCategory: "Men's",
-    lockTime: "May 29, 2026 at 9:00 AM PST",
-    minPicks: 2,
-    maxPicks: 4,
-    divisions: [
-      { id: "div1", name: "Heavyweight Varsity 8+", boatClass: "Varsity 8+", category: "Heavyweight" },
-      { id: "div2", name: "Lightweight Varsity 8+", boatClass: "Varsity 8+", category: "Lightweight" },
-      { id: "div3", name: "Second Varsity 8+", boatClass: "Second Varsity 8+", category: "Heavyweight" },
-    ],
-    crews: [
-      { id: "crew1", name: "Washington", institution: "University of Washington", divisionId: "div1", seedPosition: 1 },
-      { id: "crew2", name: "Yale", institution: "Yale University", divisionId: "div1", seedPosition: 2 },
-      { id: "crew3", name: "California", institution: "University of California", divisionId: "div1", seedPosition: 3 },
-      { id: "crew4", name: "Harvard", institution: "Harvard University", divisionId: "div1", seedPosition: 4 },
-      { id: "crew5", name: "Princeton", institution: "Princeton University", divisionId: "div2", seedPosition: 1 },
-      { id: "crew6", name: "Yale", institution: "Yale University", divisionId: "div2", seedPosition: 2 },
-      { id: "crew7", name: "Harvard", institution: "Harvard University", divisionId: "div2", seedPosition: 3 },
-      { id: "crew8", name: "Washington", institution: "University of Washington", divisionId: "div3", seedPosition: 1 },
-    ],
-    entryTiers: [
-      { id: "h2h-10", type: "H2H", entryFee: 10, prize: 18.50, capacity: 2, filled: 0 },
-      { id: "h2h-25", type: "H2H", entryFee: 25, prize: 47.50, capacity: 2, filled: 1 },
-      { id: "h2h-100", type: "H2H", entryFee: 100, prize: 195.50, capacity: 2, filled: 0 },
-      { id: "5p-20", type: "5_PERSON", entryFee: 20, prize: 62.50, capacity: 5, filled: 3 },
-    ],
-  },
-  "3": {
-    id: "3",
-    regattaName: "Women's NCAA Championship 2026",
-    genderCategory: "Women's",
-    lockTime: "May 30, 2026 at 10:00 AM EST",
-    minPicks: 2,
-    maxPicks: 3,
-    divisions: [
-      { id: "div1", name: "Varsity 8+", boatClass: "Varsity 8+", category: "Open" },
-      { id: "div2", name: "Second Varsity 8+", boatClass: "Second Varsity 8+", category: "Open" },
-      { id: "div3", name: "Varsity 4+", boatClass: "Four", category: "Open" },
-    ],
-    crews: [
-      { id: "crew1", name: "Texas", institution: "University of Texas", divisionId: "div1", seedPosition: 1 },
-      { id: "crew2", name: "Stanford", institution: "Stanford University", divisionId: "div1", seedPosition: 2 },
-      { id: "crew3", name: "Washington", institution: "University of Washington", divisionId: "div1", seedPosition: 3 },
-      { id: "crew4", name: "Brown", institution: "Brown University", divisionId: "div1", seedPosition: 4 },
-      { id: "crew5", name: "Stanford", institution: "Stanford University", divisionId: "div2", seedPosition: 1 },
-      { id: "crew6", name: "Washington", institution: "University of Washington", divisionId: "div2", seedPosition: 2 },
-      { id: "crew7", name: "Texas", institution: "University of Texas", divisionId: "div3", seedPosition: 1 },
-    ],
-    entryTiers: [
-      { id: "h2h-10", type: "H2H", entryFee: 10, prize: 18.50, capacity: 2, filled: 1 },
-      { id: "h2h-25", type: "H2H", entryFee: 25, prize: 47.50, capacity: 2, filled: 0 },
-      { id: "h2h-100", type: "H2H", entryFee: 100, prize: 195.50, capacity: 2, filled: 0 },
-      { id: "5p-20", type: "5_PERSON", entryFee: 20, prize: 62.50, capacity: 5, filled: 2 },
-    ],
-  },
-  "9": {
-    id: "9",
-    regattaName: "World Rowing Championships 2026",
-    genderCategory: "Men's",
-    lockTime: "August 25, 2026 at 3:00 AM EST",
-    minPicks: 2,
-    maxPicks: 5,
-    divisions: [
-      { id: "div1", name: "Men's Eight", boatClass: "Eight", category: "Open" },
-      { id: "div2", name: "Men's Four", boatClass: "Four", category: "Open" },
-      { id: "div3", name: "Men's Pair", boatClass: "Pair", category: "Open" },
-      { id: "div4", name: "Men's Single Sculls", boatClass: "Single Sculls", category: "Open" },
-      { id: "div5", name: "Men's Quad Sculls", boatClass: "Quad Sculls", category: "Open" },
-    ],
-    crews: [
-      { id: "crew1", name: "Great Britain", institution: "Great Britain", divisionId: "div1", seedPosition: 1 },
-      { id: "crew2", name: "Netherlands", institution: "Netherlands", divisionId: "div1", seedPosition: 2 },
-      { id: "crew3", name: "Australia", institution: "Australia", divisionId: "div2", seedPosition: 1 },
-      { id: "crew4", name: "New Zealand", institution: "New Zealand", divisionId: "div2", seedPosition: 2 },
-      { id: "crew5", name: "Croatia", institution: "Croatia", divisionId: "div3", seedPosition: 1 },
-      { id: "crew6", name: "Oliver Zeidler", institution: "Germany", divisionId: "div4", seedPosition: 1 },
-      { id: "crew7", name: "Netherlands", institution: "Netherlands", divisionId: "div5", seedPosition: 1 },
-    ],
-    entryTiers: [
-      { id: "h2h-10", type: "H2H", entryFee: 10, prize: 18.50, capacity: 2, filled: 1 },
-      { id: "h2h-25", type: "H2H", entryFee: 25, prize: 47.50, capacity: 2, filled: 2 },
-      { id: "h2h-100", type: "H2H", entryFee: 100, prize: 195.50, capacity: 2, filled: 0 },
-      { id: "5p-20", type: "5_PERSON", entryFee: 20, prize: 62.50, capacity: 5, filled: 3 },
-    ],
-  },
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+interface PoolCrew {
+  id: string;
+  crew_id: string;
+  crew_name: string;
+  event_id: string;
+}
+
+interface ContestPool {
+  id: string;
+  lock_time: string;
+  status: string;
+  entry_fee_cents: number;
+  prize_pool_cents: number;
+  payout_structure: Record<string, number> | null;
+  current_entries: number;
+  max_entries: number;
+  contest_template_id: string;
+  contest_templates: {
+    id: string;
+    regatta_name: string;
+    gender_category: string;
+    min_picks: number;
+    max_picks: number;
+  };
+  contest_pool_crews: PoolCrew[];
+}
+
+interface DraftPick {
+  crewId: string;
+  crewName: string;
+  eventId: string;
+  predictedMargin: number;
+}
+
+// Canonical finish-order points — matches shared/scoring-logic.ts exactly
+const FINISH_POINTS: Record<number, number> = {
+  1: 100,
+  2: 75,
+  3: 60,
+  4: 45,
+  5: 35,
+  6: 25,
+  7: 15,
 };
+const DEFAULT_POINTS = 10;
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function formatLockTime(iso: string): string {
+  return new Date(iso).toLocaleString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+    timeZoneName: "short",
+  });
+}
+
+function centsToDisplay(cents: number): string {
+  return (cents / 100).toFixed(2);
+}
+
+function ordinal(n: number): string {
+  const s = ["th", "st", "nd", "rd"];
+  const v = n % 100;
+  return n + (s[(v - 20) % 10] || s[v] || s[0]);
+}
+
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
 
 const ContestDetail = () => {
-  const { id, tierId } = useParams();
+  const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { user, loading } = useAuth();
+  const { user, loading: authLoading } = useAuth();
+
+  const [contestPool, setContestPool] = useState<ContestPool | null>(null);
+  const [poolLoading, setPoolLoading] = useState(true);
+  const [poolError, setPoolError] = useState<string | null>(null);
+
+  // Wallet balance in cents (matches DB storage)
+  const [walletBalanceCents, setWalletBalanceCents] = useState<number | null>(null);
+
+  // Draft state
   const [draftPicks, setDraftPicks] = useState<DraftPick[]>([]);
-  const [currentDivision, setCurrentDivision] = useState<string>("");
-  const [currentCrew, setCurrentCrew] = useState<string>("");
+  const [currentEventId, setCurrentEventId] = useState<string>("");
+  const [currentCrewId, setCurrentCrewId] = useState<string>("");
   const [currentMargin, setCurrentMargin] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [walletBalance, setWalletBalance] = useState<number | null>(null);
 
+  // Auth guard
   useEffect(() => {
-    if (!loading && !user) {
+    if (!authLoading && !user) {
       navigate("/login");
     }
-  }, [user, loading, navigate]);
+  }, [user, authLoading, navigate]);
 
-  // Fetch wallet balance
+  // Fetch contest pool from Supabase
   useEffect(() => {
-    const fetchWalletBalance = async () => {
-      if (!user) return;
-      
+    if (!id) return;
+    const fetchPool = async () => {
+      setPoolLoading(true);
+      setPoolError(null);
       const { data, error } = await supabase
-        .from('wallets')
-        .select('available_balance')
-        .eq('user_id', user.id)
+        .from("contest_pools")
+        .select(
+          `
+          id,
+          lock_time,
+          status,
+          entry_fee_cents,
+          prize_pool_cents,
+          payout_structure,
+          current_entries,
+          max_entries,
+          contest_template_id,
+          contest_templates (
+            id,
+            regatta_name,
+            gender_category,
+            min_picks,
+            max_picks
+          ),
+          contest_pool_crews (
+            id,
+            crew_id,
+            crew_name,
+            event_id
+          )
+        `,
+        )
+        .eq("id", id)
         .single();
-      
-      if (error) {
-        console.error('Error fetching wallet:', error);
-        return;
+
+      if (error || !data) {
+        console.error("Error fetching contest pool:", error);
+        setPoolError("Contest not found.");
+      } else {
+        setContestPool(data as unknown as ContestPool);
       }
-      
-      setWalletBalance(data?.available_balance ? Number(data.available_balance) : 0);
+      setPoolLoading(false);
     };
-    
-    fetchWalletBalance();
+    fetchPool();
+  }, [id]);
+
+  // Fetch wallet balance in cents
+  useEffect(() => {
+    if (!user) return;
+    const fetchWallet = async () => {
+      const { data, error } = await supabase
+        .from("wallets")
+        .select("available_balance")
+        .eq("user_id", user.id)
+        .single();
+      if (!error && data) {
+        setWalletBalanceCents(Number(data.available_balance));
+      }
+    };
+    fetchWallet();
   }, [user]);
 
-  const mockRegatta = mockRegattas[id || "1"] || mockRegattas["1"];
+  // Derived: group crews by event_id
+  const crewsByEvent = useMemo(() => {
+    if (!contestPool) return {} as Record<string, PoolCrew[]>;
+    return contestPool.contest_pool_crews.reduce(
+      (acc, crew) => {
+        if (!acc[crew.event_id]) acc[crew.event_id] = [];
+        acc[crew.event_id].push(crew);
+        return acc;
+      },
+      {} as Record<string, PoolCrew[]>,
+    );
+  }, [contestPool]);
 
-  if (loading) {
-    return null;
-  }
+  const pickedEvents = useMemo(() => new Set(draftPicks.map((p) => p.eventId)), [draftPicks]);
+  const availableEventIds = useMemo(
+    () => Object.keys(crewsByEvent).filter((eid) => !pickedEvents.has(eid)),
+    [crewsByEvent, pickedEvents],
+  );
+  const availableCrews = useMemo(
+    () => (currentEventId ? crewsByEvent[currentEventId] || [] : []),
+    [crewsByEvent, currentEventId],
+  );
 
-  const selectedTier = mockRegatta.entryTiers.find(t => t.id === tierId);
-  if (!selectedTier) {
-    return <div>Tier not found</div>;
-  }
+  const payoutRows = useMemo(() => {
+    if (!contestPool?.payout_structure) return [];
+    return Object.entries(contestPool.payout_structure)
+      .map(([rank, cents]) => ({ rank: Number(rank), cents }))
+      .sort((a, b) => a.rank - b.rank);
+  }, [contestPool]);
 
+  const minPicks = contestPool?.contest_templates?.min_picks ?? 2;
+  const maxPicks = contestPool?.contest_templates?.max_picks ?? 4;
+
+  // Draft actions
   const addPick = () => {
-    if (!currentCrew || !currentMargin) {
-      toast.error("Please fill in all fields");
+    if (!currentCrewId || !currentMargin) {
+      toast.error("Please select a crew and enter a margin prediction.");
       return;
     }
-
-    const crew = mockRegatta.crews.find(c => c.id === currentCrew);
+    const margin = parseFloat(currentMargin);
+    if (isNaN(margin) || margin <= 0) {
+      toast.error("Please enter a valid margin in seconds (e.g. 1.42).");
+      return;
+    }
+    if (draftPicks.length >= maxPicks) {
+      toast.error(`Maximum ${maxPicks} picks allowed.`);
+      return;
+    }
+    const crew = contestPool!.contest_pool_crews.find((c) => c.crew_id === currentCrewId);
     if (!crew) return;
 
-    // Check if division already picked
-    if (draftPicks.some(p => p.divisionId === crew.divisionId)) {
-      toast.error("You've already picked from this division");
+    if (pickedEvents.has(crew.event_id)) {
+      toast.error("You already have a crew from this event.");
       return;
     }
 
-    // Check max picks
-    if (draftPicks.length >= mockRegatta.maxPicks) {
-      toast.error(`Maximum ${mockRegatta.maxPicks} picks allowed`);
-      return;
-    }
-
-    const newPick: DraftPick = {
-      crewId: currentCrew,
-      divisionId: crew.divisionId,
-      predictedMargin: parseFloat(currentMargin),
-    };
-
-    setDraftPicks([...draftPicks, newPick]);
-    setCurrentCrew("");
+    setDraftPicks([
+      ...draftPicks,
+      {
+        crewId: crew.crew_id,
+        crewName: crew.crew_name,
+        eventId: crew.event_id,
+        predictedMargin: margin,
+      },
+    ]);
+    setCurrentCrewId("");
     setCurrentMargin("");
-    setCurrentDivision("");
-    toast.success("Crew added to draft");
+    setCurrentEventId("");
+    toast.success(`${crew.crew_name} added to your draft.`);
   };
 
   const removePick = (index: number) => {
     setDraftPicks(draftPicks.filter((_, i) => i !== index));
-    toast.info("Pick removed");
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (draftPicks.length < mockRegatta.minPicks) {
-      toast.error(`You must draft at least ${mockRegatta.minPicks} teams`);
+  // Submit entry
+  const handleSubmit = async () => {
+    if (!contestPool || !user) return;
+
+    if (draftPicks.length < minPicks) {
+      toast.error(`You must pick at least ${minPicks} crews from different events.`);
       return;
     }
 
-    if (!selectedTier) {
-      toast.error("Invalid entry tier");
+    const uniqueEvents = new Set(draftPicks.map((p) => p.eventId));
+    if (uniqueEvents.size < 2) {
+      toast.error("You must pick crews from at least 2 different events.");
       return;
     }
 
-    // Check wallet balance
-    if (walletBalance === null) {
-      toast.error("Unable to verify wallet balance");
+    if (walletBalanceCents === null) {
+      toast.error("Unable to verify wallet balance. Please refresh and try again.");
       return;
     }
 
-    if (walletBalance < selectedTier.entryFee) {
-      toast.error(`Insufficient balance. You need $${selectedTier.entryFee} but have $${walletBalance.toFixed(2)}`);
+    // All comparisons in cents — no unit mismatch
+    if (walletBalanceCents < contestPool.entry_fee_cents) {
+      toast.error(
+        `Insufficient balance. You need $${centsToDisplay(contestPool.entry_fee_cents)} but have $${centsToDisplay(walletBalanceCents)}.`,
+      );
+      return;
+    }
+
+    if (contestPool.status !== "open") {
+      toast.error("This contest is no longer accepting entries.");
       return;
     }
 
     setIsSubmitting(true);
-
     try {
-      // Call contest-enter edge function
-      const { data, error } = await supabase.functions.invoke('contest-enter', {
+      const { data, error } = await supabase.functions.invoke("contest-matchmaking", {
         body: {
-          contestTemplateId: id,
-          tierId: tierId,
-          picks: draftPicks.map(pick => ({
+          contestTemplateId: contestPool.contest_template_id,
+          tierId: contestPool.id,
+          picks: draftPicks.map((pick) => ({
             crewId: pick.crewId,
-            divisionId: pick.divisionId,
-            predictedMargin: pick.predictedMargin
-          }))
-        }
+            event_id: pick.eventId,
+            predictedMargin: pick.predictedMargin,
+          })),
+          entryFeeCents: contestPool.entry_fee_cents,
+          stateCode: null,
+        },
       });
 
       if (error) {
-        console.error('Contest entry error:', error);
-        
-        // Handle specific error messages
-        if (error.message?.includes('Insufficient balance')) {
-          toast.error('Insufficient balance to enter this contest');
-        } else if (error.message?.includes('Already entered')) {
-          toast.error('You have already entered this contest');
-        } else if (error.message?.includes('not open')) {
-          toast.error('Contest entry period has ended');
+        console.error("Matchmaking error:", error);
+        if (error.message?.includes("Insufficient balance")) {
+          toast.error("Insufficient balance to enter this contest.");
+        } else if (error.message?.includes("already entered")) {
+          toast.error("You have already entered this contest.");
+        } else if (error.message?.includes("not open")) {
+          toast.error("Contest entry period has ended.");
         } else {
-          toast.error('Failed to submit entry. Please try again.');
+          toast.error("Failed to submit entry. Please try again.");
         }
         return;
       }
 
-      if (!data?.success) {
-        toast.error(data?.error || 'Failed to submit entry');
+      if (!data?.entryId) {
+        toast.error(data?.error || "Failed to submit entry.");
         return;
       }
 
-      // Success!
-      toast.success('Entry submitted successfully! Matching you with other players...');
-      
-      // Refresh wallet balance
+      toast.success("Entry submitted! You're in the contest.");
+
+      // Refresh wallet
       const { data: walletData } = await supabase
-        .from('wallets')
-        .select('available_balance')
-        .eq('user_id', user!.id)
+        .from("wallets")
+        .select("available_balance")
+        .eq("user_id", user.id)
         .single();
-      
-      if (walletData) {
-        setWalletBalance(Number(walletData.available_balance));
-      }
+      if (walletData) setWalletBalanceCents(Number(walletData.available_balance));
 
-      // Navigate to My Entries after a short delay
-      setTimeout(() => {
-        navigate('/my-entries');
-      }, 1500);
-
-    } catch (error) {
-      console.error('Unexpected error:', error);
-      toast.error('An unexpected error occurred. Please try again.');
+      setTimeout(() => navigate("/my-entries"), 1500);
+    } catch (err) {
+      console.error("Unexpected error:", err);
+      toast.error("An unexpected error occurred. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const availableDivisions = mockRegatta.divisions.filter(
-    div => !draftPicks.some(p => p.divisionId === div.id)
-  );
+  // ---------------------------------------------------------------------------
+  // Loading / error states
+  // ---------------------------------------------------------------------------
 
-  const availableCrews = currentDivision
-    ? mockRegatta.crews.filter(c => c.divisionId === currentDivision)
-    : [];
+  if (authLoading || poolLoading) {
+    return (
+      <div className="flex flex-col min-h-screen">
+        <Header />
+        <main className="flex-1 flex items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </main>
+        <Footer />
+      </div>
+    );
+  }
 
-  const getCrewName = (crewId: string) => {
-    const crew = mockRegatta.crews.find(c => c.id === crewId);
-    return crew ? `${crew.name} (${crew.institution})` : "";
-  };
+  if (poolError || !contestPool) {
+    return (
+      <div className="flex flex-col min-h-screen">
+        <Header />
+        <main className="flex-1 flex flex-col items-center justify-center gap-4">
+          <p className="text-xl text-muted-foreground">{poolError || "Contest not found."}</p>
+          <Button variant="outline" onClick={() => navigate("/lobby")}>
+            Back to Lobby
+          </Button>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
 
-  const getDivisionName = (divisionId: string) => {
-    const div = mockRegatta.divisions.find(d => d.id === divisionId);
-    return div?.name || "";
-  };
+  const template = contestPool.contest_templates;
+
+  // ---------------------------------------------------------------------------
+  // Render
+  // ---------------------------------------------------------------------------
 
   return (
     <div className="flex flex-col min-h-screen">
       <Header />
-      
+
       <main className="flex-1 gradient-subtle py-12">
         <div className="container mx-auto px-4 max-w-5xl">
-          <Link to={`/regatta/${id}`} className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground mb-6 transition-base">
+          <Link
+            to={`/regatta/${id}`}
+            className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground mb-6 transition-base"
+          >
             <ArrowLeft className="h-4 w-4" />
             Back to Entry Options
           </Link>
 
-          {/* Contest Header */}
+          {/* Header */}
           <div className="mb-8">
             <div className="flex items-start justify-between mb-4">
               <div>
-                <h1 className="text-4xl font-bold mb-2">{mockRegatta.regattaName}</h1>
+                <h1 className="text-4xl font-bold mb-2">{template.regatta_name}</h1>
                 <p className="text-lg text-muted-foreground">
-                  {mockRegatta.genderCategory} Multi-Team Fantasy • Pick {mockRegatta.minPicks}-{mockRegatta.maxPicks} crews from different events
+                  {template.gender_category} Multi-Team Fantasy • Pick {minPicks}–{maxPicks} crews from different events
                 </p>
               </div>
-              <Badge className="text-lg px-4 py-2">
-                {selectedTier.type === "H2H" ? "Head-to-Head" : "5-Person"}
-              </Badge>
+              {contestPool.status !== "open" && (
+                <Badge variant="destructive" className="text-sm px-3 py-1 capitalize">
+                  {contestPool.status}
+                </Badge>
+              )}
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              {/* Entry Fee */}
               <Card>
                 <CardContent className="pt-6">
                   <div className="flex items-center gap-3">
@@ -363,12 +422,13 @@ const ContestDetail = () => {
                     </div>
                     <div>
                       <p className="text-sm text-muted-foreground">Entry Fee</p>
-                      <p className="text-2xl font-bold">${selectedTier.entryFee}</p>
+                      <p className="text-2xl font-bold">${centsToDisplay(contestPool.entry_fee_cents)}</p>
                     </div>
                   </div>
                 </CardContent>
               </Card>
 
+              {/* Prize */}
               <Card>
                 <CardContent className="pt-6">
                   <div className="flex items-center gap-3">
@@ -376,26 +436,27 @@ const ContestDetail = () => {
                       <Trophy className="h-5 w-5 text-success" />
                     </div>
                     <div className="flex-1">
-                      <p className="text-sm text-muted-foreground mb-2">Prize Payouts</p>
-                      {selectedTier.type === "5_PERSON" ? (
-                        <div className="space-y-1">
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm font-medium">1st Place:</span>
-                            <span className="text-xl font-bold text-success">${selectedTier.prize.toFixed(2)}</span>
-                          </div>
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm font-medium">2nd Place:</span>
-                            <span className="text-lg font-bold text-success/80">$30.00</span>
-                          </div>
+                      <p className="text-sm text-muted-foreground mb-1">Prizes</p>
+                      {payoutRows.length > 0 ? (
+                        <div className="space-y-0.5">
+                          {payoutRows.map(({ rank, cents }) => (
+                            <div key={rank} className="flex items-center justify-between">
+                              <span className="text-xs text-muted-foreground">#{rank}</span>
+                              <span className="text-sm font-bold text-success">${centsToDisplay(cents)}</span>
+                            </div>
+                          ))}
                         </div>
                       ) : (
-                        <p className="text-2xl font-bold text-success">${selectedTier.prize.toFixed(2)}</p>
+                        <p className="text-2xl font-bold text-success">
+                          ${centsToDisplay(contestPool.prize_pool_cents)}
+                        </p>
                       )}
                     </div>
                   </div>
                 </CardContent>
               </Card>
 
+              {/* Lock Time */}
               <Card>
                 <CardContent className="pt-6">
                   <div className="flex items-center gap-3">
@@ -404,12 +465,13 @@ const ContestDetail = () => {
                     </div>
                     <div>
                       <p className="text-sm text-muted-foreground">Locks</p>
-                      <p className="text-sm font-semibold">{mockRegatta.lockTime}</p>
+                      <p className="text-sm font-semibold">{formatLockTime(contestPool.lock_time)}</p>
                     </div>
                   </div>
                 </CardContent>
               </Card>
 
+              {/* Wallet */}
               <Card>
                 <CardContent className="pt-6">
                   <div className="flex items-center gap-3">
@@ -418,9 +480,11 @@ const ContestDetail = () => {
                     </div>
                     <div>
                       <p className="text-sm text-muted-foreground">Your Balance</p>
-                      {walletBalance !== null ? (
-                        <p className={`text-2xl font-bold ${walletBalance < selectedTier.entryFee ? 'text-destructive' : ''}`}>
-                          ${walletBalance.toFixed(2)}
+                      {walletBalanceCents !== null ? (
+                        <p
+                          className={`text-2xl font-bold ${walletBalanceCents < contestPool.entry_fee_cents ? "text-destructive" : ""}`}
+                        >
+                          ${centsToDisplay(walletBalanceCents)}
                         </p>
                       ) : (
                         <p className="text-sm text-muted-foreground">Loading...</p>
@@ -433,22 +497,27 @@ const ContestDetail = () => {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Draft Form */}
+            {/* Draft form */}
             <div className="lg:col-span-2 space-y-6">
-              {/* Current Picks */}
+              {/* Current picks */}
               {draftPicks.length > 0 && (
                 <Card>
                   <CardHeader>
-                    <CardTitle>Your Draft ({draftPicks.length}/{mockRegatta.maxPicks})</CardTitle>
+                    <CardTitle>
+                      Your Draft ({draftPicks.length}/{maxPicks})
+                    </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-3">
                     {draftPicks.map((pick, index) => (
-                      <div key={index} className="flex items-center justify-between p-4 rounded-lg border-2 border-accent/20 bg-accent/5">
+                      <div
+                        key={index}
+                        className="flex items-center justify-between p-4 rounded-lg border-2 border-accent/20 bg-accent/5"
+                      >
                         <div className="flex-1">
-                          <p className="font-semibold">{getCrewName(pick.crewId)}</p>
-                          <p className="text-sm text-muted-foreground">{getDivisionName(pick.divisionId)}</p>
+                          <p className="font-semibold">{pick.crewName}</p>
+                          <p className="text-sm text-muted-foreground">Event: {pick.eventId}</p>
                           <p className="text-sm mt-1">
-                            Margin prediction (tie-breaker): <span className="font-medium">{pick.predictedMargin}s</span>
+                            Margin prediction: <span className="font-medium">{pick.predictedMargin}s</span>
                           </p>
                         </div>
                         <Button
@@ -465,111 +534,114 @@ const ContestDetail = () => {
                 </Card>
               )}
 
-              {/* Add Pick Form */}
+              {/* Add pick form */}
               <Card>
                 <CardHeader>
                   <CardTitle>Add Crew to Draft</CardTitle>
                   <p className="text-sm text-muted-foreground mt-2">
-                    {draftPicks.length < mockRegatta.minPicks 
-                      ? `You need ${mockRegatta.minPicks - draftPicks.length} more crew(s)`
-                      : `Optional: Add up to ${mockRegatta.maxPicks - draftPicks.length} more crew(s)`
-                    }
+                    {draftPicks.length < minPicks
+                      ? `You need ${minPicks - draftPicks.length} more crew(s) from different events`
+                      : draftPicks.length < maxPicks
+                        ? `Optional: Add up to ${maxPicks - draftPicks.length} more crew(s)`
+                        : "Draft complete!"}
                   </p>
                 </CardHeader>
-                <CardContent className="space-y-6">
-                  {/* Step 1: Select Division */}
-                  <div className="space-y-3">
-                    <Label className="text-base font-semibold">
-                      Step 1: Choose Division
-                    </Label>
-                    <Select value={currentDivision} onValueChange={(value) => {
-                      setCurrentDivision(value);
-                      setCurrentCrew("");
-                    }}>
-                      <SelectTrigger className="text-base">
-                        <SelectValue placeholder="Select a division..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {availableDivisions.map((div) => (
-                          <SelectItem key={div.id} value={div.id} className="text-base">
-                            {div.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
 
-                  {/* Step 2: Select Crew */}
-                  {currentDivision && (
+                {draftPicks.length < maxPicks && contestPool.status === "open" && (
+                  <CardContent className="space-y-6">
+                    {/* Step 1: Event */}
                     <div className="space-y-3">
-                      <Label className="text-base font-semibold">
-                        Step 2: Select Crew
-                      </Label>
-                      <Select value={currentCrew} onValueChange={setCurrentCrew}>
+                      <Label className="text-base font-semibold">Step 1: Choose Event</Label>
+                      <Select
+                        value={currentEventId}
+                        onValueChange={(v) => {
+                          setCurrentEventId(v);
+                          setCurrentCrewId("");
+                        }}
+                      >
                         <SelectTrigger className="text-base">
-                          <SelectValue placeholder="Select a crew..." />
+                          <SelectValue placeholder="Select an event..." />
                         </SelectTrigger>
                         <SelectContent>
-                          {availableCrews.map((crew) => (
-                            <SelectItem key={crew.id} value={crew.id} className="text-base">
-                              {crew.name} - {crew.institution} {crew.seedPosition && `(Seed #${crew.seedPosition})`}
+                          {availableEventIds.map((eid) => (
+                            <SelectItem key={eid} value={eid} className="text-base">
+                              {eid}
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                     </div>
-                  )}
 
-                  {/* Step 3: Predict Margin */}
-                  {currentCrew && (
-                    <div className="space-y-3">
-                      <Label htmlFor="margin" className="text-base font-semibold">
-                        Step 3: Predict Winning Margin (Tie-Breaker)
-                      </Label>
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2">
-                          <Input
-                            id="margin"
-                            type="number"
-                            step="0.01"
-                            min="0.01"
-                            placeholder="1.42"
-                            value={currentMargin}
-                            onChange={(e) => setCurrentMargin(e.target.value)}
-                            className="text-base"
-                          />
-                          <span className="text-muted-foreground font-medium">seconds</span>
-                        </div>
-                        <p className="text-sm text-muted-foreground flex items-start gap-2">
-                          <Info className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                          Time difference between 1st and 2nd place. Used only as a tie-breaker if users have equal points.
-                        </p>
+                    {/* Step 2: Crew */}
+                    {currentEventId && (
+                      <div className="space-y-3">
+                        <Label className="text-base font-semibold">Step 2: Select Crew</Label>
+                        <Select value={currentCrewId} onValueChange={setCurrentCrewId}>
+                          <SelectTrigger className="text-base">
+                            <SelectValue placeholder="Select a crew..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {availableCrews.map((crew) => (
+                              <SelectItem key={crew.crew_id} value={crew.crew_id} className="text-base">
+                                {crew.crew_name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
-                    </div>
-                  )}
+                    )}
 
-                  <Button 
-                    type="button"
-                    onClick={addPick}
-                    variant="outline" 
-                    size="lg" 
-                    className="w-full"
-                    disabled={!currentCrew || !currentMargin || draftPicks.length >= mockRegatta.maxPicks}
-                  >
-                    <Plus className="h-5 w-5 mr-2" />
-                    Add Crew to Draft
-                  </Button>
-                </CardContent>
+                    {/* Step 3: Margin */}
+                    {currentCrewId && (
+                      <div className="space-y-3">
+                        <Label htmlFor="margin" className="text-base font-semibold">
+                          Step 3: Predict Winning Margin (Tie-Breaker)
+                        </Label>
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            <Input
+                              id="margin"
+                              type="number"
+                              step="0.01"
+                              min="0.01"
+                              placeholder="1.42"
+                              value={currentMargin}
+                              onChange={(e) => setCurrentMargin(e.target.value)}
+                              className="text-base"
+                            />
+                            <span className="text-muted-foreground font-medium">seconds</span>
+                          </div>
+                          <p className="text-sm text-muted-foreground flex items-start gap-2">
+                            <Info className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                            Time gap between 1st and 2nd place in this event. Used only if scores are tied.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    <Button
+                      type="button"
+                      onClick={addPick}
+                      variant="outline"
+                      size="lg"
+                      className="w-full"
+                      disabled={!currentCrewId || !currentMargin}
+                    >
+                      <Plus className="h-5 w-5 mr-2" />
+                      Add Crew to Draft
+                    </Button>
+                  </CardContent>
+                )}
               </Card>
 
-              {/* Submit Draft */}
-              {draftPicks.length >= mockRegatta.minPicks && (
-                <Button 
+              {/* Submit */}
+              {draftPicks.length >= minPicks && (
+                <Button
                   onClick={handleSubmit}
-                  variant="hero" 
-                  size="lg" 
+                  variant="hero"
+                  size="lg"
                   className="w-full text-lg py-6"
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || contestPool.status !== "open"}
                 >
                   {isSubmitting ? (
                     <>
@@ -577,16 +649,25 @@ const ContestDetail = () => {
                       Processing...
                     </>
                   ) : (
-                    <>
-                      Submit Draft (${selectedTier.entryFee})
-                    </>
+                    <>Submit Draft — ${centsToDisplay(contestPool.entry_fee_cents)}</>
                   )}
                 </Button>
               )}
+
+              {contestPool.status !== "open" && (
+                <Card className="border-destructive/30 bg-destructive/5">
+                  <CardContent className="pt-6 text-center">
+                    <p className="text-destructive font-semibold capitalize">
+                      Contest is {contestPool.status} — entries are closed.
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
             </div>
 
-            {/* Rules Sidebar */}
+            {/* Sidebar */}
             <div className="space-y-6">
+              {/* Scoring table — matches scoring-logic.ts */}
               <Card>
                 <CardHeader>
                   <CardTitle className="text-lg flex items-center gap-2">
@@ -596,33 +677,20 @@ const ContestDetail = () => {
                 </CardHeader>
                 <CardContent className="space-y-3 text-sm">
                   <div className="space-y-2">
-                    <div className="flex items-center justify-between p-2 rounded bg-accent/5">
-                      <span className="font-medium">1st Place</span>
-                      <span className="font-bold text-accent">100 pts</span>
-                    </div>
+                    {Object.entries(FINISH_POINTS).map(([pos, pts]) => (
+                      <div
+                        key={pos}
+                        className={`flex items-center justify-between p-2 rounded ${Number(pos) === 1 ? "bg-accent/5" : "bg-muted/50"}`}
+                      >
+                        <span className={Number(pos) === 1 ? "font-medium" : ""}>{ordinal(Number(pos))} Place</span>
+                        <span className={`font-semibold ${Number(pos) === 1 ? "text-accent font-bold" : ""}`}>
+                          {pts} pts
+                        </span>
+                      </div>
+                    ))}
                     <div className="flex items-center justify-between p-2 rounded bg-muted/50">
-                      <span>2nd Place</span>
-                      <span className="font-semibold">80 pts</span>
-                    </div>
-                    <div className="flex items-center justify-between p-2 rounded bg-muted/50">
-                      <span>3rd Place</span>
-                      <span className="font-semibold">65 pts</span>
-                    </div>
-                    <div className="flex items-center justify-between p-2 rounded bg-muted/50">
-                      <span>4th Place</span>
-                      <span className="font-semibold">50 pts</span>
-                    </div>
-                    <div className="flex items-center justify-between p-2 rounded bg-muted/50">
-                      <span>5th Place</span>
-                      <span className="font-semibold">35 pts</span>
-                    </div>
-                    <div className="flex items-center justify-between p-2 rounded bg-muted/50">
-                      <span>6th Place</span>
-                      <span className="font-semibold">20 pts</span>
-                    </div>
-                    <div className="flex items-center justify-between p-2 rounded bg-muted/50">
-                      <span>7th+ Place</span>
-                      <span className="font-semibold">10 pts</span>
+                      <span>8th+ Place</span>
+                      <span className="font-semibold">{DEFAULT_POINTS} pts</span>
                     </div>
                   </div>
                   <p className="text-xs text-muted-foreground pt-2 border-t">
@@ -631,6 +699,7 @@ const ContestDetail = () => {
                 </CardContent>
               </Card>
 
+              {/* How to Win */}
               <Card>
                 <CardHeader>
                   <CardTitle className="text-lg">How to Win</CardTitle>
@@ -639,39 +708,72 @@ const ContestDetail = () => {
                   <div>
                     <h4 className="font-semibold mb-2">1. Automatic Finish Points</h4>
                     <p className="text-muted-foreground">
-                      Your drafted crews automatically earn points based on their actual finish positions. No prediction needed!
+                      Your drafted crews earn points based on their actual finish positions.
                     </p>
                   </div>
                   <div>
                     <h4 className="font-semibold mb-2">2. Margin Accuracy (Tie-Breaker)</h4>
                     <p className="text-muted-foreground">
-                      If tied on points, lowest total margin prediction error wins
+                      If tied on points, the user with the most accurate margin predictions wins.
                     </p>
                   </div>
                   <div className="p-3 rounded-lg bg-muted/30">
                     <p className="text-xs font-medium mb-1">Example:</p>
                     <p className="text-xs text-muted-foreground">
-                      Draft Yale and Harvard. Yale finishes 1st (100pts), Harvard finishes 3rd (65pts) = 165 total points
+                      Draft Yale (1st = 100 pts) and Harvard (3rd = 60 pts) = 160 total points.
                     </p>
                   </div>
                 </CardContent>
               </Card>
 
+              {/* Prize pool */}
               <Card className="border-accent/20 bg-accent/5">
                 <CardHeader>
-                  <CardTitle className="text-lg">Fixed Prize</CardTitle>
+                  <CardTitle className="text-lg">Prize Pool</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <p className="text-sm text-muted-foreground mb-4">
-                    Pre-posted prize. No pooling. Skill-based fantasy contest.
+                    Distributed to top finishers after all entries are submitted.
                   </p>
-                  <div className="p-4 rounded-lg bg-background border border-border">
-                    <p className="text-2xl font-bold text-success text-center">
-                      ${selectedTier.prize.toFixed(2)}
-                    </p>
-                    <p className="text-xs text-center text-muted-foreground mt-1">
-                      Winner takes all
-                    </p>
+                  {payoutRows.length > 0 ? (
+                    <div className="space-y-2">
+                      {payoutRows.map(({ rank, cents }) => (
+                        <div
+                          key={rank}
+                          className="flex items-center justify-between p-2 rounded bg-background border border-border"
+                        >
+                          <span className="text-sm font-medium">{ordinal(rank)} Place</span>
+                          <span className="text-lg font-bold text-success">${centsToDisplay(cents)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="p-4 rounded-lg bg-background border border-border">
+                      <p className="text-2xl font-bold text-success text-center">
+                        ${centsToDisplay(contestPool.prize_pool_cents)}
+                      </p>
+                      <p className="text-xs text-center text-muted-foreground mt-1">Total prize pool</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Entry count progress */}
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm text-muted-foreground">Entries</span>
+                    <span className="text-sm font-semibold">
+                      {contestPool.current_entries} / {contestPool.max_entries}
+                    </span>
+                  </div>
+                  <div className="w-full bg-muted rounded-full h-2">
+                    <div
+                      className="bg-accent h-2 rounded-full transition-all"
+                      style={{
+                        width: `${Math.min(100, (contestPool.current_entries / contestPool.max_entries) * 100)}%`,
+                      }}
+                    />
                   </div>
                 </CardContent>
               </Card>
