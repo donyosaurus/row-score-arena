@@ -32,7 +32,7 @@ Deno.serve(async (req) => {
       error: authError,
     } = await supabase.auth.getUser();
     if (authError || !user) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      return new Response(JSON.stringify({ error: "Unauthorized", detail: authError?.message }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -58,8 +58,9 @@ Deno.serve(async (req) => {
       .parse(await req.json());
 
     const poolId = body.contestPoolId;
-    console.log("[settlement] Admin", user.id, "settling pool:", poolId);
+    console.log("[settlement] Starting for pool:", poolId);
 
+    // STEP A: fetch pool
     const { data: pool, error: poolError } = await supabaseAdmin
       .from("contest_pools")
       .select("*, contest_templates(*)")
@@ -67,61 +68,80 @@ Deno.serve(async (req) => {
       .single();
 
     if (poolError || !pool) {
-      return new Response(JSON.stringify({ error: "Contest pool not found" }), {
+      return new Response(JSON.stringify({ error: "Pool not found", detail: poolError?.message }), {
         status: 404,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+    console.log("[settlement] Pool found, status:", pool.status);
 
     if (pool.status === "settled" && !body.forceResettle) {
-      return new Response(JSON.stringify({ error: "Contest already settled. Use forceResettle=true to override." }), {
+      return new Response(JSON.stringify({ error: "Already settled" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Settle all sibling pools that finished scoring
-    const { data: siblingPools } = await supabaseAdmin
+    // STEP B: find siblings to settle
+    const { data: siblingPools, error: siblingError } = await supabaseAdmin
       .from("contest_pools")
-      .select("id")
+      .select("id, status")
       .eq("contest_template_id", pool.contest_template_id)
       .eq("status", "scoring_completed");
 
-    const poolsToSettle = siblingPools?.map((p) => p.id) || [poolId];
-    console.log("[settlement] Settling", poolsToSettle.length, "pool(s)");
+    console.log(
+      "[settlement] Sibling pools with scoring_completed:",
+      siblingPools?.length ?? 0,
+      siblingError?.message ?? "",
+    );
 
+    const poolsToSettle = siblingPools?.map((p) => p.id) || [poolId];
+
+    // STEP C: settle each pool
     let totalWinnersCount = 0;
+    const settlementDetails: any[] = [];
+
     for (const currentPoolId of poolsToSettle) {
-      totalWinnersCount += await settlePool(supabaseAdmin, currentPoolId);
+      const result = await settlePool(supabaseAdmin, currentPoolId);
+      totalWinnersCount += result.winners;
+      settlementDetails.push({ poolId: currentPoolId, ...result });
     }
 
-    await supabaseAdmin.from("compliance_audit_logs").insert({
-      admin_id: user.id,
-      event_type: "contest_batch_settled",
-      severity: "info",
-      description: `Batch settlement: ${pool.contest_templates?.regatta_name} — ${poolsToSettle.length} pool(s)`,
-      metadata: {
-        contest_template_id: pool.contest_template_id,
-        pools_settled: poolsToSettle.length,
-        winners: totalWinnersCount,
-      },
-    });
+    console.log("[settlement] Complete. Winners:", totalWinnersCount);
+
+    // STEP D: compliance log (non-fatal if it fails)
+    try {
+      await supabaseAdmin.from("compliance_audit_logs").insert({
+        user_id: user.id,
+        event_type: "contest_batch_settled",
+        severity: "info",
+        description: `Settlement: ${pool.contest_templates?.regatta_name} — ${poolsToSettle.length} pool(s)`,
+        metadata: { pools_settled: poolsToSettle.length, winners: totalWinnersCount },
+      });
+    } catch (logErr: any) {
+      console.warn("[settlement] Compliance log failed (non-fatal):", logErr?.message);
+    }
 
     return new Response(
-      JSON.stringify({ success: true, poolsSettled: poolsToSettle.length, winnersCount: totalWinnersCount }),
+      JSON.stringify({
+        success: true,
+        poolsSettled: poolsToSettle.length,
+        winnersCount: totalWinnersCount,
+        details: settlementDetails,
+      }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (error: any) {
-    console.error("[settlement] Outer error:", error?.message || error);
-    return new Response(JSON.stringify({ error: error?.message || "Settlement failed" }), {
+    console.error("[settlement] FATAL:", error?.message, JSON.stringify(error));
+    return new Response(JSON.stringify({ error: error?.message || "Unknown error", stack: error?.stack }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });
 
-async function settlePool(supabaseAdmin: any, contestPoolId: string): Promise<number> {
-  console.log("[settlement] Settling pool:", contestPoolId);
+async function settlePool(supabaseAdmin: any, contestPoolId: string): Promise<{ winners: number; detail: string }> {
+  console.log("[settlePool] Starting:", contestPoolId);
 
   const { data: pool } = await supabaseAdmin
     .from("contest_pools")
@@ -129,50 +149,57 @@ async function settlePool(supabaseAdmin: any, contestPoolId: string): Promise<nu
     .eq("id", contestPoolId)
     .single();
 
-  if (!pool) {
-    console.error("[settlement] Pool not found:", contestPoolId);
-    return 0;
-  }
+  if (!pool) return { winners: 0, detail: "pool not found" };
 
-  // Fetch scores — keyed by pool_id (written by updated scoring-logic.ts)
-  const { data: scores, error: scoresError } = await supabaseAdmin
+  // Try pool_id first (new column), fall back to instance_id (legacy)
+  let scores: any[] | null = null;
+  let scoresError: any = null;
+
+  const byPoolId = await supabaseAdmin
     .from("contest_scores")
     .select("*")
     .eq("pool_id", contestPoolId)
     .order("rank", { ascending: true });
 
-  if (scoresError) {
-    console.error("[settlement] Error fetching scores:", scoresError.message);
-    return 0;
-  }
+  scores = byPoolId.data;
+  scoresError = byPoolId.error;
+  console.log("[settlePool] Scores by pool_id:", scores?.length ?? 0, scoresError?.message ?? "");
 
+  // Fallback: some scores may have been written before migration with instance_id
   if (!scores || scores.length === 0) {
-    console.log("[settlement] No scores for pool", contestPoolId, "— skipping");
-    return 0;
+    const byInstanceId = await supabaseAdmin
+      .from("contest_scores")
+      .select("*")
+      .eq("instance_id", contestPoolId)
+      .order("rank", { ascending: true });
+    scores = byInstanceId.data;
+    scoresError = byInstanceId.error;
+    console.log("[settlePool] Scores by instance_id (fallback):", scores?.length ?? 0, scoresError?.message ?? "");
   }
 
-  console.log("[settlement] Found", scores.length, "scored entries");
+  if (scoresError) return { winners: 0, detail: `scores error: ${scoresError.message}` };
+  if (!scores || scores.length === 0) return { winners: 0, detail: "no scores found" };
 
   const prizePoolCents = pool.prize_pool_cents || 0;
   const payoutStructure: Record<string, number> = pool.payout_structure || { "1": prizePoolCents };
+  console.log("[settlePool] Prize pool cents:", prizePoolCents, "Payout structure:", JSON.stringify(payoutStructure));
 
   const winners: { userId: string; entryId: string; rank: number; payoutCents: number }[] = [];
 
   for (const score of scores) {
     const payoutCents = payoutStructure[String(score.rank)] || 0;
     const isWinner = payoutCents > 0;
-
     await supabaseAdmin
       .from("contest_scores")
       .update({ payout_cents: payoutCents, is_winner: isWinner })
       .eq("id", score.id);
-
     if (isWinner) {
       winners.push({ userId: score.user_id, entryId: score.entry_id, rank: score.rank, payoutCents });
     }
   }
 
-  // Credit winners — amount in CENTS (bigint), type must match transaction_type enum
+  console.log("[settlePool] Winners to pay:", winners.length);
+
   for (const winner of winners) {
     const { data: wallet, error: walletError } = await supabaseAdmin
       .from("wallets")
@@ -181,15 +208,15 @@ async function settlePool(supabaseAdmin: any, contestPoolId: string): Promise<nu
       .single();
 
     if (walletError || !wallet) {
-      console.error("[settlement] Wallet not found for user:", winner.userId);
+      console.error("[settlePool] No wallet for user:", winner.userId, walletError?.message);
       continue;
     }
 
     const { error: txnError } = await supabaseAdmin.from("transactions").insert({
       user_id: winner.userId,
       wallet_id: wallet.id,
-      type: "payout", // valid transaction_type enum value
-      amount: winner.payoutCents / 100, // transactions.amount is DECIMAL dollars
+      type: "payout",
+      amount: winner.payoutCents / 100,
       status: "completed",
       reference_id: winner.entryId,
       reference_type: "contest_entry",
@@ -199,11 +226,10 @@ async function settlePool(supabaseAdmin: any, contestPoolId: string): Promise<nu
     });
 
     if (txnError) {
-      console.error("[settlement] Transaction insert error:", txnError.message);
+      console.error("[settlePool] Transaction error:", txnError.message, JSON.stringify(txnError));
       continue;
     }
 
-    // update_wallet_balance takes BIGINT cents — do NOT divide by 100
     const { error: walletUpdateError } = await supabaseAdmin.rpc("update_wallet_balance", {
       _wallet_id: wallet.id,
       _available_delta: winner.payoutCents,
@@ -212,20 +238,18 @@ async function settlePool(supabaseAdmin: any, contestPoolId: string): Promise<nu
     });
 
     if (walletUpdateError) {
-      console.error("[settlement] Wallet update error:", walletUpdateError.message);
+      console.error("[settlePool] Wallet RPC error:", walletUpdateError.message, JSON.stringify(walletUpdateError));
     } else {
-      console.log("[settlement] Credited", winner.payoutCents, "cents to user", winner.userId);
+      console.log("[settlePool] Paid", winner.payoutCents, "cents to", winner.userId);
     }
   }
 
-  // Mark entries settled
   for (const score of scores) {
     await supabaseAdmin.from("contest_entries").update({ status: "settled" }).eq("id", score.entry_id);
   }
 
-  // Mark pool settled
   await supabaseAdmin.from("contest_pools").update({ status: "settled" }).eq("id", contestPoolId);
 
-  console.log("[settlement] Pool", contestPoolId, "done —", winners.length, "winner(s)");
-  return winners.length;
+  console.log("[settlePool] Done:", contestPoolId, "winners:", winners.length);
+  return { winners: winners.length, detail: "ok" };
 }
