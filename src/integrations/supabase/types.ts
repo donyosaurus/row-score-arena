@@ -378,11 +378,12 @@ export type Database = {
           crew_scores: Json | null
           entry_id: string
           id: string
-          instance_id: string
+          instance_id: string | null
           is_tiebreak_resolved: boolean | null
           is_winner: boolean | null
           margin_bonus: number
           payout_cents: number | null
+          pool_id: string | null
           rank: number | null
           total_points: number
           updated_at: string
@@ -393,11 +394,12 @@ export type Database = {
           crew_scores?: Json | null
           entry_id: string
           id?: string
-          instance_id: string
+          instance_id?: string | null
           is_tiebreak_resolved?: boolean | null
           is_winner?: boolean | null
           margin_bonus?: number
           payout_cents?: number | null
+          pool_id?: string | null
           rank?: number | null
           total_points?: number
           updated_at?: string
@@ -408,11 +410,12 @@ export type Database = {
           crew_scores?: Json | null
           entry_id?: string
           id?: string
-          instance_id?: string
+          instance_id?: string | null
           is_tiebreak_resolved?: boolean | null
           is_winner?: boolean | null
           margin_bonus?: number
           payout_cents?: number | null
+          pool_id?: string | null
           rank?: number | null
           total_points?: number
           updated_at?: string
@@ -427,10 +430,10 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "contest_scores_instance_id_fkey"
-            columns: ["instance_id"]
+            foreignKeyName: "contest_scores_pool_id_fkey"
+            columns: ["pool_id"]
             isOneToOne: false
-            referencedRelation: "contest_instances"
+            referencedRelation: "contest_pools"
             referencedColumns: ["id"]
           },
         ]
