@@ -12,15 +12,8 @@ export const FINISH_POINTS: Record<number, number> = {
 
 export function getFinishPoints(position: number): number {
   if (position < 1) return 0;
-  if (position >= 7) return 10; // 7th place and beyond get 10 points
+  if (position >= 7) return 10;
   return FINISH_POINTS[position] || 10;
-}
-
-export function calculateMarginBonus(predictedMargin: number, actualMargin: number): number {
-  if (actualMargin === undefined || actualMargin === null) return 0;
-  const error = Math.abs(predictedMargin - actualMargin);
-  const bonus = Math.max(0, 20 - Math.floor(error / 0.5) * 2);
-  return bonus;
 }
 
 /**
@@ -40,30 +33,33 @@ export function parseRaceTime(timeStr: string): number {
 }
 
 /**
- * Calculate official margin between 1st and 2nd place crews
+ * Calculate official margin between 1st and 2nd place crews in an event
  */
 export function calculateOfficialMargin(
-  crews: Array<{ crew_id: string; manual_finish_order: number | null; manual_result_time: string | null }>,
+  crews: Array<{
+    crew_id: string;
+    manual_finish_order: number | null;
+    manual_result_time: string | null;
+  }>,
 ): number {
-  const sortedCrews = crews
+  const sorted = crews
     .filter((c) => c.manual_finish_order !== null)
     .sort((a, b) => (a.manual_finish_order ?? 999) - (b.manual_finish_order ?? 999));
 
-  if (sortedCrews.length < 2) return 0;
+  if (sorted.length < 2) return 0;
 
-  const firstPlaceTime = parseRaceTime(sortedCrews[0].manual_result_time || "");
-  const secondPlaceTime = parseRaceTime(sortedCrews[1].manual_result_time || "");
+  const t1 = parseRaceTime(sorted[0].manual_result_time || "");
+  const t2 = parseRaceTime(sorted[1].manual_result_time || "");
+  if (t1 === 0 || t2 === 0) return 0;
 
-  if (firstPlaceTime === 0 || secondPlaceTime === 0) return 0;
-
-  return Math.round(Math.abs(secondPlaceTime - firstPlaceTime) * 100) / 100;
+  return Math.round(Math.abs(t2 - t1) * 100) / 100;
 }
 
 export interface RaceResult {
   crewId: string;
   eventId: string;
   finishOrder: number;
-  actualMargin?: number;
+  actualMargin?: number; // only set for 1st place finishers
 }
 
 interface EntryPick {
@@ -72,66 +68,89 @@ interface EntryPick {
   predictedMargin: number;
 }
 
+interface EntryScore {
+  entry_id: string;
+  user_id: string;
+  total_points: number;
+  margin_error: number; // lower = better tiebreaker
+  rank?: number;
+  payout_cents?: number;
+  is_tiebreak_resolved?: boolean;
+  is_winner?: boolean;
+  crew_scores: CrewScore[];
+}
+
+interface CrewScore {
+  crew_id: string;
+  event_id?: string;
+  predicted_margin: number;
+  actual_margin?: number;
+  finish_order: number | null;
+  finish_points: number;
+  margin_error: number;
+}
+
 /**
- * Score a contest pool — calculates points and rankings for all entries
+ * Score all entries in a contest pool.
+ * Writes results to contest_scores (with both pool_id and instance_id)
+ * and updates contest_entries status.
  */
 export async function scoreContestPool(
   supabase: any,
   contestPoolId: string,
   results: RaceResult[],
 ): Promise<{ entriesScored: number; winnerId?: string }> {
-  console.log("[scoring-logic] Processing results for pool:", contestPoolId);
+  console.log("[scoring-logic] Scoring pool:", contestPoolId);
 
+  // Fetch pool + template
   const { data: pool, error: poolError } = await supabase
     .from("contest_pools")
     .select("*, contest_templates(*)")
     .eq("id", contestPoolId)
     .single();
 
-  if (poolError || !pool) throw new Error("Contest pool not found");
+  if (poolError || !pool) {
+    throw new Error(`Contest pool not found: ${poolError?.message}`);
+  }
 
-  // Accept entries in any active-equivalent status
+  // Fetch all active entries for this pool
   const { data: entries, error: entriesError } = await supabase
     .from("contest_entries")
     .select("*")
     .eq("pool_id", contestPoolId)
     .in("status", ["active", "confirmed", "scored"]);
 
-  if (entriesError || !entries) throw new Error("Failed to fetch entries");
+  if (entriesError) {
+    throw new Error(`Failed to fetch entries: ${entriesError.message}`);
+  }
 
-  if (entries.length === 0) {
-    console.log("[scoring-logic] No entries to score");
+  if (!entries || entries.length === 0) {
+    console.log("[scoring-logic] No entries to score for pool:", contestPoolId);
     return { entriesScored: 0 };
   }
 
   console.log("[scoring-logic] Scoring", entries.length, "entries");
 
+  // Build crew → result lookup
   const resultMap = new Map<string, RaceResult>();
   for (const r of results) {
     resultMap.set(r.crewId, r);
-  }
-
-  interface EntryScore {
-    entry_id: string;
-    user_id: string;
-    total_points: number;
-    margin_error: number; // lower is better — used only as tiebreaker
-    rank?: number;
-    payout_cents?: number;
-    is_tiebreak_resolved?: boolean;
-    is_winner?: boolean;
-    crew_scores: any[];
   }
 
   const scores: EntryScore[] = [];
 
   for (const entry of entries) {
     let picks: EntryPick[] = [];
+
     try {
       if (Array.isArray(entry.picks)) {
         picks = entry.picks.map((p: any) => {
           if (typeof p === "string") return { crewId: p, predictedMargin: 0 };
-          return { crewId: p.crewId, predictedMargin: p.predictedMargin || 0 };
+          return {
+            crewId: p.crewId,
+            event_id: p.event_id,
+            predictedMargin: p.predictedMargin ?? 0,
+          };
         });
       }
     } catch (e) {
@@ -141,15 +160,16 @@ export async function scoreContestPool(
 
     let totalPoints = 0;
     let totalMarginError = 0;
-    const crewScores = [];
+    const crewScores: CrewScore[] = [];
 
     for (const pick of picks) {
       const result = resultMap.get(pick.crewId);
+
       if (result) {
         const finishPoints = getFinishPoints(result.finishOrder);
         totalPoints += finishPoints;
 
-        // Margin is ONLY used as tiebreaker — not added to points
+        // Margin is ONLY a tiebreaker — never added to points
         let marginError = 0;
         if (result.actualMargin !== undefined && pick.predictedMargin > 0) {
           marginError = Math.abs(pick.predictedMargin - result.actualMargin);
@@ -166,9 +186,10 @@ export async function scoreContestPool(
           margin_error: marginError,
         });
       } else {
-        console.warn("[scoring-logic] No result found for crew:", pick.crewId);
+        console.warn("[scoring-logic] No result for crew:", pick.crewId);
         crewScores.push({
           crew_id: pick.crewId,
+          event_id: pick.event_id,
           predicted_margin: pick.predictedMargin,
           finish_order: null,
           finish_points: 0,
@@ -186,59 +207,66 @@ export async function scoreContestPool(
     });
   }
 
-  // Sort: highest points wins. If tied, lowest margin error wins (tiebreaker).
+  // Sort: highest points first; tiebreak on lowest margin error
   scores.sort((a, b) => {
     if (a.total_points !== b.total_points) return b.total_points - a.total_points;
-    return a.margin_error - b.margin_error; // lower error wins tiebreak
+    return a.margin_error - b.margin_error;
   });
 
   // Assign ranks
   let currentRank = 1;
   for (let i = 0; i < scores.length; i++) {
-    if (i > 0) {
-      const prev = scores[i - 1];
-      const curr = scores[i];
-      const isTied = prev.total_points === curr.total_points && prev.margin_error === curr.margin_error;
-      scores[i].rank = isTied ? scores[i - 1].rank : currentRank;
-      scores[i].is_tiebreak_resolved = prev.total_points === curr.total_points && !isTied;
-    } else {
+    if (i === 0) {
       scores[i].rank = 1;
       scores[i].is_tiebreak_resolved = false;
+    } else {
+      const prev = scores[i - 1];
+      const curr = scores[i];
+      const fullyTied = prev.total_points === curr.total_points && prev.margin_error === curr.margin_error;
+      const pointsTied = prev.total_points === curr.total_points;
+
+      scores[i].rank = fullyTied ? prev.rank : currentRank;
+      scores[i].is_tiebreak_resolved = pointsTied && !fullyTied;
     }
     currentRank++;
   }
 
   const winnerIds = scores.filter((s) => s.rank === 1).map((s) => s.user_id);
 
-  const prizePool = pool.prize_pool_cents || 0;
-  const prizeStructure = pool.payout_structure || { 1: prizePool };
+  // Payouts from pool's payout_structure (values already in cents)
+  const prizePoolCents = pool.prize_pool_cents || 0;
+  const payoutStructure: Record<number, number> = pool.payout_structure || { 1: prizePoolCents };
 
   for (const score of scores) {
-    score.payout_cents = (prizeStructure as Record<number, number>)[score.rank!] || 0;
+    score.payout_cents = payoutStructure[score.rank!] || 0;
     score.is_winner = score.rank === 1;
   }
 
-  // Upsert scores
+  // Upsert scores — write BOTH pool_id and instance_id
   for (const score of scores) {
     const { error: upsertError } = await supabase.from("contest_scores").upsert(
       {
         entry_id: score.entry_id,
-        instance_id: contestPoolId,
+        pool_id: contestPoolId, // new column — correct FK to contest_pools
+        instance_id: null, // nullable after migration — no longer used for FK
         user_id: score.user_id,
         total_points: score.total_points,
         margin_bonus: 0, // margin is tiebreaker only, not a bonus
         rank: score.rank,
         payout_cents: score.payout_cents,
-        is_tiebreak_resolved: score.is_tiebreak_resolved,
-        is_winner: score.is_winner,
+        is_tiebreak_resolved: score.is_tiebreak_resolved ?? false,
+        is_winner: score.is_winner ?? false,
         crew_scores: score.crew_scores,
       },
       { onConflict: "entry_id" },
     );
 
-    if (upsertError) console.error("[scoring-logic] Error upserting score:", upsertError);
+    if (upsertError) {
+      console.error("[scoring-logic] Upsert error for entry", score.entry_id, upsertError.message);
+    }
 
-    await supabase
+    // Update entry status
+    const { error: entryUpdateError } = await supabase
       .from("contest_entries")
       .update({
         total_points: score.total_points,
@@ -247,20 +275,36 @@ export async function scoreContestPool(
         status: "scored",
       })
       .eq("id", score.entry_id);
+
+    if (entryUpdateError) {
+      console.error("[scoring-logic] Entry update error:", score.entry_id, entryUpdateError.message);
+    }
   }
 
-  await supabase
+  // Mark pool as scoring_completed
+  const { error: poolUpdateError } = await supabase
     .from("contest_pools")
     .update({ status: "scoring_completed", winner_ids: winnerIds })
     .eq("id", contestPoolId);
 
+  if (poolUpdateError) {
+    console.error("[scoring-logic] Pool status update error:", poolUpdateError.message);
+  }
+
+  // Compliance log
   await supabase.from("compliance_audit_logs").insert({
     event_type: "contest_scored",
     severity: "info",
-    description: `Contest scored: ${pool.contest_templates?.regatta_name || "Unknown"} - Pool ${contestPoolId}`,
-    metadata: { contest_pool_id: contestPoolId, entries_scored: scores.length, winner_ids: winnerIds },
+    description: `Scored: ${pool.contest_templates?.regatta_name || "Contest"} — pool ${contestPoolId}`,
+    metadata: {
+      contest_pool_id: contestPoolId,
+      entries_scored: scores.length,
+      winner_ids: winnerIds,
+      top_score: scores[0]?.total_points,
+    },
   });
 
-  console.log("[scoring-logic] Scoring complete for pool:", contestPoolId);
+  console.log("[scoring-logic] Done. Entries scored:", scores.length, "Winners:", winnerIds);
+
   return { entriesScored: scores.length, winnerId: winnerIds[0] };
 }
