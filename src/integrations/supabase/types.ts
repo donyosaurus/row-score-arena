@@ -195,13 +195,6 @@ export type Database = {
             referencedRelation: "contest_instances"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "contest_entries_pool_id_fkey"
-            columns: ["pool_id"]
-            isOneToOne: false
-            referencedRelation: "contest_pools"
-            referencedColumns: ["id"]
-          },
         ]
       }
       contest_instances: {
