@@ -272,7 +272,7 @@ export async function scoreContestPool(
         total_points: score.total_points,
         rank: score.rank,
         payout_cents: score.payout_cents,
-        status: "scored",
+        status: "active",
       })
       .eq("id", score.entry_id);
 
