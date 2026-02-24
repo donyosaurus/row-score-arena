@@ -143,16 +143,22 @@ export async function scoreContestPool(
     let picks: EntryPick[] = [];
 
     try {
+      // Fix 1: Handle both flat array and nested { crews: [...] } formats
+      let rawPicks: any[] = [];
       if (Array.isArray(entry.picks)) {
-        picks = entry.picks.map((p: any) => {
-          if (typeof p === "string") return { crewId: p, predictedMargin: 0 };
-          return {
-            crewId: p.crewId,
-            event_id: p.event_id,
-            predictedMargin: p.predictedMargin ?? 0,
-          };
-        });
+        rawPicks = entry.picks;
+      } else if (entry.picks && typeof entry.picks === 'object' && Array.isArray((entry.picks as any).crews)) {
+        rawPicks = (entry.picks as any).crews;
       }
+
+      picks = rawPicks.map((p: any) => {
+        if (typeof p === "string") return { crewId: p, predictedMargin: 0 };
+        return {
+          crewId: String(p.crewId || p.crew_id || p.id || ''),
+          event_id: p.event_id,
+          predictedMargin: p.predictedMargin ?? p.predicted_margin ?? 0,
+        };
+      });
     } catch (e) {
       console.error("[scoring-logic] Failed to parse picks for entry:", entry.id, e);
       continue;
