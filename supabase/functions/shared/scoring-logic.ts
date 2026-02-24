@@ -169,7 +169,7 @@ export async function scoreContestPool(
     const crewScores: CrewScore[] = [];
 
     for (const pick of picks) {
-      const result = resultMap.get(pick.crewId);
+      const result = resultMap.get(String(pick.crewId));
 
       if (result) {
         const finishPoints = getFinishPoints(result.finishOrder);
