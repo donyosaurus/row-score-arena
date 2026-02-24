@@ -131,10 +131,10 @@ export async function scoreContestPool(
 
   console.log("[scoring-logic] Scoring", entries.length, "entries");
 
-  // Build crew → result lookup
+  // Fix 2: Build crew → result lookup with string-coerced keys
   const resultMap = new Map<string, RaceResult>();
   for (const r of results) {
-    resultMap.set(r.crewId, r);
+    resultMap.set(String(r.crewId), r);
   }
 
   const scores: EntryScore[] = [];
