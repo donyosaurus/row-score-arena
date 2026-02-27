@@ -157,13 +157,16 @@ export const ContestCard = ({
         <Link to={`/regatta/${id}`} className="w-full">
           <Button
             className="w-full bg-primary hover:bg-primary/90 text-white font-semibold py-6 rounded-xl"
-            disabled={isFull && !allowOverflow && !hasMultiplePools}
+            disabled={!userEntered && isFull && !allowOverflow && !hasMultiplePools}
+            variant={userEntered ? "secondary" : "default"}
           >
-            {isFull && (allowOverflow || hasMultiplePools)
-              ? "Join Next Pool"
-              : isFull
-                ? "Contest Full"
-                : "View Entry Options"}
+            {userEntered
+              ? "Entered ✓"
+              : isFull && (allowOverflow || hasMultiplePools)
+                ? "Join Next Pool"
+                : isFull
+                  ? "Contest Full"
+                  : "View Entry Options"}
           </Button>
         </Link>
       </CardFooter>
