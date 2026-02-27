@@ -168,6 +168,7 @@ const Lobby = () => {
         return { ...sorted[0], siblingPoolCount, userEntered };
       });
 
+      console.log('[Lobby] Pools fetched:', mapped.length, 'Deduplicated cards:', deduplicated.length);
       setContests(deduplicated);
       setLoading(false);
     };
