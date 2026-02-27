@@ -19,6 +19,7 @@ interface ContestCardProps {
   maxEntries?: number;
   allowOverflow?: boolean;
   siblingPoolCount?: number;
+  userEntered?: boolean;
 }
 
 const formatCents = (cents: number): string => {
@@ -38,6 +39,7 @@ export const ContestCard = ({
   maxEntries = 0,
   allowOverflow = false,
   siblingPoolCount = 1,
+  userEntered = false,
 }: ContestCardProps) => {
   const hasPayoutStructure = payoutStructure && Object.keys(payoutStructure).length > 0;
   const firstPlacePrize = hasPayoutStructure ? payoutStructure["1"] : 0;
@@ -155,13 +157,16 @@ export const ContestCard = ({
         <Link to={`/regatta/${id}`} className="w-full">
           <Button
             className="w-full bg-primary hover:bg-primary/90 text-white font-semibold py-6 rounded-xl"
-            disabled={isFull && !allowOverflow && !hasMultiplePools}
+            disabled={!userEntered && isFull && !allowOverflow && !hasMultiplePools}
+            variant={userEntered ? "secondary" : "default"}
           >
-            {isFull && (allowOverflow || hasMultiplePools)
-              ? "Join Next Pool"
-              : isFull
-                ? "Contest Full"
-                : "View Entry Options"}
+            {userEntered
+              ? "Entered ✓"
+              : isFull && (allowOverflow || hasMultiplePools)
+                ? "Join Next Pool"
+                : isFull
+                  ? "Contest Full"
+                  : "View Entry Options"}
           </Button>
         </Link>
       </CardFooter>
