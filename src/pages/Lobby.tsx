@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 interface ContestPool {
   id: string;
+  contest_template_id: string;
   lock_time: string;
   status: string;
   entry_fee_cents: number;
@@ -28,6 +29,7 @@ interface ContestPool {
 
 interface MappedContest {
   id: string;
+  contestTemplateId: string;
   regattaName: string;
   genderCategory: "Men's" | "Women's";
   lockTime: string;
@@ -59,19 +61,20 @@ const Lobby = () => {
         .from("contest_pools")
         .select(
           `
-          id,
-          lock_time,
-          status,
-          entry_fee_cents,
-          prize_pool_cents,
-          payout_structure,
-          current_entries,
-          max_entries,
-          allow_overflow,
-          created_at,
-          contest_templates(regatta_name),
-          contest_pool_crews(event_id)
-        `,
+           id,
+           contest_template_id,
+           lock_time,
+           status,
+           entry_fee_cents,
+           prize_pool_cents,
+           payout_structure,
+           current_entries,
+           max_entries,
+           allow_overflow,
+           created_at,
+           contest_templates(regatta_name),
+           contest_pool_crews(event_id)
+         `,
         )
         .in("status", ["open", "locked"]);
 
@@ -98,6 +101,7 @@ const Lobby = () => {
 
         return {
           id: pool.id,
+          contestTemplateId: pool.contest_template_id,
           regattaName,
           genderCategory,
           lockTime,
@@ -115,10 +119,10 @@ const Lobby = () => {
         };
       });
 
-      // Group by unique event (regattaName + genderCategory + entryFee)
+      // Group by contest_template_id so overflow pools don't create duplicate cards
       const grouped = mapped.reduce(
         (acc, contest) => {
-          const key = `${contest.regattaName}|${contest.genderCategory}|${contest.entryFeeCents}`;
+          const key = contest.contestTemplateId;
           if (!acc[key]) acc[key] = [];
           acc[key].push(contest);
           return acc;

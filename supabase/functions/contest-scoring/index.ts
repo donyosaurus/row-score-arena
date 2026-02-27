@@ -207,12 +207,11 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Find ALL sibling pools (same template + tier) for batch processing
+    // Find ALL sibling pools (same template) for batch processing — ignore tier_id
     const { data: siblingPools, error: siblingsError } = await supabaseAdmin
       .from('contest_pools')
       .select('id, status')
-      .eq('contest_template_id', requestedPool.contest_template_id)
-      .eq('tier_id', requestedPool.tier_id);
+      .eq('contest_template_id', requestedPool.contest_template_id);
 
     if (siblingsError) {
       console.error('[scoring] Error fetching sibling pools:', siblingsError);
@@ -222,11 +221,56 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Filter to scorable pools (results_entered, locked, settling, or already scoring_completed for idempotency)
+    // Copy crew results from the requested pool to any sibling that is missing them
+    // (admin only enters results on one pool; siblings need them too)
+    const { data: sourceCrews } = await supabaseAdmin
+      .from('contest_pool_crews')
+      .select('crew_id, event_id, crew_name, manual_finish_order, manual_result_time')
+      .eq('contest_pool_id', contestPoolId);
+
+    if (sourceCrews && sourceCrews.length > 0) {
+      const hasResults = sourceCrews.some((c: any) => c.manual_finish_order !== null);
+      if (hasResults) {
+        for (const sib of siblingPools || []) {
+          if (sib.id === contestPoolId) continue; // skip source pool
+          // Check if this sibling already has results
+          const { data: sibCrews } = await supabaseAdmin
+            .from('contest_pool_crews')
+            .select('crew_id, manual_finish_order')
+            .eq('contest_pool_id', sib.id);
+          const sibHasResults = sibCrews?.some((c: any) => c.manual_finish_order !== null);
+          if (!sibHasResults && sibCrews && sibCrews.length > 0) {
+            console.log('[scoring] Copying results from', contestPoolId, 'to sibling', sib.id);
+            for (const src of sourceCrews) {
+              await supabaseAdmin
+                .from('contest_pool_crews')
+                .update({
+                  manual_finish_order: src.manual_finish_order,
+                  manual_result_time: src.manual_result_time,
+                })
+                .eq('contest_pool_id', sib.id)
+                .eq('crew_id', src.crew_id);
+            }
+            // Also set sibling status to results_entered so it's scorable
+            if (sib.status === 'locked' || sib.status === 'open') {
+              await supabaseAdmin
+                .from('contest_pools')
+                .update({ status: 'results_entered' })
+                .eq('id', sib.id);
+              sib.status = 'results_entered';
+            }
+          }
+        }
+      }
+    }
+
+    console.log('[scoring] Found', siblingPools?.length, 'sibling pools total');
+
+    // Filter to scorable pools
     const scorableStatuses = ['results_entered', 'locked', 'settling', 'scoring_completed'];
     const poolsToScore = siblingPools?.filter(p => scorableStatuses.includes(p.status)) || [];
 
-    console.log('[scoring] Found', poolsToScore.length, 'sibling pools to score out of', siblingPools?.length);
+    console.log('[scoring] Scorable pools:', poolsToScore.length);
 
     // Batch score all sibling pools
     const scoringResults = [];
