@@ -99,8 +99,8 @@ const Lobby = () => {
         return;
       }
 
-      const enteredTemplateIds = new Set(
-        (entriesResult.data || []).map((e: any) => e.contest_template_id)
+      const enteredPoolIds = new Set(
+        (entriesResult.data || []).map((e: any) => e.pool_id)
       );
 
       const mapped: MappedContest[] = (poolsResult.data as unknown as ContestPool[]).map((pool) => {
