@@ -29,6 +29,7 @@ interface ContestPool {
 
 interface MappedContest {
   id: string;
+  contestTemplateId: string;
   regattaName: string;
   genderCategory: "Men's" | "Women's";
   lockTime: string;
