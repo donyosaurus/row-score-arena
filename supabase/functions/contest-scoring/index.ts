@@ -266,6 +266,12 @@ Deno.serve(async (req) => {
 
     console.log('[scoring] Found', siblingPools?.length, 'sibling pools total');
 
+    // Filter to scorable pools
+    const scorableStatuses = ['results_entered', 'locked', 'settling', 'scoring_completed'];
+    const poolsToScore = siblingPools?.filter(p => scorableStatuses.includes(p.status)) || [];
+
+    console.log('[scoring] Scorable pools:', poolsToScore.length);
+
     // Batch score all sibling pools
     const scoringResults = [];
     let totalEntriesScored = 0;
