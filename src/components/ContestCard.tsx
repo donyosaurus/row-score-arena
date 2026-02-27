@@ -19,6 +19,7 @@ interface ContestCardProps {
   maxEntries?: number;
   allowOverflow?: boolean;
   siblingPoolCount?: number;
+  userEntered?: boolean;
 }
 
 const formatCents = (cents: number): string => {
