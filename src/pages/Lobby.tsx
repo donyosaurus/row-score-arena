@@ -144,6 +144,7 @@ const Lobby = () => {
       const grouped = mapped.reduce(
         (acc, contest) => {
           const key = contest.contestTemplateId;
+          if (!key) return acc; // skip pools without a template
           if (!acc[key]) acc[key] = [];
           acc[key].push(contest);
           return acc;
