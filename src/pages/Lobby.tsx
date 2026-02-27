@@ -136,7 +136,7 @@ const Lobby = () => {
           createdAt: pool.created_at,
           status: pool.status,
           siblingPoolCount: 1,
-          userEntered: enteredTemplateIds.has(pool.contest_template_id),
+          userEntered: enteredPoolIds.has(pool.id),
         };
       });
 
