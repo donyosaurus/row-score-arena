@@ -204,7 +204,11 @@ const Lobby = () => {
     <div className="flex flex-col min-h-screen">
       <Header />
 
-      <main className="flex-1 bg-background py-16">
+      <main className="flex-1 bg-background py-16 relative">
+        <div
+          className="absolute inset-0 bg-cover bg-center opacity-10 pointer-events-none"
+          style={{ backgroundImage: `url(${lobbyBg})` }}
+        />
         <div className="container mx-auto px-4">
           <div className="mb-12 text-center max-w-3xl mx-auto">
             <h1 className="text-4xl md:text-5xl font-bold mb-4">Available Contests</h1>
