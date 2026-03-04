@@ -60,7 +60,7 @@ const MyEntries = () => {
     totalEntries: 0,
     activeEntries: 0,
     totalWinnings: 0,
-    winRate: 0,
+    winRate: 0
   });
 
   useEffect(() => {
@@ -72,22 +72,22 @@ const MyEntries = () => {
     loadEntries();
 
     // Realtime subscription for instant updates when contests are settled
-    const channel = supabase
-      .channel('my-entries-updates')
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'contest_entries',
-          filter: `user_id=eq.${user.id}`,
-        },
-        () => {
-          // Reload entries when any of user's entries are updated
-          loadEntries();
-        }
-      )
-      .subscribe();
+    const channel = supabase.
+    channel('my-entries-updates').
+    on(
+      'postgres_changes',
+      {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'contest_entries',
+        filter: `user_id=eq.${user.id}`
+      },
+      () => {
+        // Reload entries when any of user's entries are updated
+        loadEntries();
+      }
+    ).
+    subscribe();
 
     return () => {
       supabase.removeChannel(channel);
@@ -98,9 +98,9 @@ const MyEntries = () => {
     if (!user) return;
 
     try {
-      const { data, error } = await supabase
-        .from('contest_entries')
-        .select(`
+      const { data, error } = await supabase.
+      from('contest_entries').
+      select(`
           id,
           created_at,
           status,
@@ -112,9 +112,9 @@ const MyEntries = () => {
           contest_templates!inner (regatta_name, lock_time),
           contest_pools!inner (status, prize_pool_cents, max_entries, current_entries, payout_structure),
           contest_scores (rank, total_points, margin_bonus, is_winner, payout_cents)
-        `)
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
+        `).
+      eq('user_id', user.id).
+      order('created_at', { ascending: false });
 
       if (error) {
         console.error('Error loading entries:', error);
@@ -125,17 +125,17 @@ const MyEntries = () => {
       setEntries(entriesData);
 
       // Collect all pool IDs to fetch crew info
-      const poolIds = [...new Set(entriesData.map(e => e.pool_id).filter(Boolean))];
-      
+      const poolIds = [...new Set(entriesData.map((e) => e.pool_id).filter(Boolean))];
+
       if (poolIds.length > 0) {
-        const { data: crewsData, error: crewsError } = await supabase
-          .from('contest_pool_crews')
-          .select('crew_id, crew_name, contest_pool_id')
-          .in('contest_pool_id', poolIds);
+        const { data: crewsData, error: crewsError } = await supabase.
+        from('contest_pool_crews').
+        select('crew_id, crew_name, contest_pool_id').
+        in('contest_pool_id', poolIds);
 
         if (!crewsError && crewsData) {
           const newCrewMap = new Map<string, CrewInfo>();
-          crewsData.forEach(crew => {
+          crewsData.forEach((crew) => {
             // Key by pool_id + crew_id for uniqueness
             newCrewMap.set(`${crew.contest_pool_id}-${crew.crew_id}`, crew);
           });
@@ -144,8 +144,8 @@ const MyEntries = () => {
       }
 
       // Calculate stats
-      const completed = entriesData.filter(e => e.contest_pools?.status === 'completed');
-      const wins = completed.filter(e => e.contest_scores?.[0]?.is_winner);
+      const completed = entriesData.filter((e) => e.contest_pools?.status === 'completed');
+      const wins = completed.filter((e) => e.contest_scores?.[0]?.is_winner);
       const totalWinnings = completed.reduce(
         (sum, e) => sum + (e.contest_scores?.[0]?.payout_cents || 0),
         0
@@ -153,9 +153,9 @@ const MyEntries = () => {
 
       setStats({
         totalEntries: entriesData.length,
-        activeEntries: entriesData.filter(e => e.status === 'active' && e.contest_pools?.status !== 'completed').length,
+        activeEntries: entriesData.filter((e) => e.status === 'active' && e.contest_pools?.status !== 'completed').length,
         totalWinnings: totalWinnings / 100,
-        winRate: completed.length > 0 ? (wins.length / completed.length) * 100 : 0,
+        winRate: completed.length > 0 ? wins.length / completed.length * 100 : 0
       });
     } catch (error) {
       console.error('Error loading entries:', error);
@@ -169,14 +169,14 @@ const MyEntries = () => {
       open: { label: 'Open', variant: 'default' as const },
       locked: { label: 'Live', variant: 'secondary' as const },
       completed: { label: 'Completed', variant: 'outline' as const },
-      cancelled: { label: 'Cancelled', variant: 'destructive' as const },
+      cancelled: { label: 'Cancelled', variant: 'destructive' as const }
     };
     const config = statusMap[status as keyof typeof statusMap] || statusMap.open;
     return <Badge variant={config.variant}>{config.label}</Badge>;
   };
 
   // Parse picks and get crew names with margins
-  const getParsedPicks = (entry: Entry): { crewName: string; margin: number | null }[] => {
+  const getParsedPicks = (entry: Entry): {crewName: string;margin: number | null;}[] => {
     let picks: unknown = entry.picks;
     if (!picks) return [];
 
@@ -192,12 +192,12 @@ const MyEntries = () => {
     // Handle nested format: { crews: [{ crewId, predictedMargin }] }
     let picksArray: unknown[];
     if (
-      typeof picks === 'object' &&
-      picks !== null &&
-      !Array.isArray(picks) &&
-      'crews' in (picks as Record<string, unknown>)
-    ) {
-      const picksObj = picks as { crews: unknown[] };
+    typeof picks === 'object' &&
+    picks !== null &&
+    !Array.isArray(picks) &&
+    'crews' in (picks as Record<string, unknown>))
+    {
+      const picksObj = picks as {crews: unknown[];};
       picksArray = Array.isArray(picksObj.crews) ? picksObj.crews : [];
     } else if (Array.isArray(picks)) {
       picksArray = picks;
@@ -212,7 +212,7 @@ const MyEntries = () => {
         const crewInfo = crewMap.get(`${entry.pool_id}-${pickObj.crewId}`);
         return {
           crewName: crewInfo?.crew_name || pickObj.crewId,
-          margin: pickObj.predictedMargin,
+          margin: pickObj.predictedMargin
         };
       }
       // Old format: just crew ID string
@@ -220,7 +220,7 @@ const MyEntries = () => {
         const crewInfo = crewMap.get(`${entry.pool_id}-${pick}`);
         return {
           crewName: crewInfo?.crew_name || pick,
-          margin: null,
+          margin: null
         };
       }
       return { crewName: 'Unknown', margin: null };
@@ -229,13 +229,13 @@ const MyEntries = () => {
 
   // Active = entry is active AND pool is open/locked (not settled/completed/voided)
   const activeEntries = entries.filter(
-    e => e.status === 'active' && 
-      !['settled', 'completed', 'voided'].includes(e.contest_pools?.status || '')
+    (e) => e.status === 'active' &&
+    !['settled', 'completed', 'voided'].includes(e.contest_pools?.status || '')
   );
   // History = pool is settled, completed, or voided
   const completedEntries = entries.filter(
-    e => ['settled', 'completed', 'voided'].includes(e.contest_pools?.status || '') ||
-      ['settled', 'voided'].includes(e.status)
+    (e) => ['settled', 'completed', 'voided'].includes(e.contest_pools?.status || '') ||
+    ['settled', 'voided'].includes(e.status)
   );
 
   if (loading) {
@@ -249,8 +249,8 @@ const MyEntries = () => {
           </div>
         </main>
         <Footer />
-      </div>
-    );
+      </div>);
+
   }
 
   const renderEntryCard = (entry: Entry, showScore = false) => {
@@ -258,18 +258,18 @@ const MyEntries = () => {
     const parsedPicks = getParsedPicks(entry);
     const payoutStructure = entry.contest_pools?.payout_structure;
     const poolStatus = entry.contest_pools?.status || '';
-    const isSettled = ['settled', 'completed', 'voided'].includes(poolStatus) || 
-      ['settled', 'voided'].includes(entry.status);
-    
+    const isSettled = ['settled', 'completed', 'voided'].includes(poolStatus) ||
+    ['settled', 'voided'].includes(entry.status);
+
     // Get top prize from payout structure (rank 1)
     const getTopPrize = (): number | null => {
       if (!payoutStructure) return null;
       return payoutStructure['1'] || null;
     };
-    
+
     const topPrizeCents = getTopPrize();
     const prizePoolCents = entry.contest_pools?.prize_pool_cents || 0;
-    
+
     // Determine prize display text based on entry state
     const getPrizeDisplayText = (): string => {
       // For settled contests, don't show prize info (it's confusing for losers)
@@ -277,46 +277,46 @@ const MyEntries = () => {
         return ''; // We'll show result separately
       }
       // Active/Open - show what they can win
-      return topPrizeCents 
-        ? `Top Prize: $${(topPrizeCents / 100).toFixed(2)}`
-        : `Prize Pool: $${(prizePoolCents / 100).toFixed(2)}`;
+      return topPrizeCents ?
+      `Top Prize: $${(topPrizeCents / 100).toFixed(2)}` :
+      `Prize Pool: $${(prizePoolCents / 100).toFixed(2)}`;
     };
-    
+
     // Get result display for settled contests
     const getResultDisplay = () => {
       if (!isSettled) return null;
-      
+
       // Check if voided
       if (entry.status === 'voided' || poolStatus === 'voided') {
         return <Badge variant="secondary">Refunded</Badge>;
       }
-      
+
       // Check payout from contest_scores or entry directly
       const payoutCents = score?.payout_cents || 0;
       const rank = score?.rank || entry.rank;
-      
+
       if (payoutCents > 0) {
         return (
           <Badge className="bg-green-600 hover:bg-green-700 text-white">
             Won ${(payoutCents / 100).toFixed(2)}
-          </Badge>
-        );
+          </Badge>);
+
       }
-      
+
       // Did not win
       if (rank) {
         return (
           <Badge variant="outline" className="text-muted-foreground">
             Finished #{rank}
-          </Badge>
-        );
+          </Badge>);
+
       }
-      
+
       return (
         <Badge variant="outline" className="text-muted-foreground">
           Did Not Win
-        </Badge>
-      );
+        </Badge>);
+
     };
 
     const prizeText = getPrizeDisplayText();
@@ -335,12 +335,12 @@ const MyEntries = () => {
                   Entry Fee: ${(entry.entry_fee_cents / 100).toFixed(2)}
                   {prizeText && ` • ${prizeText}`}
                 </div>
-                {!showScore && (
-                  <div>Locks: {new Date(entry.contest_templates.lock_time).toLocaleString()}</div>
-                )}
-                {showScore && (
-                  <div>Entered: {new Date(entry.created_at).toLocaleDateString()}</div>
-                )}
+                {!showScore &&
+                <div>Locks: {new Date(entry.contest_templates.lock_time).toLocaleString()}</div>
+                }
+                {showScore &&
+                <div>Entered: {new Date(entry.created_at).toLocaleDateString()}</div>
+                }
               </CardDescription>
             </div>
             <div className="flex items-center gap-2">
@@ -357,33 +357,33 @@ const MyEntries = () => {
               <span>Your Picks ({parsedPicks.length})</span>
             </div>
             <div className="flex flex-wrap gap-2">
-              {parsedPicks.map((pick, idx) => (
-                <Badge key={idx} variant="secondary" className="text-sm">
+              {parsedPicks.map((pick, idx) =>
+              <Badge key={idx} variant="secondary" className="text-sm">
                   {pick.crewName}
-                  {pick.margin !== null && (
-                    <span className="ml-1 text-primary font-semibold">
+                  {pick.margin !== null &&
+                <span className="ml-1 text-primary font-semibold">
                       (+{pick.margin.toFixed(1)}s)
                     </span>
-                  )}
+                }
                 </Badge>
-              ))}
-              {parsedPicks.length === 0 && (
-                <span className="text-sm text-muted-foreground">No picks recorded</span>
               )}
+              {parsedPicks.length === 0 &&
+              <span className="text-sm text-muted-foreground">No picks recorded</span>
+              }
             </div>
           </div>
 
           {/* Show score details for completed entries */}
-          {showScore && score && (
-            <div className="flex flex-wrap items-center gap-4 text-sm pt-3 border-t text-muted-foreground">
+          {showScore && score &&
+          <div className="flex flex-wrap items-center gap-4 text-sm pt-3 border-t text-muted-foreground">
               <span>Rank: #{score.rank}</span>
               <span>Points: {score.total_points}</span>
               {score.margin_bonus > 0 && <span>Margin Bonus: +{score.margin_bonus}</span>}
             </div>
-          )}
+          }
         </CardContent>
-      </Card>
-    );
+      </Card>);
+
   };
 
   return (
@@ -394,7 +394,8 @@ const MyEntries = () => {
         <div className="container mx-auto px-4">
           <div className="mb-8">
             <h1 className="text-3xl font-bold mb-2">My Entries</h1>
-            <p className="text-muted-foreground">Track your contest history and performance</p>
+            <p className="text-muted-foreground">
+</p>
           </div>
 
           {/* Stats Overview */}
@@ -452,8 +453,7 @@ const MyEntries = () => {
             </TabsList>
 
             <TabsContent value="active" className="space-y-4">
-              {activeEntries.length === 0 ? (
-                <Card>
+              {activeEntries.length === 0 ? <Card>
                   <CardContent className="py-12 text-center">
                     <Trophy className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                     <p className="text-muted-foreground mb-4">You don't have any active entries</p>
@@ -461,31 +461,31 @@ const MyEntries = () => {
                       Browse Contests
                     </Button>
                   </CardContent>
-                </Card>
-              ) : (
-                activeEntries.map((entry) => renderEntryCard(entry, false))
-              )}
+                </Card> :
+
+              activeEntries.map((entry) => renderEntryCard(entry, false))
+              }
             </TabsContent>
 
             <TabsContent value="completed" className="space-y-4">
-              {completedEntries.length === 0 ? (
-                <Card>
+              {completedEntries.length === 0 ?
+              <Card>
                   <CardContent className="py-12 text-center">
                     <Calendar className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                     <p className="text-muted-foreground">No completed entries yet</p>
                   </CardContent>
-                </Card>
-              ) : (
-                completedEntries.map((entry) => renderEntryCard(entry, true))
-              )}
+                </Card> :
+
+              completedEntries.map((entry) => renderEntryCard(entry, true))
+              }
             </TabsContent>
           </Tabs>
         </div>
       </main>
 
       <Footer />
-    </div>
-  );
+    </div>);
+
 };
 
 export default MyEntries;
