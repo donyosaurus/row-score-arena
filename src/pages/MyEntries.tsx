@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Trophy, Calendar, DollarSign, TrendingUp, Users } from "lucide-react";
 import myEntriesBg from "@/assets/my-entries-bg.webp";
 
@@ -72,7 +73,6 @@ const MyEntries = () => {
 
     loadEntries();
 
-    // Realtime subscription for instant updates when contests are settled
     const channel = supabase.
     channel('my-entries-updates').
     on(
@@ -84,7 +84,6 @@ const MyEntries = () => {
         filter: `user_id=eq.${user.id}`
       },
       () => {
-        // Reload entries when any of user's entries are updated
         loadEntries();
       }
     ).
@@ -102,14 +101,7 @@ const MyEntries = () => {
       const { data, error } = await supabase.
       from('contest_entries').
       select(`
-          id,
-          created_at,
-          status,
-          entry_fee_cents,
-          pool_id,
-          picks,
-          payout_cents,
-          rank,
+          id, created_at, status, entry_fee_cents, pool_id, picks, payout_cents, rank,
           contest_templates!inner (regatta_name, lock_time),
           contest_pools!inner (status, prize_pool_cents, max_entries, current_entries, payout_structure),
           contest_scores (rank, total_points, margin_bonus, is_winner, payout_cents)
@@ -125,7 +117,6 @@ const MyEntries = () => {
       const entriesData = (data || []) as unknown as Entry[];
       setEntries(entriesData);
 
-      // Collect all pool IDs to fetch crew info
       const poolIds = [...new Set(entriesData.map((e) => e.pool_id).filter(Boolean))];
 
       if (poolIds.length > 0) {
@@ -137,14 +128,12 @@ const MyEntries = () => {
         if (!crewsError && crewsData) {
           const newCrewMap = new Map<string, CrewInfo>();
           crewsData.forEach((crew) => {
-            // Key by pool_id + crew_id for uniqueness
             newCrewMap.set(`${crew.contest_pool_id}-${crew.crew_id}`, crew);
           });
           setCrewMap(newCrewMap);
         }
       }
 
-      // Calculate stats
       const completed = entriesData.filter((e) => e.contest_pools?.status === 'completed');
       const wins = completed.filter((e) => e.contest_scores?.[0]?.is_winner);
       const totalWinnings = completed.reduce(
@@ -166,38 +155,26 @@ const MyEntries = () => {
   };
 
   const getStatusBadge = (status: string) => {
-    const statusMap = {
-      open: { label: 'Open', variant: 'default' as const },
-      locked: { label: 'Live', variant: 'secondary' as const },
-      completed: { label: 'Completed', variant: 'outline' as const },
-      cancelled: { label: 'Cancelled', variant: 'destructive' as const }
+    const statusMap: Record<string, { label: string; className: string }> = {
+      open: { label: 'Open', className: 'bg-success/10 text-success border-success/30' },
+      locked: { label: 'Live', className: 'bg-gold/10 text-gold border-gold/30' },
+      completed: { label: 'Completed', className: 'bg-muted text-muted-foreground' },
+      cancelled: { label: 'Cancelled', className: 'bg-destructive/10 text-destructive border-destructive/30' }
     };
-    const config = statusMap[status as keyof typeof statusMap] || statusMap.open;
-    return <Badge variant={config.variant}>{config.label}</Badge>;
+    const config = statusMap[status] || statusMap.open;
+    return <Badge variant="outline" className={config.className}>{config.label}</Badge>;
   };
 
-  // Parse picks and get crew names with margins
   const getParsedPicks = (entry: Entry): {crewName: string;margin: number | null;}[] => {
     let picks: unknown = entry.picks;
     if (!picks) return [];
 
-    // Sometimes JSON fields can come through as a string depending on how they were written.
     if (typeof picks === 'string') {
-      try {
-        picks = JSON.parse(picks);
-      } catch {
-        return [];
-      }
+      try { picks = JSON.parse(picks); } catch { return []; }
     }
 
-    // Handle nested format: { crews: [{ crewId, predictedMargin }] }
     let picksArray: unknown[];
-    if (
-    typeof picks === 'object' &&
-    picks !== null &&
-    !Array.isArray(picks) &&
-    'crews' in (picks as Record<string, unknown>))
-    {
+    if (typeof picks === 'object' && picks !== null && !Array.isArray(picks) && 'crews' in (picks as Record<string, unknown>)) {
       const picksObj = picks as {crews: unknown[];};
       picksArray = Array.isArray(picksObj.crews) ? picksObj.crews : [];
     } else if (Array.isArray(picks)) {
@@ -207,62 +184,60 @@ const MyEntries = () => {
     }
 
     return picksArray.map((pick) => {
-      // New format: { crewId, predictedMargin }
       if (typeof pick === 'object' && pick !== null && 'crewId' in pick) {
         const pickObj = pick as PickNew;
         const crewInfo = crewMap.get(`${entry.pool_id}-${pickObj.crewId}`);
-        return {
-          crewName: crewInfo?.crew_name || pickObj.crewId,
-          margin: pickObj.predictedMargin
-        };
+        return { crewName: crewInfo?.crew_name || pickObj.crewId, margin: pickObj.predictedMargin };
       }
-      // Old format: just crew ID string
       if (typeof pick === 'string') {
         const crewInfo = crewMap.get(`${entry.pool_id}-${pick}`);
-        return {
-          crewName: crewInfo?.crew_name || pick,
-          margin: null
-        };
+        return { crewName: crewInfo?.crew_name || pick, margin: null };
       }
       return { crewName: 'Unknown', margin: null };
     });
   };
 
-  // Active = entry is active AND pool is open/locked (not settled/completed/voided)
   const activeEntries = entries.filter(
-    (e) => e.status === 'active' &&
-    !['settled', 'completed', 'voided'].includes(e.contest_pools?.status || '')
+    (e) => e.status === 'active' && !['settled', 'completed', 'voided'].includes(e.contest_pools?.status || '')
   );
-  // History = pool is settled, completed, or voided
   const completedEntries = entries.filter(
-    (e) => ['settled', 'completed', 'voided'].includes(e.contest_pools?.status || '') ||
-    ['settled', 'voided'].includes(e.status)
+    (e) => ['settled', 'completed', 'voided'].includes(e.contest_pools?.status || '') || ['settled', 'voided'].includes(e.status)
   );
 
   if (loading) {
     return (
       <div className="flex flex-col min-h-screen">
         <Header />
-        <main className="flex-1 flex items-center justify-center">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-            <p className="mt-4 text-muted-foreground">Loading your entries...</p>
+        <main className="flex-1 py-8 bg-background">
+          <div className="container mx-auto px-4 space-y-6">
+            <Skeleton className="h-10 w-48" />
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              {[1,2,3,4].map(i => <Skeleton key={i} className="h-24 rounded-xl" />)}
+            </div>
+            <Skeleton className="h-64 w-full rounded-xl" />
           </div>
         </main>
         <Footer />
-      </div>);
-
+      </div>
+    );
   }
+
+  const getStatusBorderColor = (entry: Entry) => {
+    const poolStatus = entry.contest_pools?.status || '';
+    const score = entry.contest_scores?.[0];
+    if (['settled', 'completed'].includes(poolStatus) && score?.is_winner) return 'border-l-success';
+    if (['settled', 'completed'].includes(poolStatus)) return 'border-l-muted-foreground';
+    if (poolStatus === 'locked') return 'border-l-gold';
+    return 'border-l-accent';
+  };
 
   const renderEntryCard = (entry: Entry, showScore = false) => {
     const score = entry.contest_scores?.[0];
     const parsedPicks = getParsedPicks(entry);
     const payoutStructure = entry.contest_pools?.payout_structure;
     const poolStatus = entry.contest_pools?.status || '';
-    const isSettled = ['settled', 'completed', 'voided'].includes(poolStatus) ||
-    ['settled', 'voided'].includes(entry.status);
+    const isSettled = ['settled', 'completed', 'voided'].includes(poolStatus) || ['settled', 'voided'].includes(entry.status);
 
-    // Get top prize from payout structure (rank 1)
     const getTopPrize = (): number | null => {
       if (!payoutStructure) return null;
       return payoutStructure['1'] || null;
@@ -271,77 +246,37 @@ const MyEntries = () => {
     const topPrizeCents = getTopPrize();
     const prizePoolCents = entry.contest_pools?.prize_pool_cents || 0;
 
-    // Determine prize display text based on entry state
     const getPrizeDisplayText = (): string => {
-      // For settled contests, don't show prize info (it's confusing for losers)
-      if (isSettled) {
-        return ''; // We'll show result separately
-      }
-      // Active/Open - show what they can win
-      return topPrizeCents ?
-      `Top Prize: $${(topPrizeCents / 100).toFixed(2)}` :
-      `Prize Pool: $${(prizePoolCents / 100).toFixed(2)}`;
+      if (isSettled) return '';
+      return topPrizeCents ? `Top Prize: $${(topPrizeCents / 100).toFixed(2)}` : `Prize Pool: $${(prizePoolCents / 100).toFixed(2)}`;
     };
 
-    // Get result display for settled contests
     const getResultDisplay = () => {
       if (!isSettled) return null;
-
-      // Check if voided
-      if (entry.status === 'voided' || poolStatus === 'voided') {
-        return <Badge variant="secondary">Refunded</Badge>;
-      }
-
-      // Check payout from contest_scores or entry directly
+      if (entry.status === 'voided' || poolStatus === 'voided') return <Badge variant="secondary">Refunded</Badge>;
       const payoutCents = score?.payout_cents || 0;
       const rank = score?.rank || entry.rank;
-
-      if (payoutCents > 0) {
-        return (
-          <Badge className="bg-green-600 hover:bg-green-700 text-white">
-            Won ${(payoutCents / 100).toFixed(2)}
-          </Badge>);
-
-      }
-
-      // Did not win
-      if (rank) {
-        return (
-          <Badge variant="outline" className="text-muted-foreground">
-            Finished #{rank}
-          </Badge>);
-
-      }
-
-      return (
-        <Badge variant="outline" className="text-muted-foreground">
-          Did Not Win
-        </Badge>);
-
+      if (payoutCents > 0) return <Badge className="bg-success text-success-foreground">Won ${(payoutCents / 100).toFixed(2)}</Badge>;
+      if (rank) return <Badge variant="outline" className="text-muted-foreground">Finished #{rank}</Badge>;
+      return <Badge variant="outline" className="text-muted-foreground">Did Not Win</Badge>;
     };
 
     const prizeText = getPrizeDisplayText();
     const resultDisplay = getResultDisplay();
 
     return (
-      <Card key={entry.id}>
-        <CardHeader>
+      <Card key={entry.id} className={`rounded-xl card-hover overflow-hidden border-l-4 ${getStatusBorderColor(entry)}`}>
+        <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <div className="flex-1">
-              <CardTitle className="text-lg">
-                {entry.contest_templates.regatta_name}
-              </CardTitle>
-              <CardDescription className="space-y-1">
+              <CardTitle className="text-lg font-heading">{entry.contest_templates.regatta_name}</CardTitle>
+              <CardDescription className="space-y-1 mt-1">
                 <div>
-                  Entry Fee: ${(entry.entry_fee_cents / 100).toFixed(2)}
-                  {prizeText && ` • ${prizeText}`}
+                  Entry: ${(entry.entry_fee_cents / 100).toFixed(2)}
+                  {prizeText && <span className="text-gold font-medium"> • {prizeText}</span>}
                 </div>
-                {!showScore &&
-                <div>Locks: {new Date(entry.contest_templates.lock_time).toLocaleString()}</div>
-                }
-                {showScore &&
-                <div>Entered: {new Date(entry.created_at).toLocaleDateString()}</div>
-                }
+                {!showScore && <div>Locks: {new Date(entry.contest_templates.lock_time).toLocaleString()}</div>}
+                {showScore && <div>Entered: {new Date(entry.created_at).toLocaleDateString()}</div>}
               </CardDescription>
             </div>
             <div className="flex items-center gap-2">
@@ -351,7 +286,6 @@ const MyEntries = () => {
           </div>
         </CardHeader>
         <CardContent>
-          {/* Display Picks */}
           <div className="mb-4">
             <div className="flex items-center gap-2 mb-2 text-sm font-medium text-muted-foreground">
               <Users className="h-4 w-4" />
@@ -359,139 +293,111 @@ const MyEntries = () => {
             </div>
             <div className="flex flex-wrap gap-2">
               {parsedPicks.map((pick, idx) =>
-              <Badge key={idx} variant="secondary" className="text-sm">
+                <Badge key={idx} variant="secondary" className="text-sm rounded-lg bg-primary/5 border border-primary/10">
                   {pick.crewName}
                   {pick.margin !== null &&
-                <span className="ml-1 text-primary font-semibold">
-                      (+{pick.margin.toFixed(1)}s)
-                    </span>
-                }
+                    <span className="ml-1 text-accent font-semibold">(+{pick.margin.toFixed(1)}s)</span>
+                  }
                 </Badge>
               )}
-              {parsedPicks.length === 0 &&
-              <span className="text-sm text-muted-foreground">No picks recorded</span>
-              }
+              {parsedPicks.length === 0 && <span className="text-sm text-muted-foreground">No picks recorded</span>}
             </div>
           </div>
 
-          {/* Show score details for completed entries */}
-          {showScore && score &&
-          <div className="flex flex-wrap items-center gap-4 text-sm pt-3 border-t text-muted-foreground">
-              <span>Rank: #{score.rank}</span>
-              <span>Points: {score.total_points}</span>
-              {score.margin_bonus > 0 && <span>Margin Bonus: +{score.margin_bonus}</span>}
+          {showScore && score && (
+            <div className="flex flex-wrap items-center gap-4 text-sm pt-3 border-t text-muted-foreground">
+              <span className="font-heading font-bold text-foreground">Rank: #{score.rank}</span>
+              <span>{score.total_points} pts</span>
+              {score.margin_bonus > 0 && <span className="text-accent">+{score.margin_bonus} margin bonus</span>}
             </div>
-          }
+          )}
         </CardContent>
-      </Card>);
-
+      </Card>
+    );
   };
 
   return (
     <div className="flex flex-col min-h-screen">
       <Header />
       
-      <main className="flex-1 relative py-8">
-        <div
-          className="absolute inset-0 bg-cover bg-center bg-no-repeat"
-          style={{ backgroundImage: `url(${myEntriesBg})` }}
-        />
-        <div className="absolute inset-0 bg-background/40" />
-        <div className="container mx-auto px-4 relative z-10">
-          <Card className="mb-8 inline-block">
-            <CardHeader>
-              <CardTitle className="text-3xl">My Entries</CardTitle>
-            </CardHeader>
-          </Card>
+      <main className="flex-1 relative">
+        {/* Background image with dark gradient overlay */}
+        <div className="absolute inset-0 bg-cover bg-center bg-no-repeat" style={{ backgroundImage: `url(${myEntriesBg})` }} />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/50 to-background" />
+        
+        <div className="container mx-auto px-4 relative z-10 py-10">
+          <h1 className="text-4xl font-heading font-extrabold text-white mb-8">My Entries</h1>
 
-          {/* Stats Overview */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium">Total Entries</CardTitle>
-                <Trophy className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{stats.totalEntries}</div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium">Active</CardTitle>
-                <Calendar className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{stats.activeEntries}</div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium">Total Winnings</CardTitle>
-                <DollarSign className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">${stats.totalWinnings.toFixed(2)}</div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium">Win Rate</CardTitle>
-                <TrendingUp className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{stats.winRate.toFixed(1)}%</div>
-              </CardContent>
-            </Card>
+          {/* Stats — frosted glass */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+            {[
+              { icon: Trophy, label: "Total Entries", value: stats.totalEntries },
+              { icon: Calendar, label: "Active", value: stats.activeEntries },
+              { icon: DollarSign, label: "Winnings", value: `$${stats.totalWinnings.toFixed(2)}` },
+              { icon: TrendingUp, label: "Win Rate", value: `${stats.winRate.toFixed(1)}%` },
+            ].map((stat, i) => (
+              <Card key={i} className="glass rounded-xl border-white/20 shadow-lg animate-fade-in" style={{ animationDelay: `${i * 0.1}s` }}>
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-sm font-medium">{stat.label}</CardTitle>
+                  <stat.icon className="h-4 w-4 text-accent" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-heading font-bold">{stat.value}</div>
+                </CardContent>
+              </Card>
+            ))}
           </div>
 
           {/* Entries List */}
           <Tabs defaultValue="active" className="space-y-4">
-            <TabsList className="border rounded-lg">
-              <TabsTrigger value="active">
+            <TabsList className="rounded-xl bg-white/10 backdrop-blur-sm p-1 h-auto border border-white/20">
+              <TabsTrigger value="active" className="rounded-lg py-2.5 px-6 font-semibold data-[state=active]:bg-card data-[state=active]:shadow-sm">
                 Active ({activeEntries.length})
               </TabsTrigger>
-              <TabsTrigger value="completed">
+              <TabsTrigger value="completed" className="rounded-lg py-2.5 px-6 font-semibold data-[state=active]:bg-card data-[state=active]:shadow-sm">
                 Completed ({completedEntries.length})
               </TabsTrigger>
             </TabsList>
 
             <TabsContent value="active" className="space-y-4">
-              {activeEntries.length === 0 ? <Card>
+              {activeEntries.length === 0 ? (
+                <Card className="rounded-xl shadow-md">
                   <CardContent className="py-12 text-center">
-                    <Trophy className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                    <div className="w-16 h-16 rounded-full bg-accent/10 flex items-center justify-center mx-auto mb-4">
+                      <Trophy className="h-8 w-8 text-accent" />
+                    </div>
                     <p className="text-muted-foreground mb-4">You don't have any active entries</p>
-                    <Button onClick={() => navigate('/lobby')} variant="hero">
+                    <Button onClick={() => navigate('/lobby')} variant="hero" className="rounded-xl">
                       Browse Contests
                     </Button>
                   </CardContent>
-                </Card> :
-
-              activeEntries.map((entry) => renderEntryCard(entry, false))
-              }
+                </Card>
+              ) : (
+                activeEntries.map((entry) => renderEntryCard(entry, false))
+              )}
             </TabsContent>
 
             <TabsContent value="completed" className="space-y-4">
-              {completedEntries.length === 0 ?
-              <Card>
+              {completedEntries.length === 0 ? (
+                <Card className="rounded-xl shadow-md">
                   <CardContent className="py-12 text-center">
-                    <Calendar className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                    <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
+                      <Calendar className="h-8 w-8 text-muted-foreground" />
+                    </div>
                     <p className="text-muted-foreground">No completed entries yet</p>
                   </CardContent>
-                </Card> :
-
-              completedEntries.map((entry) => renderEntryCard(entry, true))
-              }
+                </Card>
+              ) : (
+                completedEntries.map((entry) => renderEntryCard(entry, true))
+              )}
             </TabsContent>
           </Tabs>
         </div>
       </main>
 
       <Footer />
-    </div>);
-
+    </div>
+  );
 };
 
 export default MyEntries;
