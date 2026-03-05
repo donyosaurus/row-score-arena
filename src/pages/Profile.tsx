@@ -9,7 +9,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { DollarSign, TrendingUp, Trophy, User, Edit2, ArrowUpDown, Loader2, ArrowDownCircle, ArrowUpCircle, CreditCard, Gift, RefreshCw } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { DollarSign, TrendingUp, Trophy, User, Edit2, ArrowUpDown, Loader2, ArrowDownCircle, ArrowUpCircle, CreditCard, Gift, RefreshCw, Wallet, Target, BarChart3 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -81,18 +82,15 @@ const Profile = () => {
   const [contests, setContests] = useState<Contest[]>([]);
   const [loading, setLoading] = useState(true);
   
-  // Dialogs
   const [usernameDialogOpen, setUsernameDialogOpen] = useState(false);
   const [depositDialogOpen, setDepositDialogOpen] = useState(false);
   const [withdrawDialogOpen, setWithdrawDialogOpen] = useState(false);
   
-  // Forms
   const [newUsername, setNewUsername] = useState("");
   const [depositAmount, setDepositAmount] = useState("");
   const [withdrawAmount, setWithdrawAmount] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  // Filters
   const [txTypeFilter, setTxTypeFilter] = useState("all");
   const [txPage, setTxPage] = useState(1);
   const [contestPage, setContestPage] = useState(1);
@@ -100,11 +98,7 @@ const Profile = () => {
   const [contestTotal, setContestTotal] = useState(0);
 
   useEffect(() => {
-    if (!user) {
-      navigate("/login");
-      return;
-    }
-
+    if (!user) { navigate("/login"); return; }
     fetchProfileData();
     fetchTransactions();
     fetchContests();
@@ -113,9 +107,7 @@ const Profile = () => {
   const fetchProfileData = async () => {
     try {
       const { data, error } = await supabase.functions.invoke('profile-overview');
-      
       if (error) throw error;
-      
       setProfileData(data);
       setNewUsername(data.profile.username || "");
     } catch (error: any) {
@@ -126,21 +118,10 @@ const Profile = () => {
 
   const fetchTransactions = async () => {
     try {
-      const params = new URLSearchParams({
-        page: txPage.toString(),
-        limit: '25',
-      });
-      
-      if (txTypeFilter !== 'all') {
-        params.append('type', txTypeFilter);
-      }
-
       const { data, error } = await supabase.functions.invoke('wallet-transactions', {
         body: { page: txPage, limit: 25, type: txTypeFilter !== 'all' ? txTypeFilter : undefined }
       });
-      
       if (error) throw error;
-      
       setTransactions(data.transactions || []);
       setTxTotal(data.total || 0);
     } catch (error: any) {
@@ -155,9 +136,7 @@ const Profile = () => {
       const { data, error } = await supabase.functions.invoke('profile-contests', {
         body: { page: contestPage, limit: 20 }
       });
-      
       if (error) throw error;
-      
       setContests(data.contests || []);
       setContestTotal(data.total || 0);
     } catch (error: any) {
@@ -167,117 +146,66 @@ const Profile = () => {
 
   const handleUsernameChange = async () => {
     if (!newUsername || !profileData) return;
-
     setIsSubmitting(true);
     try {
       const { data, error } = await supabase.functions.invoke('profile-username', {
         body: { new_username: newUsername }
       });
-
-      if (error) {
-        toast.error(error.message || 'Failed to update username');
-        return;
-      }
-
+      if (error) { toast.error(error.message || 'Failed to update username'); return; }
       if (data.error) {
         toast.error(data.error);
-        if (data.nextChangeAvailable) {
-          toast.info(`Next change available: ${new Date(data.nextChangeAvailable).toLocaleDateString()}`);
-        }
+        if (data.nextChangeAvailable) toast.info(`Next change available: ${new Date(data.nextChangeAvailable).toLocaleDateString()}`);
         return;
       }
-
       toast.success('Username updated successfully!');
       setUsernameDialogOpen(false);
       fetchProfileData();
-    } catch (error: any) {
-      toast.error('Failed to update username');
-    } finally {
-      setIsSubmitting(false);
-    }
+    } catch { toast.error('Failed to update username'); }
+    finally { setIsSubmitting(false); }
   };
 
   const handleDeposit = async () => {
     const amount = parseFloat(depositAmount);
-    if (!amount || amount < 5 || amount > 500) {
-      toast.error('Deposit amount must be between $5 and $500');
-      return;
-    }
-
+    if (!amount || amount < 5 || amount > 500) { toast.error('Deposit amount must be between $5 and $500'); return; }
     setIsSubmitting(true);
     try {
-      // Use wallet-deposit directly with mock adapter (amount in cents)
       const { data, error } = await supabase.functions.invoke('wallet-deposit', {
         body: { amount: Math.floor(amount * 100) }
       });
-
-      if (error) {
-        toast.error(error.message || 'Failed to process deposit');
-        return;
-      }
-
-      if (data.error) {
-        toast.error(data.error);
-        return;
-      }
-
+      if (error) { toast.error(error.message || 'Failed to process deposit'); return; }
+      if (data.error) { toast.error(data.error); return; }
       toast.success(`Deposit successful! New balance: ${data.balanceDisplay}`);
       setDepositDialogOpen(false);
       setDepositAmount("");
       fetchProfileData();
       fetchTransactions();
-    } catch (error: any) {
-      toast.error('Failed to process deposit');
-    } finally {
-      setIsSubmitting(false);
-    }
+    } catch { toast.error('Failed to process deposit'); }
+    finally { setIsSubmitting(false); }
   };
 
   const handleWithdraw = async () => {
     const amount = parseFloat(withdrawAmount);
-    if (!amount || amount < 5 || amount > 200) {
-      toast.error('Withdrawal amount must be between $5 and $200');
-      return;
-    }
-
-    if (!profileData || profileData.wallet.availableBalance < amount) {
-      toast.error('Insufficient balance');
-      return;
-    }
-
+    if (!amount || amount < 5 || amount > 200) { toast.error('Withdrawal amount must be between $5 and $200'); return; }
+    if (!profileData || profileData.wallet.availableBalance < amount) { toast.error('Insufficient balance'); return; }
     setIsSubmitting(true);
     try {
       const { data, error } = await supabase.functions.invoke('wallet-withdraw-request', {
         body: { amount_cents: Math.floor(amount * 100) }
       });
-
-      if (error) {
-        toast.error(error.message || 'Failed to request withdrawal');
-        return;
-      }
-
-      if (data.error) {
-        toast.error(data.error);
-        return;
-      }
-
+      if (error) { toast.error(error.message || 'Failed to request withdrawal'); return; }
+      if (data.error) { toast.error(data.error); return; }
       toast.success('Withdrawal request submitted');
       setWithdrawDialogOpen(false);
       setWithdrawAmount("");
       fetchProfileData();
       fetchTransactions();
-    } catch (error: any) {
-      toast.error('Failed to request withdrawal');
-    } finally {
-      setIsSubmitting(false);
-    }
+    } catch { toast.error('Failed to request withdrawal'); }
+    finally { setIsSubmitting(false); }
   };
 
   const canWithdraw = () => {
     if (!profileData) return false;
-    return profileData.profile.isActive && 
-           !profileData.profile.selfExclusionUntil &&
-           profileData.wallet.availableBalance >= 5;
+    return profileData.profile.isActive && !profileData.profile.selfExclusionUntil && profileData.wallet.availableBalance >= 5;
   };
 
   const canChangeUsername = () => {
@@ -296,14 +224,32 @@ const Profile = () => {
     return nextChange.toLocaleDateString();
   };
 
+  const getTxAccentColor = (type: string) => {
+    switch (type) {
+      case 'deposit': case 'payout': case 'refund': case 'entry_fee_release': case 'bonus':
+        return 'border-l-success';
+      case 'entry_fee': case 'entry_fee_hold': case 'withdrawal':
+        return 'border-l-destructive';
+      default:
+        return 'border-l-muted-foreground';
+    }
+  };
+
   if (loading || !profileData) {
     return (
       <div className="flex flex-col min-h-screen">
         <Header />
-        <main className="flex-1 gradient-subtle py-12">
-          <div className="container mx-auto px-4 max-w-6xl">
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <main className="flex-1 bg-background py-12">
+          <div className="container mx-auto px-4 max-w-6xl space-y-6">
+            <Skeleton className="h-10 w-48" />
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="space-y-6">
+                <Skeleton className="h-64 w-full rounded-xl" />
+                <Skeleton className="h-48 w-full rounded-xl" />
+              </div>
+              <div className="lg:col-span-2">
+                <Skeleton className="h-96 w-full rounded-xl" />
+              </div>
             </div>
           </div>
         </main>
@@ -316,107 +262,117 @@ const Profile = () => {
     <div className="flex flex-col min-h-screen">
       <Header />
       
-      <main className="flex-1 gradient-subtle py-12">
-        <div className="container mx-auto px-4 max-w-6xl">
-          <h1 className="text-4xl font-bold mb-8">My Profile</h1>
+      {/* Profile Hero */}
+      <section className="gradient-hero py-10 relative overflow-hidden">
+        <div className="absolute inset-0 opacity-10">
+          <div className="absolute top-5 right-20 w-64 h-64 rounded-full bg-accent blur-3xl" />
+        </div>
+        <div className="container mx-auto px-4 max-w-6xl relative z-10">
+          <div className="flex items-center gap-5">
+            <div className="w-20 h-20 rounded-full bg-accent/20 border-4 border-white/20 flex items-center justify-center shadow-xl">
+              <User className="h-10 w-10 text-accent" />
+            </div>
+            <div>
+              <div className="flex items-center gap-3 mb-1">
+                <h1 className="text-3xl font-heading font-extrabold text-white">{profileData.profile.username}</h1>
+                <Button 
+                  variant="ghost" size="sm" className="h-7 w-7 p-0 text-white/60 hover:text-white hover:bg-white/10"
+                  onClick={() => setUsernameDialogOpen(true)}
+                  disabled={!canChangeUsername()}
+                >
+                  <Edit2 className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+              <p className="text-white/60 text-sm">{profileData.profile.email}</p>
+              {profileData.profile.state && (
+                <Badge variant="outline" className="mt-2 border-white/20 text-white/70">{profileData.profile.state}</Badge>
+              )}
+            </div>
+          </div>
+        </div>
+      </section>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Sidebar */}
-            <div className="space-y-6">
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="flex flex-col items-center text-center space-y-4">
-                    <div className="w-20 h-20 rounded-full bg-accent/10 flex items-center justify-center">
-                      <User className="h-10 w-10 text-accent" />
-                    </div>
-                    <div className="w-full">
-                      <div className="flex items-center justify-center gap-2 mb-1">
-                        <h2 className="text-xl font-bold">{profileData.profile.username}</h2>
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          className="h-6 w-6 p-0"
-                          onClick={() => setUsernameDialogOpen(true)}
-                          disabled={!canChangeUsername()}
-                        >
-                          <Edit2 className="h-3 w-3" />
-                        </Button>
-                      </div>
-                      <p className="text-sm text-muted-foreground">{profileData.profile.email}</p>
-                      {!canChangeUsername() && (
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Next username change: {getNextChangeDate()}
-                        </p>
-                      )}
-                      {profileData.profile.state && (
-                        <Badge variant="outline" className="mt-2">{profileData.profile.state}</Badge>
-                      )}
-                    </div>
+      {/* Stats bar */}
+      <div className="bg-background border-b">
+        <div className="container mx-auto px-4 max-w-6xl">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 py-5 -mt-1">
+            {[
+              { icon: Trophy, label: "Contests", value: profileData.stats.contestsPlayed },
+              { icon: Target, label: "Win Rate", value: `${profileData.stats.winRate.toFixed(1)}%` },
+              { icon: DollarSign, label: "Total Won", value: `$${profileData.stats.totalWinnings.toFixed(2)}`, highlight: true },
+              { icon: BarChart3, label: "Net P/L", value: `$${profileData.stats.netProfit.toFixed(2)}`, highlight: profileData.stats.netProfit > 0 },
+            ].map((stat, i) => (
+              <Card key={i} className="rounded-xl shadow-sm card-hover">
+                <CardContent className="p-4 flex items-center gap-3">
+                  <div className={`p-2.5 rounded-xl ${stat.highlight ? 'bg-success/10' : 'bg-muted'}`}>
+                    <stat.icon className={`h-5 w-5 ${stat.highlight ? 'text-success' : 'text-muted-foreground'}`} />
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{stat.label}</p>
+                    <p className={`text-lg font-heading font-bold ${stat.highlight ? 'text-success' : ''}`}>{stat.value}</p>
                   </div>
                 </CardContent>
               </Card>
+            ))}
+          </div>
+        </div>
+      </div>
 
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <DollarSign className="h-5 w-5 text-success" />
+      <main className="flex-1 bg-background py-8">
+        <div className="container mx-auto px-4 max-w-6xl">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Sidebar - Wallet */}
+            <div className="space-y-6">
+              <Card className="rounded-xl shadow-md overflow-hidden">
+                <div className="h-1 gradient-accent" />
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 font-heading">
+                    <Wallet className="h-5 w-5 text-accent" />
                     Wallet
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-4">
+                <CardContent className="space-y-5">
                   <div>
-                    <p className="text-sm text-muted-foreground">Available Balance</p>
-                    <p className="text-3xl font-bold text-success">${profileData.wallet.availableBalance.toFixed(2)}</p>
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Available Balance</p>
+                    <div className="flex items-center gap-2">
+                      <DollarSign className="h-6 w-6 text-success" />
+                      <p className="text-4xl font-heading font-extrabold text-success">
+                        {profileData.wallet.availableBalance.toFixed(2)}
+                      </p>
+                    </div>
                   </div>
                   {profileData.wallet.pendingBalance > 0 && (
-                    <div>
-                      <p className="text-sm text-muted-foreground">Pending</p>
+                    <div className="px-3 py-2 rounded-lg bg-muted">
+                      <p className="text-xs text-muted-foreground">Pending</p>
                       <p className="text-lg font-semibold">${profileData.wallet.pendingBalance.toFixed(2)}</p>
                     </div>
                   )}
                   <div className="space-y-2">
-                    <Button 
-                      variant="hero" 
-                      className="w-full"
-                      onClick={() => setDepositDialogOpen(true)}
-                      disabled={!profileData.profile.isActive}
-                    >
+                    <Button variant="hero" className="w-full rounded-xl" onClick={() => setDepositDialogOpen(true)} disabled={!profileData.profile.isActive}>
                       Deposit Funds
                     </Button>
-                    <Button 
-                      variant="outline" 
-                      className="w-full"
-                      onClick={() => setWithdrawDialogOpen(true)}
-                      disabled={!canWithdraw()}
-                    >
+                    <Button variant="outline" className="w-full rounded-xl border-2" onClick={() => setWithdrawDialogOpen(true)} disabled={!canWithdraw()}>
                       Withdraw
                     </Button>
                     {!canWithdraw() && profileData.wallet.availableBalance < 5 && (
-                      <p className="text-xs text-muted-foreground">Minimum $5 to withdraw</p>
+                      <p className="text-xs text-muted-foreground text-center">Minimum $5 to withdraw</p>
                     )}
                   </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Trophy className="h-5 w-5 text-accent" />
-                    Stats
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Contests Played</span>
-                    <span className="font-semibold">{profileData.stats.contestsPlayed}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Win Rate</span>
-                    <span className="font-semibold">{profileData.stats.winRate.toFixed(1)}%</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Total Winnings</span>
-                    <span className="font-semibold text-success">${profileData.stats.totalWinnings.toFixed(2)}</span>
+                  
+                  {/* Lifetime stats */}
+                  <div className="pt-4 border-t space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Lifetime Deposits</span>
+                      <span className="font-medium">${profileData.wallet.lifetimeDeposits.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Lifetime Winnings</span>
+                      <span className="font-medium text-success">${profileData.wallet.lifetimeWinnings.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Lifetime Withdrawals</span>
+                      <span className="font-medium">${profileData.wallet.lifetimeWithdrawals.toFixed(2)}</span>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -425,206 +381,162 @@ const Profile = () => {
             {/* Main Content */}
             <div className="lg:col-span-2">
               <Tabs defaultValue="contests" className="w-full">
-                <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="contests">Contest History</TabsTrigger>
-                  <TabsTrigger value="transactions">Transactions</TabsTrigger>
+                <TabsList className="w-full grid grid-cols-2 rounded-xl bg-muted p-1 h-auto">
+                  <TabsTrigger value="contests" className="rounded-lg py-2.5 font-semibold data-[state=active]:bg-card data-[state=active]:shadow-sm">
+                    Contest History
+                  </TabsTrigger>
+                  <TabsTrigger value="transactions" className="rounded-lg py-2.5 font-semibold data-[state=active]:bg-card data-[state=active]:shadow-sm">
+                    Transactions
+                  </TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="contests" className="mt-6">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Contest History</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-4">
-                        {contests.length === 0 ? (
-                          <p className="text-center text-muted-foreground py-8">No contests yet</p>
-                        ) : (
-                          contests.map((contest) => (
-                            <div 
-                              key={contest.id}
-                              className="p-4 rounded-lg border border-border hover:bg-accent/5 transition-base"
-                            >
+                  <div className="space-y-3">
+                    {contests.length === 0 ? (
+                      <Card className="rounded-xl">
+                        <CardContent className="py-12 text-center">
+                          <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
+                            <Trophy className="h-8 w-8 text-muted-foreground" />
+                          </div>
+                          <p className="text-muted-foreground">No contests yet</p>
+                        </CardContent>
+                      </Card>
+                    ) : (
+                      contests.map((contest) => (
+                        <Card key={contest.id} className="rounded-xl card-hover overflow-hidden">
+                          <div className={`border-l-4 ${
+                            contest.payoutCents && contest.payoutCents > 0 ? 'border-l-success' :
+                            contest.rank ? 'border-l-muted-foreground' : 'border-l-accent'
+                          }`}>
+                            <CardContent className="p-5">
                               <div className="flex items-start justify-between mb-2">
                                 <div>
-                                  <p className="font-semibold">{contest.regattaName}</p>
-                                  <p className="text-sm text-muted-foreground">{contest.genderCategory} • Tier: {contest.tierId}</p>
-                                  <p className="text-xs text-muted-foreground">Entry: ${(contest.entryFeeCents / 100).toFixed(2)}</p>
+                                  <p className="font-heading font-bold">{contest.regattaName}</p>
+                                  <p className="text-sm text-muted-foreground">{contest.genderCategory} • Entry: ${(contest.entryFeeCents / 100).toFixed(2)}</p>
                                 </div>
                                 <div className="text-right">
                                   {contest.rank ? (
-                                    <Badge variant={contest.rank === 1 ? "default" : "secondary"}>
-                                      Rank #{contest.rank}
+                                    <Badge className={contest.rank === 1 ? "bg-gold text-gold-foreground" : ""} variant={contest.rank === 1 ? "default" : "secondary"}>
+                                      #{contest.rank}
                                     </Badge>
                                   ) : (
                                     <Badge variant="outline">Pending</Badge>
                                   )}
                                 </div>
                               </div>
-                              <div className="flex items-center justify-between text-sm mt-2">
+                              <div className="flex items-center justify-between text-sm mt-3">
                                 <span className="text-muted-foreground">
                                   {new Date(contest.createdAt).toLocaleDateString()}
                                 </span>
-                                {contest.payoutCents && contest.payoutCents > 0 && (
-                                  <span className="font-semibold text-success">
-                                    +${(contest.payoutCents / 100).toFixed(2)}
-                                  </span>
-                                )}
-                                {contest.totalPoints !== null && (
-                                  <span className="text-muted-foreground">
-                                    {contest.totalPoints} pts
-                                  </span>
-                                )}
+                                <div className="flex items-center gap-3">
+                                  {contest.payoutCents && contest.payoutCents > 0 && (
+                                    <span className="font-bold text-success">+${(contest.payoutCents / 100).toFixed(2)}</span>
+                                  )}
+                                  {contest.totalPoints !== null && (
+                                    <span className="text-muted-foreground">{contest.totalPoints} pts</span>
+                                  )}
+                                </div>
                               </div>
-                            </div>
-                          ))
-                        )}
-                      </div>
-                      {contestTotal > 20 && (
-                        <div className="flex items-center justify-center gap-2 mt-4">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setContestPage(p => Math.max(1, p - 1))}
-                            disabled={contestPage === 1}
-                          >
-                            Previous
-                          </Button>
-                          <span className="text-sm text-muted-foreground">
-                            Page {contestPage} of {Math.ceil(contestTotal / 20)}
-                          </span>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setContestPage(p => p + 1)}
-                            disabled={contestPage >= Math.ceil(contestTotal / 20)}
-                          >
-                            Next
-                          </Button>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
+                            </CardContent>
+                          </div>
+                        </Card>
+                      ))
+                    )}
+                  </div>
+                  {contestTotal > 20 && (
+                    <div className="flex items-center justify-center gap-2 mt-6">
+                      <Button variant="outline" size="sm" onClick={() => setContestPage(p => Math.max(1, p - 1))} disabled={contestPage === 1}>Previous</Button>
+                      <span className="text-sm text-muted-foreground">Page {contestPage} of {Math.ceil(contestTotal / 20)}</span>
+                      <Button variant="outline" size="sm" onClick={() => setContestPage(p => p + 1)} disabled={contestPage >= Math.ceil(contestTotal / 20)}>Next</Button>
+                    </div>
+                  )}
                 </TabsContent>
 
                 <TabsContent value="transactions" className="mt-6">
-                  <Card>
-                    <CardHeader>
-                      <div className="flex items-center justify-between">
-                        <CardTitle>Transaction History</CardTitle>
-                        <Select value={txTypeFilter} onValueChange={setTxTypeFilter}>
-                          <SelectTrigger className="w-[180px]">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="all">All Types</SelectItem>
-                            <SelectItem value="deposit">Deposits</SelectItem>
-                            <SelectItem value="withdrawal">Withdrawals</SelectItem>
-                            <SelectItem value="payout">Winnings</SelectItem>
-                            <SelectItem value="entry_fee">Entry Fees</SelectItem>
-                            <SelectItem value="refund">Refunds</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-4">
-                        {transactions.length === 0 ? (
-                          <p className="text-center text-muted-foreground py-8">No transactions yet</p>
-                        ) : (
-                          transactions.map((tx) => {
-                            // Get transaction display info based on type
-                            const getTxDisplay = (type: string) => {
-                              switch (type) {
-                                case 'deposit':
-                                  return { icon: ArrowDownCircle, label: 'Deposit', color: 'text-success' };
-                                case 'withdrawal':
-                                  return { icon: ArrowUpCircle, label: 'Withdrawal', color: 'text-foreground' };
-                                case 'payout':
-                                  return { icon: Trophy, label: 'Winnings', color: 'text-accent' };
-                                case 'entry_fee':
-                                  return { icon: CreditCard, label: 'Entry Fee', color: 'text-foreground' };
-                                case 'entry_fee_hold':
-                                  return { icon: CreditCard, label: 'Entry Fee Hold', color: 'text-muted-foreground' };
-                                case 'entry_fee_release':
-                                  return { icon: RefreshCw, label: 'Entry Refund', color: 'text-success' };
-                                case 'refund':
-                                  return { icon: RefreshCw, label: 'Refund', color: 'text-success' };
-                                case 'bonus':
-                                  return { icon: Gift, label: 'Bonus', color: 'text-accent' };
-                                default:
-                                  return { icon: ArrowUpDown, label: type.replace(/_/g, ' '), color: 'text-foreground' };
-                              }
-                            };
+                  <div className="mb-4">
+                    <Select value={txTypeFilter} onValueChange={setTxTypeFilter}>
+                      <SelectTrigger className="w-[180px] rounded-xl">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Types</SelectItem>
+                        <SelectItem value="deposit">Deposits</SelectItem>
+                        <SelectItem value="withdrawal">Withdrawals</SelectItem>
+                        <SelectItem value="payout">Winnings</SelectItem>
+                        <SelectItem value="entry_fee">Entry Fees</SelectItem>
+                        <SelectItem value="refund">Refunds</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-3">
+                    {transactions.length === 0 ? (
+                      <Card className="rounded-xl">
+                        <CardContent className="py-12 text-center">
+                          <p className="text-muted-foreground">No transactions yet</p>
+                        </CardContent>
+                      </Card>
+                    ) : (
+                      transactions.map((tx) => {
+                        const getTxDisplay = (type: string) => {
+                          switch (type) {
+                            case 'deposit': return { icon: ArrowDownCircle, label: 'Deposit' };
+                            case 'withdrawal': return { icon: ArrowUpCircle, label: 'Withdrawal' };
+                            case 'payout': return { icon: Trophy, label: 'Winnings' };
+                            case 'entry_fee': return { icon: CreditCard, label: 'Entry Fee' };
+                            case 'entry_fee_hold': return { icon: CreditCard, label: 'Entry Fee Hold' };
+                            case 'entry_fee_release': return { icon: RefreshCw, label: 'Entry Refund' };
+                            case 'refund': return { icon: RefreshCw, label: 'Refund' };
+                            case 'bonus': return { icon: Gift, label: 'Bonus' };
+                            default: return { icon: ArrowUpDown, label: type.replace(/_/g, ' ') };
+                          }
+                        };
+                        const txDisplay = getTxDisplay(tx.type);
+                        const TxIcon = txDisplay.icon;
+                        const isPositive = tx.amount > 0;
 
-                            const txDisplay = getTxDisplay(tx.type);
-                            const TxIcon = txDisplay.icon;
-                            const isPositive = tx.amount > 0;
-
-                            return (
-                              <div 
-                                key={tx.id}
-                                className="p-4 rounded-lg border border-border hover:bg-accent/5 transition-base"
-                              >
-                                <div className="flex items-center justify-between">
-                                  <div className="flex items-center gap-3">
-                                    <div className={`p-2 rounded-full bg-muted ${txDisplay.color}`}>
-                                      <TxIcon className="h-4 w-4" />
-                                    </div>
-                                    <div>
-                                      <p className="font-semibold capitalize">{txDisplay.label}</p>
-                                      <p className="text-sm text-muted-foreground">
-                                        {new Date(tx.created_at).toLocaleDateString()} {new Date(tx.created_at).toLocaleTimeString()}
-                                      </p>
-                                      {tx.description && (
-                                        <p className="text-xs text-muted-foreground mt-1">{tx.description}</p>
-                                      )}
-                                    </div>
+                        return (
+                          <Card key={tx.id} className={`rounded-xl overflow-hidden card-hover border-l-4 ${getTxAccentColor(tx.type)}`}>
+                            <CardContent className="p-4">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                  <div className={`p-2 rounded-xl ${isPositive ? 'bg-success/10' : 'bg-muted'}`}>
+                                    <TxIcon className={`h-4 w-4 ${isPositive ? 'text-success' : 'text-muted-foreground'}`} />
                                   </div>
-                                  <div className="text-right">
-                                    <p className={`font-semibold text-lg ${
-                                      isPositive ? 'text-success' : 'text-foreground'
-                                    }`}>
-                                      {isPositive ? '+' : ''}${(Math.abs(tx.amount) / 100).toFixed(2)}
+                                  <div>
+                                    <p className="font-semibold capitalize">{txDisplay.label}</p>
+                                    <p className="text-xs text-muted-foreground">
+                                      {new Date(tx.created_at).toLocaleDateString()} {new Date(tx.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                     </p>
-                                    <Badge 
-                                      variant={tx.status === 'completed' ? 'default' : tx.status === 'pending' ? 'secondary' : 'outline'}
-                                      className="text-xs mt-1"
-                                    >
-                                      {tx.status}
-                                    </Badge>
                                   </div>
                                 </div>
+                                <div className="text-right">
+                                  <p className={`font-heading font-bold text-lg ${isPositive ? 'text-success' : ''}`}>
+                                    {isPositive ? '+' : ''}${(Math.abs(tx.amount) / 100).toFixed(2)}
+                                  </p>
+                                  <Badge 
+                                    variant="outline"
+                                    className={`text-xs mt-1 ${
+                                      tx.status === 'completed' ? 'bg-success/10 text-success border-success/30' :
+                                      tx.status === 'pending' ? 'bg-gold/10 text-gold border-gold/30' : ''
+                                    }`}
+                                  >
+                                    {tx.status}
+                                  </Badge>
+                                </div>
                               </div>
-                            );
-                          })
-                        )}
-                      </div>
-                      {txTotal > 25 && (
-                        <div className="flex items-center justify-center gap-2 mt-4">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setTxPage(p => Math.max(1, p - 1))}
-                            disabled={txPage === 1}
-                          >
-                            Previous
-                          </Button>
-                          <span className="text-sm text-muted-foreground">
-                            Page {txPage} of {Math.ceil(txTotal / 25)}
-                          </span>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setTxPage(p => p + 1)}
-                            disabled={txPage >= Math.ceil(txTotal / 25)}
-                          >
-                            Next
-                          </Button>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
+                            </CardContent>
+                          </Card>
+                        );
+                      })
+                    )}
+                  </div>
+                  {txTotal > 25 && (
+                    <div className="flex items-center justify-center gap-2 mt-6">
+                      <Button variant="outline" size="sm" onClick={() => setTxPage(p => Math.max(1, p - 1))} disabled={txPage === 1}>Previous</Button>
+                      <span className="text-sm text-muted-foreground">Page {txPage} of {Math.ceil(txTotal / 25)}</span>
+                      <Button variant="outline" size="sm" onClick={() => setTxPage(p => p + 1)} disabled={txPage >= Math.ceil(txTotal / 25)}>Next</Button>
+                    </div>
+                  )}
                 </TabsContent>
               </Tabs>
             </div>
@@ -634,42 +546,23 @@ const Profile = () => {
 
       {/* Username Dialog */}
       <Dialog open={usernameDialogOpen} onOpenChange={setUsernameDialogOpen}>
-        <DialogContent>
+        <DialogContent className="rounded-2xl">
           <DialogHeader>
-            <DialogTitle>Change Username</DialogTitle>
+            <DialogTitle className="font-heading">Change Username</DialogTitle>
             <DialogDescription>
-              {canChangeUsername() 
-                ? "You can change your username once every 90 days."
-                : `You can change your username again on ${getNextChangeDate()}`
-              }
+              {canChangeUsername() ? "You can change your username once every 90 days." : `You can change your username again on ${getNextChangeDate()}`}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <label className="text-sm font-medium">New Username</label>
-              <Input
-                value={newUsername}
-                onChange={(e) => setNewUsername(e.target.value.toLowerCase())}
-                placeholder="Enter new username"
-                disabled={isSubmitting || !canChangeUsername()}
-              />
-              <p className="text-xs text-muted-foreground">
-                3-20 characters, lowercase letters, numbers, and underscores only
-              </p>
+              <Input value={newUsername} onChange={(e) => setNewUsername(e.target.value.toLowerCase())} placeholder="Enter new username" disabled={isSubmitting || !canChangeUsername()} className="rounded-xl" />
+              <p className="text-xs text-muted-foreground">3-20 characters, lowercase letters, numbers, and underscores only</p>
             </div>
           </div>
           <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setUsernameDialogOpen(false)}
-              disabled={isSubmitting}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleUsernameChange}
-              disabled={isSubmitting || !newUsername || !canChangeUsername()}
-            >
+            <Button variant="outline" onClick={() => setUsernameDialogOpen(false)} disabled={isSubmitting} className="rounded-xl">Cancel</Button>
+            <Button onClick={handleUsernameChange} disabled={isSubmitting || !newUsername || !canChangeUsername()} className="rounded-xl">
               {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Update Username"}
             </Button>
           </DialogFooter>
@@ -678,57 +571,30 @@ const Profile = () => {
 
       {/* Deposit Dialog */}
       <Dialog open={depositDialogOpen} onOpenChange={setDepositDialogOpen}>
-        <DialogContent>
+        <DialogContent className="rounded-2xl">
           <DialogHeader>
-            <DialogTitle>Deposit Funds</DialogTitle>
-            <DialogDescription>
-              Add funds to your wallet. Minimum $5, maximum $500 per transaction.
-            </DialogDescription>
+            <DialogTitle className="font-heading">Deposit Funds</DialogTitle>
+            <DialogDescription>Add funds to your wallet. Minimum $5, maximum $500 per transaction.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="grid grid-cols-3 gap-2">
               {[10, 25, 50, 100, 200, 500].map((amount) => (
-                <Button
-                  key={amount}
-                  variant={depositAmount === String(amount) ? "default" : "outline"}
-                  onClick={() => setDepositAmount(String(amount))}
-                  disabled={isSubmitting}
-                >
+                <Button key={amount} variant={depositAmount === String(amount) ? "default" : "outline"} onClick={() => setDepositAmount(String(amount))} disabled={isSubmitting} className="rounded-xl">
                   ${amount}
                 </Button>
               ))}
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">Or enter custom amount (USD)</label>
-              <Input
-                type="number"
-                value={depositAmount}
-                onChange={(e) => setDepositAmount(e.target.value)}
-                placeholder="0.00"
-                min="5"
-                max="500"
-                step="1"
-                disabled={isSubmitting}
-              />
+              <Input type="number" value={depositAmount} onChange={(e) => setDepositAmount(e.target.value)} placeholder="0.00" min="5" max="500" step="1" disabled={isSubmitting} className="rounded-xl" />
             </div>
             {profileData.profile.depositLimitMonthly && (
-              <p className="text-xs text-muted-foreground">
-                Monthly deposit limit: ${profileData.profile.depositLimitMonthly.toFixed(2)}
-              </p>
+              <p className="text-xs text-muted-foreground">Monthly deposit limit: ${profileData.profile.depositLimitMonthly.toFixed(2)}</p>
             )}
           </div>
           <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setDepositDialogOpen(false)}
-              disabled={isSubmitting}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleDeposit}
-              disabled={isSubmitting || !depositAmount}
-            >
+            <Button variant="outline" onClick={() => setDepositDialogOpen(false)} disabled={isSubmitting} className="rounded-xl">Cancel</Button>
+            <Button onClick={handleDeposit} disabled={isSubmitting || !depositAmount} className="rounded-xl">
               {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
               Deposit ${depositAmount || '0'}
             </Button>
@@ -738,44 +604,21 @@ const Profile = () => {
 
       {/* Withdraw Dialog */}
       <Dialog open={withdrawDialogOpen} onOpenChange={setWithdrawDialogOpen}>
-        <DialogContent>
+        <DialogContent className="rounded-2xl">
           <DialogHeader>
-            <DialogTitle>Withdraw Funds</DialogTitle>
-            <DialogDescription>
-              Withdraw funds from your wallet. Minimum $5, maximum $200 per transaction.
-              Daily limit: $500. Processing time: 1-3 business days.
-            </DialogDescription>
+            <DialogTitle className="font-heading">Withdraw Funds</DialogTitle>
+            <DialogDescription>Withdraw funds from your wallet. Minimum $5, maximum $200 per transaction. Daily limit: $500.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <label className="text-sm font-medium">Amount (USD)</label>
-              <Input
-                type="number"
-                value={withdrawAmount}
-                onChange={(e) => setWithdrawAmount(e.target.value)}
-                placeholder="0.00"
-                min="5"
-                max="200"
-                step="0.01"
-                disabled={isSubmitting}
-              />
-              <p className="text-xs text-muted-foreground">
-                Available: ${profileData.wallet.availableBalance.toFixed(2)}
-              </p>
+              <Input type="number" value={withdrawAmount} onChange={(e) => setWithdrawAmount(e.target.value)} placeholder="0.00" min="5" max="200" step="0.01" disabled={isSubmitting} className="rounded-xl" />
+              <p className="text-xs text-muted-foreground">Available: ${profileData.wallet.availableBalance.toFixed(2)}</p>
             </div>
           </div>
           <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setWithdrawDialogOpen(false)}
-              disabled={isSubmitting}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleWithdraw}
-              disabled={isSubmitting || !withdrawAmount}
-            >
+            <Button variant="outline" onClick={() => setWithdrawDialogOpen(false)} disabled={isSubmitting} className="rounded-xl">Cancel</Button>
+            <Button onClick={handleWithdraw} disabled={isSubmitting || !withdrawAmount} className="rounded-xl">
               {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Request Withdrawal"}
             </Button>
           </DialogFooter>

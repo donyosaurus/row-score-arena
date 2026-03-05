@@ -2,44 +2,46 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
-*/
-
 @layer base {
   :root {
-    --background: 240 20% 97%;
-    --foreground: 220 15% 15%;
+    --background: 210 20% 98%;
+    --foreground: 222 47% 11%;
     --card: 0 0% 100%;
-    --card-foreground: 220 15% 15%;
+    --card-foreground: 222 47% 11%;
     --popover: 0 0% 100%;
-    --popover-foreground: 220 15% 15%;
-    --primary: 213 90% 18%;
+    --popover-foreground: 222 47% 11%;
+    --primary: 217 91% 12%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 220 15% 92%;
-    --secondary-foreground: 220 15% 15%;
-    --muted: 220 15% 95%;
-    --muted-foreground: 220 10% 50%;
-    --accent: 174 70% 50%;
+    --secondary: 210 20% 94%;
+    --secondary-foreground: 222 47% 11%;
+    --muted: 210 20% 96%;
+    --muted-foreground: 215 16% 47%;
+    --accent: 168 76% 50%;
     --accent-foreground: 0 0% 100%;
-    --success: 174 70% 50%;
+    --success: 160 84% 39%;
+    --success-foreground: 0 0% 100%;
+    --gold: 38 92% 50%;
+    --gold-foreground: 0 0% 100%;
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
-    --border: 220 15% 88%;
-    --input: 220 15% 88%;
-    --ring: 174 70% 50%;
+    --border: 214 20% 90%;
+    --input: 214 20% 90%;
+    --ring: 168 76% 50%;
     --radius: 0.75rem;
     
     /* Gradients */
-    --gradient-hero: linear-gradient(135deg, hsl(213 90% 18%) 0%, hsl(213 85% 25%) 100%);
-    --gradient-accent: linear-gradient(135deg, hsl(174 70% 50%), hsl(174 70% 45%));
-    --gradient-subtle: linear-gradient(180deg, hsl(240 20% 97%), hsl(220 20% 95%));
+    --gradient-hero: linear-gradient(135deg, hsl(217 91% 10%) 0%, hsl(190 70% 30%) 100%);
+    --gradient-accent: linear-gradient(135deg, hsl(168 76% 50%), hsl(168 76% 42%));
+    --gradient-subtle: linear-gradient(180deg, hsl(210 20% 98%), hsl(210 20% 96%));
+    --gradient-gold: linear-gradient(135deg, hsl(38 92% 50%), hsl(45 93% 47%));
     
     /* Shadows */
     --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
-    --shadow-accent: 0 10px 25px -5px hsl(174 70% 50% / 0.3);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.07), 0 2px 4px -2px rgb(0 0 0 / 0.05);
+    --shadow-lg: 0 10px 25px -5px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.05);
+    --shadow-xl: 0 20px 40px -10px rgb(0 0 0 / 0.15);
+    --shadow-accent: 0 10px 25px -5px hsl(168 76% 50% / 0.3);
+    --shadow-gold: 0 4px 12px -2px hsl(38 92% 50% / 0.3);
     
     /* Transitions */
     --transition-base: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
@@ -47,26 +49,29 @@ All colors MUST be HSL.
   }
 
   .dark {
-    --background: 220 20% 8%;
-    --foreground: 220 15% 95%;
-    --card: 220 20% 10%;
-    --card-foreground: 220 15% 95%;
-    --popover: 220 20% 10%;
-    --popover-foreground: 220 15% 95%;
-    --primary: 213 90% 18%;
+    --background: 222 47% 6%;
+    --foreground: 210 20% 95%;
+    --card: 222 40% 9%;
+    --card-foreground: 210 20% 95%;
+    --popover: 222 40% 9%;
+    --popover-foreground: 210 20% 95%;
+    --primary: 217 91% 12%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 220 15% 18%;
-    --secondary-foreground: 220 15% 95%;
-    --muted: 220 15% 15%;
-    --muted-foreground: 220 10% 60%;
-    --accent: 174 70% 50%;
+    --secondary: 217 30% 16%;
+    --secondary-foreground: 210 20% 95%;
+    --muted: 217 30% 14%;
+    --muted-foreground: 215 16% 60%;
+    --accent: 168 76% 50%;
     --accent-foreground: 0 0% 100%;
-    --success: 174 70% 50%;
+    --success: 160 84% 39%;
+    --success-foreground: 0 0% 100%;
+    --gold: 38 92% 50%;
+    --gold-foreground: 0 0% 100%;
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
-    --border: 220 15% 20%;
-    --input: 220 15% 20%;
-    --ring: 174 70% 50%;
+    --border: 217 30% 18%;
+    --input: 217 30% 18%;
+    --ring: 168 76% 50%;
   }
 }
 
@@ -77,9 +82,11 @@ All colors MUST be HSL.
 
   body {
     @apply bg-background text-foreground antialiased;
+    font-family: 'DM Sans', system-ui, sans-serif;
   }
 
   h1, h2, h3, h4, h5, h6 {
+    font-family: 'Outfit', system-ui, sans-serif;
     @apply font-bold tracking-tight;
   }
 }
@@ -97,8 +104,16 @@ All colors MUST be HSL.
     background: var(--gradient-subtle);
   }
 
+  .gradient-gold {
+    background: var(--gradient-gold);
+  }
+
   .shadow-accent {
     box-shadow: var(--shadow-accent);
+  }
+
+  .shadow-gold {
+    box-shadow: var(--shadow-gold);
   }
 
   .transition-base {
@@ -107,5 +122,21 @@ All colors MUST be HSL.
 
   .transition-smooth {
     transition: var(--transition-smooth);
+  }
+
+  .text-gold {
+    color: hsl(var(--gold));
+  }
+
+  .bg-gold {
+    background-color: hsl(var(--gold));
+  }
+
+  .glass {
+    @apply backdrop-blur-md bg-white/80 dark:bg-black/40;
+  }
+
+  .card-hover {
+    @apply transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5;
   }
 }
