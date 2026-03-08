@@ -113,11 +113,16 @@ Deno.serve(async (req) => {
       });
     }
 
-    const entryFeeDollars = body.entryFeeCents / 100;
-    if (wallet.available_balance < entryFeeDollars) {
+    // wallet.available_balance is stored in CENTS; body.entryFeeCents is also cents
+    const balanceCents = Number(wallet.available_balance);
+    const entryFeeCents = body.entryFeeCents;
+    const entryFeeDollars = entryFeeCents / 100;
+    const balanceDollars = balanceCents / 100;
+
+    if (balanceCents < entryFeeCents) {
       return new Response(
         JSON.stringify({
-          error: `Insufficient balance. You need $${entryFeeDollars.toFixed(2)} but have $${wallet.available_balance.toFixed(2)}.`,
+          error: `Insufficient balance. You need $${entryFeeDollars.toFixed(2)} but have $${balanceDollars.toFixed(2)}.`,
         }),
         {
           status: 402,
@@ -208,18 +213,35 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Record the fee transaction
-    await supabaseAdmin.from("transactions").insert({
+    // Record the fee transaction in transactions table
+    const { error: txnError } = await supabaseAdmin.from("transactions").insert({
       user_id: userId,
       wallet_id: wallet.id,
-      type: "entry_fee",
+      type: "entry_fee" as const,
       amount: entryFeeDollars,
-      status: "completed",
+      status: "completed" as const,
       reference_type: "contest_entry",
       description: `Entry fee — ${template.regatta_name}`,
       completed_at: new Date().toISOString(),
       metadata: { contest_pool_id: targetPoolId, contest_template_id: body.contestTemplateId },
     });
+
+    if (txnError) {
+      console.error("[matchmaking] Transaction insert failed:", txnError.message);
+    }
+
+    // Record in ledger_entries for double-entry bookkeeping
+    const { error: ledgerError } = await supabaseAdmin.from("ledger_entries").insert({
+      user_id: userId,
+      amount: -entryFeeCents,
+      transaction_type: "ENTRY_FEE",
+      description: `Contest Entry Fee`,
+      reference_id: targetPoolId,
+    });
+
+    if (ledgerError) {
+      console.error("[matchmaking] Ledger insert failed:", ledgerError.message);
+    }
 
     // -----------------------------------------------------------------------
     // CREATE ENTRY — pool_id now correctly points to contest_pools.id
