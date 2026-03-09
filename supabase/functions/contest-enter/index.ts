@@ -216,7 +216,17 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Step D: Diversity Rule - Must have at least 2 unique events
+    // Step D: Duplicate event check - only one crew per event
+    const eventIdList = picks.map(p => crewToEventMap.get(p.crewId)!);
+    if (new Set(eventIdList).size !== eventIdList.length) {
+      console.error('[contest-enter] Duplicate event picks detected');
+      return new Response(
+        JSON.stringify({ error: 'You can only select one crew per event' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Step E: Diversity Rule - Must have at least 2 unique events
     if (pickedEventIds.size < 2) {
       console.error('[contest-enter] Diversity rule violation:', { uniqueEvents: pickedEventIds.size });
       return new Response(

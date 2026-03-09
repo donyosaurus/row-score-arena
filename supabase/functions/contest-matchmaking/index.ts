@@ -55,7 +55,17 @@ Deno.serve(async (req) => {
 
     const body = entrySchema.parse(await req.json());
 
-    const uniqueEvents = new Set(body.picks.map((p) => p.event_id));
+    const eventIdList = body.picks.map((p) => p.event_id);
+    const uniqueEvents = new Set(eventIdList);
+
+    // Duplicate event check - only one crew per event
+    if (uniqueEvents.size !== eventIdList.length) {
+      return new Response(JSON.stringify({ error: "You can only select one crew per event." }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     if (uniqueEvents.size < 2) {
       return new Response(JSON.stringify({ error: "You must pick crews from at least 2 different events." }), {
         status: 400,
