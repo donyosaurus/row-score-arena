@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Clock, DollarSign, Info, Plus, Trash2, Trophy, Loader2 } from "lucide-react";
+import { ArrowLeft, Check, Circle, Clock, DollarSign, Info, Plus, Trash2, Trophy, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 // ---------------------------------------------------------------------------
