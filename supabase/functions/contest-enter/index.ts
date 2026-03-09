@@ -250,7 +250,6 @@ Deno.serve(async (req) => {
     });
 
     const { data, error } = await supabase.rpc('enter_contest_pool', {
-      p_user_id: user.id,
       p_contest_pool_id: targetPoolId,
       p_picks: roster
     });
