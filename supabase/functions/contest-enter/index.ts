@@ -250,6 +250,7 @@ Deno.serve(async (req) => {
     });
 
     const { data, error } = await supabase.rpc('enter_contest_pool', {
+      p_user_id: user.id,
       p_contest_pool_id: targetPoolId,
       p_picks: roster
     });
@@ -287,7 +288,7 @@ Deno.serve(async (req) => {
   } catch (error) {
     console.error('[contest-enter] Error:', error);
     return new Response(
-      JSON.stringify({ error: 'An error occurred. Please try again.' }),
+      JSON.stringify({ error: error instanceof Error ? error.message : 'An error occurred' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
