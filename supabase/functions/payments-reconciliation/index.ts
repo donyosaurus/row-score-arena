@@ -6,6 +6,8 @@ import { getPaymentProvider } from '../shared/payment-providers/factory.ts';
 import { getCorsHeaders } from '../shared/cors.ts';
 
 Deno.serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
+
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
