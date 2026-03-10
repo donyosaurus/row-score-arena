@@ -56,7 +56,6 @@ Deno.serve(async (req) => {
 
     // Call the atomic withdraw RPC
     const { data, error } = await supabase.rpc('withdraw_contest_entry', {
-      p_user_id: user.id,
       p_contest_pool_id: contestPoolId
     });
 
