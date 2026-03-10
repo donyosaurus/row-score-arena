@@ -7,8 +7,6 @@ import { StateAvailabilityMap } from "@/components/StateAvailabilityMap";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Target, TrendingUp, Shield, Clock, Trophy } from "lucide-react";
 import heroRowing from "@/assets/hero-rowing.jpeg";
-import heroContestPhones from "@/assets/hero-contest-phones.png";
-import heroRowingPhones from "@/assets/phones-contest-mockup.png";
 import { useAuth } from "@/hooks/useAuth";
 const Index = () => {
   const { user } = useAuth();
