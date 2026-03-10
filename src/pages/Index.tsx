@@ -281,16 +281,6 @@ const Index = () => {
                 </div>
               </div>
 
-              {/* Right Content - Phone Image */}
-              <div className="relative flex justify-end items-end h-full pb-0">
-                <div className="absolute right-0 bottom-0" style={{ transform: "translateY(21%)" }}>
-                  <img
-                    src={heroRowingPhones}
-                    alt="RowFantasy app preview on mobile devices"
-                    className="w-full max-w-2xl object-contain object-bottom scale-[0.99]"
-                  />
-                </div>
-              </div>
             </div>
           </div>
         </section>
