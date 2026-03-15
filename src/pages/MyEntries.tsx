@@ -4,12 +4,13 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
+import { MatchupDialog } from "@/components/MatchupDialog";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Trophy, Calendar, DollarSign, TrendingUp, Users } from "lucide-react";
+import { Trophy, Calendar, DollarSign, TrendingUp, Users, Eye } from "lucide-react";
 import myEntriesBg from "@/assets/my-entries-bg.webp";
 
 interface PickNew {
