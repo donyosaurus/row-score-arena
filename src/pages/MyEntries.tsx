@@ -4,12 +4,13 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
+import { MatchupDialog } from "@/components/MatchupDialog";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Trophy, Calendar, DollarSign, TrendingUp, Users } from "lucide-react";
+import { Trophy, Calendar, DollarSign, TrendingUp, Users, Eye } from "lucide-react";
 import myEntriesBg from "@/assets/my-entries-bg.webp";
 
 interface PickNew {
@@ -58,6 +59,8 @@ const MyEntries = () => {
   const [entries, setEntries] = useState<Entry[]>([]);
   const [crewMap, setCrewMap] = useState<Map<string, CrewInfo>>(new Map());
   const [loading, setLoading] = useState(true);
+  const [matchupPoolId, setMatchupPoolId] = useState<string | null>(null);
+  const [matchupEntry, setMatchupEntry] = useState<Entry | null>(null);
   const [stats, setStats] = useState({
     totalEntries: 0,
     activeEntries: 0,
@@ -304,6 +307,19 @@ const MyEntries = () => {
             </div>
           </div>
 
+          {/* View Matchup button */}
+          <div className="flex justify-end mt-3">
+            <Button
+              variant="outline"
+              size="sm"
+              className="rounded-lg text-xs gap-1.5"
+              onClick={() => { setMatchupPoolId(entry.pool_id); setMatchupEntry(entry); }}
+            >
+              <Eye className="h-3.5 w-3.5" />
+              View Matchup
+            </Button>
+          </div>
+
           {showScore && score && (
             <div className="flex flex-wrap items-center gap-4 text-sm pt-3 border-t text-muted-foreground">
               <span className="font-heading font-bold text-foreground">Rank: #{score.rank}</span>
@@ -396,6 +412,22 @@ const MyEntries = () => {
       </main>
 
       <Footer />
+
+      {/* Matchup Dialog */}
+      {matchupEntry && user && (
+        <MatchupDialog
+          open={!!matchupPoolId}
+          onOpenChange={(open) => { if (!open) { setMatchupPoolId(null); setMatchupEntry(null); } }}
+          poolId={matchupPoolId!}
+          currentUserId={user.id}
+          contestName={matchupEntry.contest_templates.regatta_name}
+          poolStatus={matchupEntry.contest_pools?.status || "open"}
+          lockTime={matchupEntry.contest_templates.lock_time}
+          maxEntries={matchupEntry.contest_pools?.max_entries || 0}
+          currentEntries={matchupEntry.contest_pools?.current_entries || 0}
+          payoutStructure={matchupEntry.contest_pools?.payout_structure || null}
+        />
+      )}
     </div>
   );
 };
