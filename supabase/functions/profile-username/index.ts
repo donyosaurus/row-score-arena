@@ -2,6 +2,7 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.76.1';
 import { getCorsHeaders } from '../shared/cors.ts';
+import { validateUsernameContent } from '../shared/username-filter.ts';
 
 Deno.serve(async (req) => {
   const corsHeaders = getCorsHeaders(req);
@@ -47,6 +48,15 @@ Deno.serve(async (req) => {
     if (!/^[a-z0-9_]+$/.test(username)) {
       return new Response(
         JSON.stringify({ error: 'Username can only contain lowercase letters, numbers, and underscores' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Check for inappropriate content
+    const contentError = validateUsernameContent(username);
+    if (contentError) {
+      return new Response(
+        JSON.stringify({ error: contentError }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }

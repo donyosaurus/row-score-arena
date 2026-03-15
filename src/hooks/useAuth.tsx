@@ -3,6 +3,7 @@ import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { validateUsernameContent } from "@/lib/username-filter";
 
 interface AuthContextType {
   user: User | null;
@@ -48,6 +49,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const signUp = async (email: string, password: string, fullName: string, username: string, dateOfBirth: string, stateCode?: string) => {
     try {
+      // Check for inappropriate username
+      const usernameError = validateUsernameContent(username);
+      if (usernameError) {
+        toast.error(usernameError);
+        return { error: { message: usernameError } };
+      }
+
       // Check if username already exists
       const { data: existingUser, error: checkError } = await supabase
         .from('profiles')
