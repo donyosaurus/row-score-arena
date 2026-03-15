@@ -1399,6 +1399,13 @@ export type Database = {
         Returns: Json
       }
       get_user_balance: { Args: { target_user_id: string }; Returns: number }
+      get_usernames: {
+        Args: { user_ids: string[] }
+        Returns: {
+          user_id: string
+          username: string
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
