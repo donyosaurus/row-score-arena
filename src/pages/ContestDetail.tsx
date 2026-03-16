@@ -307,7 +307,7 @@ const ContestDetail = () => {
             <div>
               <h1 className="font-heading text-3xl lg:text-4xl font-bold mb-1">{template.regatta_name}</h1>
               <p className="text-primary-foreground/70 text-sm lg:text-base">
-                {template.gender_category} Multi-Team Fantasy · Pick {minPicks}–{maxPicks} crews
+                {template.gender_category} Multi-Team Fantasy · Draft a crew from each event
               </p>
             </div>
             <Badge
