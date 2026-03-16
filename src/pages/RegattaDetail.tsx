@@ -298,7 +298,7 @@ const RegattaDetail = () => {
                 {contestPool.contest_templates.regatta_name}
               </h1>
               <p className="text-primary-foreground/70 text-sm lg:text-base">
-                {contestPool.contest_templates.gender_category} Multi-Team Fantasy · Pick {minPicks}–{maxPicks} crews
+                {contestPool.contest_templates.gender_category} Multi-Team Fantasy · Draft a crew from each event
               </p>
             </div>
             <Badge
