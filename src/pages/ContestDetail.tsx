@@ -307,7 +307,7 @@ const ContestDetail = () => {
             <div>
               <h1 className="font-heading text-3xl lg:text-4xl font-bold mb-1">{template.regatta_name}</h1>
               <p className="text-primary-foreground/70 text-sm lg:text-base">
-                {template.gender_category} Multi-Team Fantasy · Pick {minPicks}–{maxPicks} crews
+                {template.gender_category} Multi-Team Fantasy · Draft a crew from each event
               </p>
             </div>
             <Badge
@@ -378,7 +378,7 @@ const ContestDetail = () => {
               <div>
                 <h2 className="font-heading text-xl font-bold mb-1">Select Your Crews</h2>
                 <p className="text-sm text-muted-foreground">
-                  Pick {minPicks}–{maxPicks} crews from at least 2 different events
+                  Draft a crew from each event. Your entry will be matched against other players.
                 </p>
               </div>
 
