@@ -270,6 +270,7 @@ export type Database = {
           crew_name: string
           event_id: string
           id: string
+          logo_url: string | null
           manual_finish_order: number | null
           manual_result_time: string | null
         }
@@ -280,6 +281,7 @@ export type Database = {
           crew_name: string
           event_id: string
           id?: string
+          logo_url?: string | null
           manual_finish_order?: number | null
           manual_result_time?: string | null
         }
@@ -290,6 +292,7 @@ export type Database = {
           crew_name?: string
           event_id?: string
           id?: string
+          logo_url?: string | null
           manual_finish_order?: number | null
           manual_result_time?: string | null
         }

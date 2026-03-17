@@ -1,4 +1,5 @@
 import { useParams, Link, useNavigate } from "react-router-dom";
+import { CrewLogo } from "@/components/CrewLogo";
 import { useEffect, useState, useMemo } from "react";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
@@ -37,6 +38,7 @@ interface PoolCrew {
   crew_id: string;
   crew_name: string;
   event_id: string;
+  logo_url?: string | null;
 }
 
 interface ContestPool {
@@ -100,7 +102,7 @@ const RegattaDetail = () => {
     const fetchPoolData = async () => {
       const { data, error: fetchError } = await supabase
         .from("contest_pools")
-        .select(`*, payout_structure, contest_template_id, tier_id, contest_templates (regatta_name, gender_category, min_picks, max_picks), contest_pool_crews (id, crew_id, crew_name, event_id)`)
+        .select(`*, payout_structure, contest_template_id, tier_id, contest_templates (regatta_name, gender_category, min_picks, max_picks), contest_pool_crews (id, crew_id, crew_name, event_id, logo_url)`)
         .eq("id", id)
         .single();
       if (fetchError || !data) { setError("Contest not found"); setLoading(false); return; }
@@ -110,7 +112,7 @@ const RegattaDetail = () => {
       // Fetch sibling pools (same template, different fees = multi-tier)
       const { data: siblings } = await supabase
         .from("contest_pools")
-        .select(`*, payout_structure, contest_template_id, tier_id, contest_templates (regatta_name, gender_category, min_picks, max_picks), contest_pool_crews (id, crew_id, crew_name, event_id)`)
+        .select(`*, payout_structure, contest_template_id, tier_id, contest_templates (regatta_name, gender_category, min_picks, max_picks), contest_pool_crews (id, crew_id, crew_name, event_id, logo_url)`)
         .eq("contest_template_id", pool.contest_template_id)
         .in("status", ["open", "locked"]);
 
@@ -262,7 +264,7 @@ const RegattaDetail = () => {
   const draftPicksList = useMemo(() => {
     return Array.from(crewPicks.entries()).map(([crewId, margin]) => {
       const crew = contestPool?.contest_pool_crews.find((c) => c.crew_id === crewId);
-      return { crewId, crewName: crew?.crew_name ?? crewId, eventId: crew?.event_id ?? "", margin };
+      return { crewId, crewName: crew?.crew_name ?? crewId, eventId: crew?.event_id ?? "", margin, logoUrl: crew?.logo_url };
     });
   }, [crewPicks, contestPool]);
 
@@ -593,7 +595,7 @@ const RegattaDetail = () => {
                       <Badge variant="outline" className="font-semibold text-xs px-2.5 py-1 bg-muted/50">{divisionId}</Badge>
                       <span className="text-xs text-muted-foreground">{crewsByDivision[divisionId].length} crews</span>
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
                       {crewsByDivision[divisionId].map((crew) => {
                         const isSelected = crewPicks.has(crew.crew_id);
                         const marginVal = crewPicks.get(crew.crew_id) ?? 0;
@@ -601,27 +603,32 @@ const RegattaDetail = () => {
                           <div
                             key={crew.id}
                             className={`group rounded-xl border-2 transition-all overflow-hidden ${!isContestOpen ? "opacity-50 pointer-events-none" : "cursor-pointer"} ${
-                              isSelected ? "border-accent bg-accent/5 shadow-sm" : "border-border hover:border-muted-foreground/30 hover:shadow-sm hover:-translate-y-0.5"
+                              isSelected ? "border-accent bg-accent/5 shadow-sm" : "border-border hover:border-muted-foreground/30 hover:shadow-md hover:-translate-y-0.5"
                             }`}
                           >
-                            <div className="flex items-center gap-3 p-3.5" onClick={() => isContestOpen && toggleCrewSelection(crew.crew_id)}>
-                              <div className={`flex-shrink-0 w-6 h-6 rounded-md border-2 flex items-center justify-center transition-all ${isSelected ? "bg-accent border-accent" : "border-border group-hover:border-muted-foreground/40"}`}>
-                                {isSelected && <Check className="h-4 w-4 text-accent-foreground" />}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="font-semibold text-sm truncate">{crew.crew_name}</p>
-                                <p className="text-xs text-muted-foreground">{divisionId}</p>
-                              </div>
+                            <div className="flex flex-col items-center text-center p-4 pb-3" onClick={() => isContestOpen && toggleCrewSelection(crew.crew_id)}>
+                              {isSelected && (
+                                <div className="absolute top-2 left-2">
+                                  <div className="w-5 h-5 rounded-full bg-accent flex items-center justify-center">
+                                    <Check className="h-3 w-3 text-accent-foreground" />
+                                  </div>
+                                </div>
+                              )}
+                              <CrewLogo logoUrl={crew.logo_url} crewName={crew.crew_name} size={48} className="mb-2" />
+                              <p className="font-semibold text-sm">{crew.crew_name}</p>
+                              <p className="text-xs text-muted-foreground">{divisionId}</p>
                             </div>
                             {isSelected && isContestOpen && (
-                              <div className="px-3.5 pb-3.5 animate-fade-in">
-                                <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/50 border border-border/50">
-                                  <span className="text-xs text-muted-foreground whitespace-nowrap">Margin:</span>
-                                  <Input type="number" min="0.01" step="0.1" placeholder="e.g. 2.5" className="h-7 text-sm border-0 bg-transparent p-0 focus-visible:ring-0"
-                                    value={marginVal || ""} onClick={(e) => e.stopPropagation()}
-                                    onChange={(e) => { e.stopPropagation(); updateCrewMargin(crew.crew_id, parseFloat(e.target.value) || 0); }}
-                                  />
-                                  <span className="text-xs text-muted-foreground">sec</span>
+                              <div className="px-3 pb-3 animate-fade-in">
+                                <div className="space-y-1">
+                                  <p className="text-[10px] text-muted-foreground font-medium">Predicted Margin</p>
+                                  <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/50 border border-border/50">
+                                    <Input type="number" min="0.01" step="0.1" placeholder="e.g. 2.5" className="h-7 text-sm border-0 bg-transparent p-0 focus-visible:ring-0"
+                                      value={marginVal || ""} onClick={(e) => e.stopPropagation()}
+                                      onChange={(e) => { e.stopPropagation(); updateCrewMargin(crew.crew_id, parseFloat(e.target.value) || 0); }}
+                                    />
+                                    <span className="text-xs text-muted-foreground">seconds</span>
+                                  </div>
                                 </div>
                               </div>
                             )}
@@ -686,7 +693,7 @@ const RegattaDetail = () => {
                       {draftPicksList.map((pick) => (
                         <div key={pick.crewId} className="flex items-center justify-between text-sm">
                           <div className="flex items-center gap-2 min-w-0">
-                            <Check className="h-3.5 w-3.5 text-accent flex-shrink-0" />
+                            <CrewLogo logoUrl={pick.logoUrl} crewName={pick.crewName} size={24} />
                             <span className="truncate font-medium">{pick.crewName}</span>
                           </div>
                           {pick.margin > 0 && <span className="text-xs text-accent font-semibold flex-shrink-0">+{pick.margin.toFixed(1)}s</span>}
