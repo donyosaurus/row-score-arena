@@ -37,6 +37,8 @@ interface Entry {
     max_entries: number;
     current_entries: number;
     payout_structure: Record<string, number> | null;
+    tier_id: string;
+    entry_fee_cents: number;
   };
   contest_scores?: Array<{
     rank: number;
@@ -106,7 +108,7 @@ const MyEntries = () => {
       select(`
           id, created_at, status, entry_fee_cents, pool_id, picks, payout_cents, rank,
           contest_templates!inner (regatta_name, lock_time),
-          contest_pools!inner (status, prize_pool_cents, max_entries, current_entries, payout_structure),
+          contest_pools!inner (status, prize_pool_cents, max_entries, current_entries, payout_structure, tier_id, entry_fee_cents),
           contest_scores (rank, total_points, margin_bonus, is_winner, payout_cents)
         `).
       eq('user_id', user.id).
@@ -275,6 +277,9 @@ const MyEntries = () => {
               <CardTitle className="text-lg font-heading">{entry.contest_templates.regatta_name}</CardTitle>
               <CardDescription className="space-y-1 mt-1">
                 <div>
+                  {entry.contest_pools?.tier_id && !entry.contest_pools.tier_id.startsWith('tier_') && (
+                    <span className="capitalize font-medium">{entry.contest_pools.tier_id.replace(/_/g, ' ')} Tier · </span>
+                  )}
                   Entry: ${(entry.entry_fee_cents / 100).toFixed(2)}
                   {prizeText && <span className="text-gold font-medium"> • {prizeText}</span>}
                 </div>
