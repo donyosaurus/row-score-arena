@@ -12,7 +12,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import { Users, DollarSign, Trophy, Shield, Download, Settings, Loader2, Plus, X } from "lucide-react";
 import { LogoPicker } from "@/components/LogoPicker";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -45,14 +44,6 @@ interface PrizeTier {
   amount: string;
 }
 
-interface EntryTier {
-  name: string;
-  entryFee: string;
-  maxEntries: string;
-  prizes: PrizeTier[];
-  allowOverflow: boolean;
-}
-
 interface CreateContestForm {
   regattaName: string;
   genderCategory: string;
@@ -62,17 +53,7 @@ interface CreateContestForm {
   crews: NewCrew[];
   prizes: PrizeTier[];
   allowOverflow: boolean;
-  multiTier: boolean;
-  tiers: EntryTier[];
 }
-
-const defaultTier = (index: number): EntryTier => ({
-  name: `Tier ${index + 1}`,
-  entryFee: "",
-  maxEntries: "",
-  prizes: [{ rank: 1, amount: "" }],
-  allowOverflow: false,
-});
 
 const Admin = () => {
   const { user } = useAuth();
@@ -106,8 +87,6 @@ const Admin = () => {
     crews: [],
     prizes: [{ rank: 1, amount: "" }],
     allowOverflow: false,
-    multiTier: false,
-    tiers: [defaultTier(0), defaultTier(1)],
   });
   const [newCrewInput, setNewCrewInput] = useState<NewCrew>({
     crew_name: "",
@@ -222,7 +201,7 @@ const Admin = () => {
 
   const isContestPastLockTime = (contest: any) => new Date() > new Date(contest.lock_time);
 
-  // Group contest pools by template (aggregate across tiers)
+  // Group contest pools by template
   const groupedContests = useMemo(() => {
     const groups = new Map<string, any[]>();
     for (const pool of contests) {
@@ -240,13 +219,6 @@ const Admin = () => {
       let overallStatus = 'settled';
       for (const s of statusPriority) { if (pools.some((p: any) => p.status === s)) { overallStatus = s; break; } }
 
-      // Detect multi-tier: different entry_fee_cents among pools
-      const uniqueFees = new Set(pools.map((p: any) => p.entry_fee_cents));
-      const isMultiTier = uniqueFees.size > 1;
-      const minFee = Math.min(...pools.map((p: any) => p.entry_fee_cents));
-      const maxFee = Math.max(...pools.map((p: any) => p.entry_fee_cents));
-      const uniqueTierIds = new Set(pools.map((p: any) => p.tier_id));
-
       return {
         primary,
         pools,
@@ -256,10 +228,6 @@ const Admin = () => {
         totalPrize,
         overallStatus,
         regattaName: primary.contest_templates?.regatta_name || 'Unknown',
-        isMultiTier,
-        minFee,
-        maxFee,
-        tierCount: uniqueTierIds.size,
       };
     });
   }, [contests]);
@@ -268,7 +236,6 @@ const Admin = () => {
     setCreateForm({
       regattaName: "", genderCategory: "Men's", entryFee: "", maxEntries: "", lockTime: "",
       crews: [], prizes: [{ rank: 1, amount: "" }], allowOverflow: false,
-      multiTier: false, tiers: [defaultTier(0), defaultTier(1)],
     });
     setNewCrewInput({ crew_name: "", crew_id: "", event_id: "", logo_url: null });
   };
@@ -284,7 +251,6 @@ const Admin = () => {
     setCreateForm(prev => ({ ...prev, crews: prev.crews.filter(c => c.crew_id !== crewId) }));
   };
 
-  // Single-tier prize management
   const addPrizeTier = () => {
     const nextRank = createForm.prizes.length + 1;
     setCreateForm(prev => ({ ...prev, prizes: [...prev.prizes, { rank: nextRank, amount: "" }] }));
@@ -296,53 +262,11 @@ const Admin = () => {
     setCreateForm(prev => ({ ...prev, prizes: prev.prizes.map(p => p.rank === rank ? { ...p, amount } : p) }));
   };
 
-  // Multi-tier management
-  const addEntryTier = () => {
-    if (createForm.tiers.length >= 5) { toast.error("Maximum 5 tiers"); return; }
-    setCreateForm(prev => ({ ...prev, tiers: [...prev.tiers, defaultTier(prev.tiers.length)] }));
-  };
-  const removeEntryTier = (index: number) => {
-    if (createForm.tiers.length <= 2) { toast.error("Minimum 2 tiers required"); return; }
-    setCreateForm(prev => ({ ...prev, tiers: prev.tiers.filter((_, i) => i !== index) }));
-  };
-  const updateTier = (index: number, field: keyof EntryTier, value: any) => {
-    setCreateForm(prev => ({
-      ...prev,
-      tiers: prev.tiers.map((t, i) => i === index ? { ...t, [field]: value } : t)
-    }));
-  };
-  const addTierPrize = (tierIndex: number) => {
-    setCreateForm(prev => ({
-      ...prev,
-      tiers: prev.tiers.map((t, i) => i === tierIndex ? { ...t, prizes: [...t.prizes, { rank: t.prizes.length + 1, amount: "" }] } : t)
-    }));
-  };
-  const removeTierPrize = (tierIndex: number, rank: number) => {
-    setCreateForm(prev => ({
-      ...prev,
-      tiers: prev.tiers.map((t, i) => i === tierIndex ? { ...t, prizes: t.prizes.filter(p => p.rank !== rank).map((p, j) => ({ ...p, rank: j + 1 })) } : t)
-    }));
-  };
-  const updateTierPrizeAmount = (tierIndex: number, rank: number, amount: string) => {
-    setCreateForm(prev => ({
-      ...prev,
-      tiers: prev.tiers.map((t, i) => i === tierIndex ? { ...t, prizes: t.prizes.map(p => p.rank === rank ? { ...p, amount } : p) } : t)
-    }));
-  };
-
   const calculateProfitMetrics = () => {
     const entryFeeDollars = parseFloat(createForm.entryFee) || 0;
     const maxEntries = parseInt(createForm.maxEntries) || 0;
     const maxRevenue = entryFeeDollars * maxEntries;
     const totalPayout = createForm.prizes.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
-    return { maxRevenue, totalPayout, projectedProfit: maxRevenue - totalPayout };
-  };
-
-  const calculateTierProfitMetrics = (tier: EntryTier) => {
-    const fee = parseFloat(tier.entryFee) || 0;
-    const max = parseInt(tier.maxEntries) || 0;
-    const maxRevenue = fee * max;
-    const totalPayout = tier.prizes.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
     return { maxRevenue, totalPayout, projectedProfit: maxRevenue - totalPayout };
   };
 
@@ -354,100 +278,46 @@ const Admin = () => {
     if (lockDate <= new Date()) { toast.error("Lock time must be in the future"); return; }
     if (createForm.crews.length < 2) { toast.error("At least 2 crews are required"); return; }
 
-    if (createForm.multiTier) {
-      // Multi-tier validation
-      for (let i = 0; i < createForm.tiers.length; i++) {
-        const tier = createForm.tiers[i];
-        const fee = parseFloat(tier.entryFee);
-        if (isNaN(fee) || fee < 0) { toast.error(`Tier ${i + 1}: Entry fee must be valid`); return; }
-        const max = parseInt(tier.maxEntries);
-        if (isNaN(max) || max < 2) { toast.error(`Tier ${i + 1}: Max entries must be at least 2`); return; }
-        const firstPrize = tier.prizes.find(p => p.rank === 1);
-        if (!firstPrize?.amount || parseFloat(firstPrize.amount) <= 0) { toast.error(`Tier ${i + 1}: 1st place prize is required`); return; }
-      }
+    const entryFeeDollars = parseFloat(createForm.entryFee);
+    if (isNaN(entryFeeDollars) || entryFeeDollars < 0) { toast.error("Entry fee must be valid"); return; }
+    const maxEntries = parseInt(createForm.maxEntries);
+    if (isNaN(maxEntries) || maxEntries < 2) { toast.error("Max entries must be at least 2"); return; }
+    const firstPlacePrize = createForm.prizes.find(p => p.rank === 1);
+    if (!firstPlacePrize?.amount || parseFloat(firstPlacePrize.amount) <= 0) { toast.error("1st place prize is required"); return; }
 
-      const tiers = createForm.tiers.map(t => ({
-        name: t.name.trim() || "Default",
-        entry_fee_cents: Math.round((parseFloat(t.entryFee) || 0) * 100),
-        max_entries: parseInt(t.maxEntries) || 2,
-        payout_structure: t.prizes.reduce((acc, p) => {
-          const amt = parseFloat(p.amount);
-          if (!isNaN(amt) && amt > 0) acc[p.rank.toString()] = Math.round(amt * 100);
-          return acc;
-        }, {} as Record<string, number>),
-        allow_overflow: t.allowOverflow,
-      }));
-
-      setCreatingContest(true);
-      try {
-        const { data, error } = await supabase.functions.invoke("admin-create-contest", {
-          body: {
-            regattaName: createForm.regattaName.trim(),
-            genderCategory: createForm.genderCategory,
-            entryFeeCents: 0,
-            maxEntries: 2,
-            lockTime: lockDate.toISOString(),
-            crews: createForm.crews,
-            payouts: {},
-            tiers,
-          }
-        });
-        if (error) throw error;
-        toast.success(`Multi-tier contest created! ${tiers.length} tiers.`);
-        setCreateModalOpen(false);
-        resetCreateForm();
-        loadDashboardData();
-      } catch (error: any) {
-        console.error("Error creating contest:", error);
-        let msg = "Failed to create contest";
-        if (error.context?.json) {
-          try { const ctx = typeof error.context.json === 'string' ? JSON.parse(error.context.json) : error.context.json; msg = ctx.error || msg; } catch {}
-        } else if (error.message) msg = error.message;
-        toast.error(msg);
-      } finally { setCreatingContest(false); }
-    } else {
-      // Single tier
-      const entryFeeDollars = parseFloat(createForm.entryFee);
-      if (isNaN(entryFeeDollars) || entryFeeDollars < 0) { toast.error("Entry fee must be valid"); return; }
-      const maxEntries = parseInt(createForm.maxEntries);
-      if (isNaN(maxEntries) || maxEntries < 2) { toast.error("Max entries must be at least 2"); return; }
-      const firstPlacePrize = createForm.prizes.find(p => p.rank === 1);
-      if (!firstPlacePrize?.amount || parseFloat(firstPlacePrize.amount) <= 0) { toast.error("1st place prize is required"); return; }
-
-      const payouts: Record<string, number> = {};
-      for (const prize of createForm.prizes) {
-        const amt = parseFloat(prize.amount);
-        if (!isNaN(amt) && amt > 0) payouts[prize.rank.toString()] = Math.round(amt * 100);
-      }
-
-      setCreatingContest(true);
-      try {
-        const { data, error } = await supabase.functions.invoke("admin-create-contest", {
-          body: {
-            regattaName: createForm.regattaName.trim(),
-            genderCategory: createForm.genderCategory,
-            entryFeeCents: Math.round(entryFeeDollars * 100),
-            maxEntries,
-            lockTime: lockDate.toISOString(),
-            crews: createForm.crews,
-            payouts,
-            allowOverflow: createForm.allowOverflow,
-          }
-        });
-        if (error) throw error;
-        toast.success(`Contest created successfully!`);
-        setCreateModalOpen(false);
-        resetCreateForm();
-        loadDashboardData();
-      } catch (error: any) {
-        console.error("Error creating contest:", error);
-        let msg = "Failed to create contest";
-        if (error.context?.json) {
-          try { const ctx = typeof error.context.json === 'string' ? JSON.parse(error.context.json) : error.context.json; msg = ctx.error || msg; } catch {}
-        } else if (error.message) msg = error.message;
-        toast.error(msg);
-      } finally { setCreatingContest(false); }
+    const payouts: Record<string, number> = {};
+    for (const prize of createForm.prizes) {
+      const amt = parseFloat(prize.amount);
+      if (!isNaN(amt) && amt > 0) payouts[prize.rank.toString()] = Math.round(amt * 100);
     }
+
+    setCreatingContest(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("admin-create-contest", {
+        body: {
+          regattaName: createForm.regattaName.trim(),
+          genderCategory: createForm.genderCategory,
+          entryFeeCents: Math.round(entryFeeDollars * 100),
+          maxEntries,
+          lockTime: lockDate.toISOString(),
+          crews: createForm.crews,
+          payouts,
+          allowOverflow: createForm.allowOverflow,
+        }
+      });
+      if (error) throw error;
+      toast.success(`Contest created successfully!`);
+      setCreateModalOpen(false);
+      resetCreateForm();
+      loadDashboardData();
+    } catch (error: any) {
+      console.error("Error creating contest:", error);
+      let msg = "Failed to create contest";
+      if (error.context?.json) {
+        try { const ctx = typeof error.context.json === 'string' ? JSON.parse(error.context.json) : error.context.json; msg = ctx.error || msg; } catch {}
+      } else if (error.message) msg = error.message;
+      toast.error(msg);
+    } finally { setCreatingContest(false); }
   };
 
   const exportComplianceLogs = async () => {
@@ -567,17 +437,14 @@ const Admin = () => {
                       <thead><tr className="border-b"><th className="text-left p-2">Regatta</th><th className="text-left p-2">Entry Fee</th><th className="text-left p-2">Entries</th><th className="text-left p-2">Prize Pool</th><th className="text-left p-2">Status</th><th className="text-left p-2">Actions</th></tr></thead>
                       <tbody>
                         {groupedContests.map((group) => {
-                          const { primary, poolCount, totalEntries, totalMaxEntries, totalPrize, overallStatus, regattaName, isMultiTier, minFee, maxFee, tierCount } = group;
+                          const { primary, poolCount, totalEntries, totalMaxEntries, totalPrize, overallStatus, regattaName } = group;
                           return (
                             <tr key={primary.id} className="border-b hover:bg-muted/50">
                               <td className="p-2">
                                 <span>{regattaName}</span>
-                                {isMultiTier && <Badge variant="outline" className="ml-2 text-xs">{tierCount} Tiers</Badge>}
-                                {!isMultiTier && poolCount > 1 && <Badge variant="outline" className="ml-2 text-xs">{poolCount} Pools</Badge>}
+                                {poolCount > 1 && <Badge variant="outline" className="ml-2 text-xs">{poolCount} Pools</Badge>}
                               </td>
-                              <td className="p-2">
-                                {isMultiTier ? `$${(minFee / 100).toFixed(2)} - $${(maxFee / 100).toFixed(2)}` : `$${(primary.entry_fee_cents / 100).toFixed(2)}`}
-                              </td>
+                              <td className="p-2">${(primary.entry_fee_cents / 100).toFixed(2)}</td>
                               <td className="p-2">{totalEntries} / {totalMaxEntries}</td>
                               <td className="p-2">${(totalPrize / 100).toFixed(2)}</td>
                               <td className="p-2">
@@ -683,144 +550,55 @@ const Admin = () => {
                 <Input id="lockTime" type="datetime-local" value={createForm.lockTime} onChange={(e) => setCreateForm(prev => ({ ...prev, lockTime: e.target.value }))} />
                 <p className="text-xs text-muted-foreground mt-1">Entries will be locked at this time</p>
               </div>
+            </div>
 
-              {/* Multi-Tier Toggle */}
-              <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
-                <div>
-                  <Label className="text-sm font-medium">Multiple Entry Tiers</Label>
-                  <p className="text-xs text-muted-foreground">Create multiple fee levels (e.g., Bronze, Silver, Gold)</p>
-                </div>
-                <Switch checked={createForm.multiTier} onCheckedChange={(checked) => setCreateForm(prev => ({ ...prev, multiTier: checked }))} />
+            {/* Entry Fee & Max Entries */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="entryFee">Entry Fee ($) *</Label>
+                <Input id="entryFee" type="number" min="0" step="0.01" placeholder="10.00" value={createForm.entryFee} onChange={(e) => setCreateForm(prev => ({ ...prev, entryFee: e.target.value }))} />
+              </div>
+              <div>
+                <Label htmlFor="maxEntries">Max Entries *</Label>
+                <Input id="maxEntries" type="number" min="2" placeholder="100" value={createForm.maxEntries} onChange={(e) => setCreateForm(prev => ({ ...prev, maxEntries: e.target.value }))} />
+              </div>
+            </div>
+            <div className="flex items-start space-x-3">
+              <Checkbox id="allowOverflow" checked={createForm.allowOverflow} onCheckedChange={(checked) => setCreateForm(prev => ({ ...prev, allowOverflow: checked === true }))} />
+              <div className="grid gap-1.5 leading-none">
+                <Label htmlFor="allowOverflow" className="text-sm font-medium cursor-pointer">Enable Auto-Pooling</Label>
+                <p className="text-xs text-muted-foreground">Automatically create a new pool when this one fills up.</p>
               </div>
             </div>
 
-            {/* Single-Tier Entry Fee & Prize */}
-            {!createForm.multiTier && (
-              <>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="entryFee">Entry Fee ($) *</Label>
-                    <Input id="entryFee" type="number" min="0" step="0.01" placeholder="10.00" value={createForm.entryFee} onChange={(e) => setCreateForm(prev => ({ ...prev, entryFee: e.target.value }))} />
+            {/* Prize Structure */}
+            <div className="border-t pt-4">
+              <Label className="text-base font-semibold">Prize Structure</Label>
+              <p className="text-sm text-muted-foreground mb-3">Define fixed payouts for each finishing position</p>
+              <div className="space-y-2 mb-4">
+                {createForm.prizes.map((prize) => (
+                  <div key={prize.rank} className="flex items-center gap-3">
+                    <div className="w-20 text-sm font-medium">{prize.rank === 1 ? "🥇 1st" : prize.rank === 2 ? "🥈 2nd" : prize.rank === 3 ? "🥉 3rd" : `${prize.rank}th`}</div>
+                    <div className="flex-1"><Input type="number" min="0" step="0.01" placeholder="50.00" value={prize.amount} onChange={(e) => updatePrizeAmount(prize.rank, e.target.value)} /></div>
+                    {prize.rank > 1 && <Button size="sm" variant="ghost" onClick={() => removePrizeTier(prize.rank)}><X className="h-4 w-4" /></Button>}
                   </div>
-                  <div>
-                    <Label htmlFor="maxEntries">Max Entries *</Label>
-                    <Input id="maxEntries" type="number" min="2" placeholder="100" value={createForm.maxEntries} onChange={(e) => setCreateForm(prev => ({ ...prev, maxEntries: e.target.value }))} />
-                  </div>
-                </div>
-                <div className="flex items-start space-x-3">
-                  <Checkbox id="allowOverflow" checked={createForm.allowOverflow} onCheckedChange={(checked) => setCreateForm(prev => ({ ...prev, allowOverflow: checked === true }))} />
-                  <div className="grid gap-1.5 leading-none">
-                    <Label htmlFor="allowOverflow" className="text-sm font-medium cursor-pointer">Enable Auto-Pooling</Label>
-                    <p className="text-xs text-muted-foreground">Automatically create a new pool when this one fills up.</p>
-                  </div>
-                </div>
-
-                {/* Prize Structure */}
-                <div className="border-t pt-4">
-                  <Label className="text-base font-semibold">Prize Structure</Label>
-                  <p className="text-sm text-muted-foreground mb-3">Define fixed payouts for each finishing position</p>
-                  <div className="space-y-2 mb-4">
-                    {createForm.prizes.map((prize) => (
-                      <div key={prize.rank} className="flex items-center gap-3">
-                        <div className="w-20 text-sm font-medium">{prize.rank === 1 ? "🥇 1st" : prize.rank === 2 ? "🥈 2nd" : prize.rank === 3 ? "🥉 3rd" : `${prize.rank}th`}</div>
-                        <div className="flex-1"><Input type="number" min="0" step="0.01" placeholder="50.00" value={prize.amount} onChange={(e) => updatePrizeAmount(prize.rank, e.target.value)} /></div>
-                        {prize.rank > 1 && <Button size="sm" variant="ghost" onClick={() => removePrizeTier(prize.rank)}><X className="h-4 w-4" /></Button>}
-                      </div>
-                    ))}
-                  </div>
-                  <Button variant="outline" size="sm" onClick={addPrizeTier} className="mb-4"><Plus className="mr-2 h-4 w-4" />Add Prize Tier</Button>
-
-                  {(() => {
-                    const { maxRevenue, totalPayout, projectedProfit } = calculateProfitMetrics();
-                    const hasData = createForm.entryFee && createForm.maxEntries;
-                    return hasData ? (
-                      <div className="bg-muted/50 rounded-lg p-4 space-y-2">
-                        <div className="flex justify-between text-sm"><span className="text-muted-foreground">Max Potential Revenue:</span><span className="font-medium">${maxRevenue.toFixed(2)}</span></div>
-                        <div className="flex justify-between text-sm"><span className="text-muted-foreground">Total Guaranteed Payout:</span><span className="font-medium">${totalPayout.toFixed(2)}</span></div>
-                        <div className="flex justify-between text-sm border-t pt-2"><span className="font-medium">Projected Profit:</span><span className={`font-bold ${projectedProfit >= 0 ? 'text-green-600' : 'text-destructive'}`}>${projectedProfit.toFixed(2)}</span></div>
-                        {projectedProfit < 0 && <p className="text-xs text-destructive">⚠️ Payouts exceed max revenue.</p>}
-                      </div>
-                    ) : null;
-                  })()}
-                </div>
-              </>
-            )}
-
-            {/* Multi-Tier Builder */}
-            {createForm.multiTier && (
-              <div className="border-t pt-4 space-y-4">
-                <Label className="text-base font-semibold">Entry Tiers</Label>
-                <p className="text-sm text-muted-foreground">Each tier creates a separate pool with its own entry fee and prizes</p>
-
-                {createForm.tiers.map((tier, tierIdx) => (
-                  <Card key={tierIdx} className="border-2">
-                    <CardHeader className="pb-3">
-                      <div className="flex items-center justify-between">
-                        <Input
-                          className="font-semibold text-base border-0 p-0 h-auto focus-visible:ring-0 bg-transparent max-w-[200px]"
-                          value={tier.name}
-                          onChange={(e) => updateTier(tierIdx, "name", e.target.value)}
-                          placeholder={`Tier ${tierIdx + 1}`}
-                        />
-                        {createForm.tiers.length > 2 && (
-                          <Button size="sm" variant="ghost" onClick={() => removeEntryTier(tierIdx)}><X className="h-4 w-4" /></Button>
-                        )}
-                      </div>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <Label className="text-xs">Entry Fee ($)</Label>
-                          <Input type="number" min="0" step="0.01" placeholder="10.00" value={tier.entryFee} onChange={(e) => updateTier(tierIdx, "entryFee", e.target.value)} />
-                        </div>
-                        <div>
-                          <Label className="text-xs">Max Entries</Label>
-                          <Input type="number" min="2" placeholder="100" value={tier.maxEntries} onChange={(e) => updateTier(tierIdx, "maxEntries", e.target.value)} />
-                        </div>
-                      </div>
-
-                      {/* Tier prizes */}
-                      <div>
-                        <Label className="text-xs font-medium">Prizes</Label>
-                        <div className="space-y-1.5 mt-1">
-                          {tier.prizes.map((prize) => (
-                            <div key={prize.rank} className="flex items-center gap-2">
-                              <span className="text-xs w-12 text-muted-foreground">{prize.rank === 1 ? "🥇 1st" : prize.rank === 2 ? "🥈 2nd" : `${prize.rank}th`}</span>
-                              <Input className="h-8 text-sm" type="number" min="0" step="0.01" placeholder="19.00" value={prize.amount} onChange={(e) => updateTierPrizeAmount(tierIdx, prize.rank, e.target.value)} />
-                              {prize.rank > 1 && <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => removeTierPrize(tierIdx, prize.rank)}><X className="h-3 w-3" /></Button>}
-                            </div>
-                          ))}
-                        </div>
-                        <Button variant="ghost" size="sm" className="mt-1 text-xs h-7" onClick={() => addTierPrize(tierIdx)}><Plus className="mr-1 h-3 w-3" />Add Place</Button>
-                      </div>
-
-                      {/* Auto-pooling per tier */}
-                      <div className="flex items-center space-x-2">
-                        <Checkbox id={`tier-overflow-${tierIdx}`} checked={tier.allowOverflow} onCheckedChange={(checked) => updateTier(tierIdx, "allowOverflow", checked === true)} />
-                        <Label htmlFor={`tier-overflow-${tierIdx}`} className="text-xs cursor-pointer">Auto-Pooling</Label>
-                      </div>
-
-                      {/* Per-tier profit calculator */}
-                      {(() => {
-                        const { maxRevenue, totalPayout, projectedProfit } = calculateTierProfitMetrics(tier);
-                        if (!tier.entryFee || !tier.maxEntries) return null;
-                        return (
-                          <div className="bg-muted/50 rounded-md p-2.5 space-y-1 text-xs">
-                            <div className="flex justify-between"><span className="text-muted-foreground">Revenue:</span><span>${maxRevenue.toFixed(2)}</span></div>
-                            <div className="flex justify-between"><span className="text-muted-foreground">Payout:</span><span>${totalPayout.toFixed(2)}</span></div>
-                            <div className="flex justify-between border-t pt-1"><span className="font-medium">Profit:</span><span className={projectedProfit >= 0 ? 'text-green-600 font-semibold' : 'text-destructive font-semibold'}>${projectedProfit.toFixed(2)}</span></div>
-                          </div>
-                        );
-                      })()}
-                    </CardContent>
-                  </Card>
                 ))}
-
-                {createForm.tiers.length < 5 && (
-                  <Button variant="outline" onClick={addEntryTier} className="w-full"><Plus className="mr-2 h-4 w-4" />Add Tier</Button>
-                )}
               </div>
-            )}
+              <Button variant="outline" size="sm" onClick={addPrizeTier} className="mb-4"><Plus className="mr-2 h-4 w-4" />Add Prize Tier</Button>
+
+              {(() => {
+                const { maxRevenue, totalPayout, projectedProfit } = calculateProfitMetrics();
+                const hasData = createForm.entryFee && createForm.maxEntries;
+                return hasData ? (
+                  <div className="bg-muted/50 rounded-lg p-4 space-y-2">
+                    <div className="flex justify-between text-sm"><span className="text-muted-foreground">Max Potential Revenue:</span><span className="font-medium">${maxRevenue.toFixed(2)}</span></div>
+                    <div className="flex justify-between text-sm"><span className="text-muted-foreground">Total Guaranteed Payout:</span><span className="font-medium">${totalPayout.toFixed(2)}</span></div>
+                    <div className="flex justify-between text-sm border-t pt-2"><span className="font-medium">Projected Profit:</span><span className={`font-bold ${projectedProfit >= 0 ? 'text-green-600' : 'text-destructive'}`}>${projectedProfit.toFixed(2)}</span></div>
+                    {projectedProfit < 0 && <p className="text-xs text-destructive">⚠️ Payouts exceed max revenue.</p>}
+                  </div>
+                ) : null;
+              })()}
+            </div>
 
             {/* Crew Management */}
             <div className="border-t pt-4">
@@ -852,7 +630,7 @@ const Admin = () => {
             <div className="flex justify-end gap-3 pt-4 border-t">
               <Button variant="outline" onClick={() => setCreateModalOpen(false)}>Cancel</Button>
               <Button onClick={submitCreateContest} disabled={creatingContest || createForm.crews.length < 2}>
-                {creatingContest ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Creating...</> : createForm.multiTier ? `Create ${createForm.tiers.length}-Tier Contest` : "Create Contest"}
+                {creatingContest ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Creating...</> : "Create Contest"}
               </Button>
             </div>
           </div>
