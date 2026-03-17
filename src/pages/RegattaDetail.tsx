@@ -693,7 +693,7 @@ const RegattaDetail = () => {
                       {draftPicksList.map((pick) => (
                         <div key={pick.crewId} className="flex items-center justify-between text-sm">
                           <div className="flex items-center gap-2 min-w-0">
-                            <Check className="h-3.5 w-3.5 text-accent flex-shrink-0" />
+                            <CrewLogo logoUrl={pick.logoUrl} crewName={pick.crewName} size={24} />
                             <span className="truncate font-medium">{pick.crewName}</span>
                           </div>
                           {pick.margin > 0 && <span className="text-xs text-accent font-semibold flex-shrink-0">+{pick.margin.toFixed(1)}s</span>}
