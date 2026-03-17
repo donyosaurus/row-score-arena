@@ -37,6 +37,7 @@ interface PoolCrew {
   crew_id: string;
   crew_name: string;
   event_id: string;
+  logo_url?: string | null;
 }
 
 interface ContestPool {
