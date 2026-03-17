@@ -112,7 +112,8 @@ const Admin = () => {
   const [newCrewInput, setNewCrewInput] = useState<NewCrew>({
     crew_name: "",
     crew_id: "",
-    event_id: ""
+    event_id: "",
+    logo_url: null,
   });
 
   useEffect(() => {
