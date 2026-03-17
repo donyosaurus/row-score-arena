@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { formatCents } from "@/lib/formatCurrency";
+import { CrewLogo } from "@/components/CrewLogo";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -38,6 +39,7 @@ interface PoolCrew {
   crew_id: string;
   crew_name: string;
   event_id: string;
+  logo_url?: string | null;
 }
 
 interface ContestPool {
