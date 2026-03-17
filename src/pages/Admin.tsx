@@ -829,17 +829,21 @@ const Admin = () => {
               {createForm.crews.length > 0 && (
                 <div className="space-y-2 mb-4">
                   {createForm.crews.map((crew) => (
-                    <div key={crew.crew_id} className="flex items-center justify-between p-2 bg-muted rounded-lg">
-                      <div className="text-sm"><span className="font-medium">{crew.crew_name}</span><span className="text-muted-foreground ml-2">({crew.crew_id} • {crew.event_id})</span></div>
+                    <div key={crew.crew_id} className="flex items-center gap-3 p-2 bg-muted rounded-lg">
+                      <LogoPicker logoUrl={crew.logo_url} crewName={crew.crew_name} onSelect={(url) => setCreateForm(prev => ({ ...prev, crews: prev.crews.map(c => c.crew_id === crew.crew_id ? { ...c, logo_url: url } : c) }))} />
+                      <div className="flex-1 text-sm"><span className="font-medium">{crew.crew_name}</span><span className="text-muted-foreground ml-2">({crew.crew_id} • {crew.event_id})</span></div>
                       <Button size="sm" variant="ghost" onClick={() => removeCrewFromForm(crew.crew_id)}><X className="h-4 w-4" /></Button>
                     </div>
                   ))}
                 </div>
               )}
-              <div className="grid grid-cols-4 gap-2 items-end">
-                <div><Label htmlFor="crewName" className="text-xs">Name</Label><Input id="crewName" placeholder="Yale" value={newCrewInput.crew_name} onChange={(e) => setNewCrewInput(prev => ({ ...prev, crew_name: e.target.value }))} /></div>
-                <div><Label htmlFor="crewId" className="text-xs">Crew ID</Label><Input id="crewId" placeholder="yale_1v" value={newCrewInput.crew_id} onChange={(e) => setNewCrewInput(prev => ({ ...prev, crew_id: e.target.value }))} /></div>
-                <div><Label htmlFor="eventId" className="text-xs">Event ID</Label><Input id="eventId" placeholder="mens_8" value={newCrewInput.event_id} onChange={(e) => setNewCrewInput(prev => ({ ...prev, event_id: e.target.value }))} /></div>
+              <div className="flex items-end gap-2">
+                <LogoPicker logoUrl={newCrewInput.logo_url} crewName={newCrewInput.crew_name || "?"} onSelect={(url) => setNewCrewInput(prev => ({ ...prev, logo_url: url }))} />
+                <div className="flex-1 grid grid-cols-3 gap-2">
+                  <div><Label htmlFor="crewName" className="text-xs">Name</Label><Input id="crewName" placeholder="Yale" value={newCrewInput.crew_name} onChange={(e) => setNewCrewInput(prev => ({ ...prev, crew_name: e.target.value }))} /></div>
+                  <div><Label htmlFor="crewId" className="text-xs">Crew ID</Label><Input id="crewId" placeholder="yale_1v" value={newCrewInput.crew_id} onChange={(e) => setNewCrewInput(prev => ({ ...prev, crew_id: e.target.value }))} /></div>
+                  <div><Label htmlFor="eventId" className="text-xs">Event ID</Label><Input id="eventId" placeholder="mens_8" value={newCrewInput.event_id} onChange={(e) => setNewCrewInput(prev => ({ ...prev, event_id: e.target.value }))} /></div>
+                </div>
                 <Button variant="secondary" onClick={addCrewToForm}>Add</Button>
               </div>
             </div>
