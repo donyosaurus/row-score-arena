@@ -39,12 +39,9 @@ interface MappedContest {
   lockTime: string;
   lockTimeRaw: string;
   divisions: string[];
-  entryTiers: number;
   entryFeeCents: number;
-  entryFeeRange?: { min: number; max: number };
   payoutStructure: Record<string, number> | null;
   prizePoolCents: number;
-  maxFirstPrizeCents: number;
   currentEntries: number;
   maxEntries: number;
   allowOverflow: boolean;
@@ -52,7 +49,6 @@ interface MappedContest {
   status: string;
   siblingPoolCount: number;
   userEntered: boolean;
-  isMultiTier: boolean;
 }
 
 const Lobby = () => {
@@ -113,10 +109,6 @@ const Lobby = () => {
         const userEntered = pools.some((p) => enteredPoolIds.has(p.id));
         const siblingPoolCount = pools.length;
 
-        // Detect multi-tier
-        const uniqueFees = new Set(pools.map(p => p.entry_fee_cents));
-        const isMultiTier = uniqueFees.size > 1;
-
         // Pick representative pool (open with capacity, oldest)
         const sorted = [...pools].sort((a, b) => {
           const aOpen = a.status === "open" && a.current_entries < a.max_entries ? 1 : 0;
@@ -133,39 +125,21 @@ const Lobby = () => {
           month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true,
         });
 
-        // Fee range for multi-tier
-        const allFees = pools.map(p => p.entry_fee_cents);
-        const minFee = Math.min(...allFees);
-        const maxFee = Math.max(...allFees);
-
-        // Max first prize across all tiers
-        let maxFirstPrize = 0;
-        for (const pool of pools) {
-          const fp = pool.payout_structure ? (pool.payout_structure['1'] || 0) : pool.prize_pool_cents;
-          if (fp > maxFirstPrize) maxFirstPrize = fp;
-        }
-
-        // Total entries/max across all pools
-        const totalEntries = pools.reduce((s, p) => s + (p.current_entries || 0), 0);
-        const totalMax = pools.reduce((s, p) => s + (p.max_entries || 0), 0);
-
         return {
           id: primary.id,
           contestTemplateId: primary.contest_template_id,
           regattaName, genderCategory, lockTime,
           lockTimeRaw: primary.lock_time,
-          divisions, entryTiers: uniqueFees.size,
-          entryFeeCents: isMultiTier ? minFee : primary.entry_fee_cents,
-          entryFeeRange: isMultiTier ? { min: minFee, max: maxFee } : undefined,
+          divisions,
+          entryFeeCents: primary.entry_fee_cents,
           payoutStructure: primary.payout_structure,
           prizePoolCents: primary.prize_pool_cents,
-          maxFirstPrizeCents: maxFirstPrize,
-          currentEntries: isMultiTier ? totalEntries : (primary.current_entries || 0),
-          maxEntries: isMultiTier ? totalMax : (primary.max_entries || 0),
+          currentEntries: primary.current_entries || 0,
+          maxEntries: primary.max_entries || 0,
           allowOverflow: primary.allow_overflow || false,
           createdAt: primary.created_at,
           status: primary.status,
-          siblingPoolCount, userEntered, isMultiTier,
+          siblingPoolCount, userEntered,
         };
       });
 
@@ -258,18 +232,14 @@ const Lobby = () => {
                     lockTime={contest.lockTime}
                     lockTimeRaw={contest.lockTimeRaw}
                     divisions={contest.divisions}
-                    entryTiers={contest.entryTiers}
                     entryFeeCents={contest.entryFeeCents}
-                    entryFeeRange={contest.entryFeeRange}
                     payoutStructure={contest.payoutStructure}
                     prizePoolCents={contest.prizePoolCents}
-                    maxFirstPrizeCents={contest.maxFirstPrizeCents}
                     currentEntries={contest.currentEntries}
                     maxEntries={contest.maxEntries}
                     allowOverflow={contest.allowOverflow}
                     siblingPoolCount={contest.siblingPoolCount}
                     userEntered={contest.userEntered}
-                    isMultiTier={contest.isMultiTier}
                   />
                 </div>
               ))}
