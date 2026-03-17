@@ -172,7 +172,7 @@ const MyEntries = () => {
     return <Badge variant="outline" className={config.className}>{config.label}</Badge>;
   };
 
-  const getParsedPicks = (entry: Entry): {crewName: string;margin: number | null;}[] => {
+  const getParsedPicks = (entry: Entry): {crewName: string;margin: number | null;logoUrl?: string | null;}[] => {
     let picks: unknown = entry.picks;
     if (!picks) return [];
 
