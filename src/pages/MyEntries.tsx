@@ -224,7 +224,7 @@ const MyEntries = () => {
             <Skeleton className="h-64 w-full rounded-xl" />
           </div>
         </main>
-        <Footer />
+        
       </div>
     );
   }
