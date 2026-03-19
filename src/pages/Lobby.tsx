@@ -23,6 +23,7 @@ interface ContestPool {
   allow_overflow: boolean;
   created_at: string;
   tier_id: string;
+  entry_tiers: unknown;
   contest_templates: {
     regatta_name: string;
   };
