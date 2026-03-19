@@ -500,6 +500,17 @@ const RegattaDetail = () => {
               <Card className="rounded-xl border-2 border-accent/30">
                 <CardContent className="p-4">
                   <h3 className="font-heading text-sm font-bold mb-3 flex items-center gap-2"><Zap className="h-4 w-4 text-accent" />Your Draft</h3>
+
+                  {/* Tier Selection */}
+                  {hasTiers && (
+                    <TierSelector
+                      tiers={entryTiers!}
+                      selectedTier={selectedTier}
+                      onSelectTier={setSelectedTier}
+                      walletBalanceCents={walletBalanceCents}
+                    />
+                  )}
+
                   <p className="text-xs text-muted-foreground mb-3">{crewPicks.size}/{maxPicks} picks selected</p>
                   {draftPicksList.length > 0 ? (
                     <div className="space-y-2 mb-4">
@@ -520,14 +531,14 @@ const RegattaDetail = () => {
                   <Button
                     variant="hero"
                     className="w-full rounded-xl font-semibold"
-                    disabled={!isContestOpen || crewPicks.size < minPicks || !allMarginsValid || submitting}
+                    disabled={!isContestOpen || crewPicks.size < minPicks || !allMarginsValid || (hasTiers && !selectedTier) || submitting}
                     onClick={handleSubmitEntry}
                   >
-                    {submitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Entering...</> : `Enter Contest — ${formatCents(contestPool.entry_fee_cents)}`}
+                    {submitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Entering...</> : `Enter Contest — ${formatCents(activeEntryFee)}`}
                   </Button>
 
                   {walletBalanceCents !== null && (
-                    <div className={`flex items-center gap-1.5 mt-3 text-xs ${walletBalanceCents < contestPool.entry_fee_cents ? "text-destructive" : "text-muted-foreground"}`}>
+                    <div className={`flex items-center gap-1.5 mt-3 text-xs ${walletBalanceCents < activeEntryFee ? "text-destructive" : "text-muted-foreground"}`}>
                       <Wallet className="h-3.5 w-3.5" />
                       Balance: {formatCents(walletBalanceCents)}
                     </div>
