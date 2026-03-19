@@ -62,7 +62,7 @@ async function processSinglePool(
   // 1. Fetch pool details
   const { data: poolData, error: poolError } = await supabaseAdmin
     .from('contest_pools')
-    .select('id, status, prize_pool_cents, contest_template_id, payout_structure, entry_fee_cents, current_entries')
+    .select('id, status, prize_pool_cents, contest_template_id, payout_structure, entry_fee_cents, current_entries, entry_tiers')
     .eq('id', poolId)
     .single();
 
