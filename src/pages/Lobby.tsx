@@ -142,6 +142,7 @@ const Lobby = () => {
           createdAt: primary.created_at,
           status: primary.status,
           siblingPoolCount, userEntered,
+          entryTiers: (primary.entry_tiers as any[] | null) || null,
         };
       });
 
