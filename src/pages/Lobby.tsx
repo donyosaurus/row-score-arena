@@ -52,7 +52,6 @@ interface MappedContest {
   userEntered: boolean;
   entryTiers: any[] | null;
 }
-}
 
 const Lobby = () => {
   const { user } = useAuth();
