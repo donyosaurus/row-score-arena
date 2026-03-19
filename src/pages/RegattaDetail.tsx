@@ -84,6 +84,7 @@ const RegattaDetail = () => {
   const [submitting, setSubmitting] = useState(false);
   const [scoringOpen, setScoringOpen] = useState(false);
   const [walletBalanceCents, setWalletBalanceCents] = useState<number | null>(null);
+  const [selectedTier, setSelectedTier] = useState<EntryTier | null>(null);
 
   useEffect(() => {
     if (!authLoading && !user) navigate("/login");
