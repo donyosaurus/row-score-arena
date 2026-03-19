@@ -26,6 +26,8 @@ interface ContestEntry {
   user_id: string;
   status: string;
   payout_cents: number | null;
+  entry_fee_cents: number;
+  tier_name: string | null;
 }
 
 interface ContestScore {
