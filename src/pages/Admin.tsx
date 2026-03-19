@@ -335,10 +335,12 @@ const Admin = () => {
   const calculateProfitMetrics = () => {
     if (createForm.multiTier) {
       const maxEntries = parseInt(createForm.maxEntries) || 0;
-      // Use highest tier fee for max revenue estimate
-      const fees = createForm.entryTiers.map(t => parseFloat(t.entryFee) || 0);
-      const avgFee = fees.length > 0 ? fees.reduce((a, b) => a + b, 0) / fees.length : 0;
-      const maxRevenue = avgFee * maxEntries;
+      // Revenue assumes max_entries players at EACH tier
+      const totalFeePerRound = createForm.entryTiers.reduce(
+        (sum, t) => sum + (parseFloat(t.entryFee) || 0), 0
+      );
+      const maxRevenue = totalFeePerRound * maxEntries;
+      // Payout is the sum of all prizes across all tiers
       const totalPayout = createForm.entryTiers.reduce((sum, t) =>
         sum + t.prizes.reduce((s, p) => s + (parseFloat(p.amount) || 0), 0), 0);
       return { maxRevenue, totalPayout, projectedProfit: maxRevenue - totalPayout };
