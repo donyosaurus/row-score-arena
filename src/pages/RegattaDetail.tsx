@@ -431,7 +431,33 @@ const RegattaDetail = () => {
             {/* ── RIGHT: Sticky Sidebar ── */}
             <div className="w-full lg:w-[340px] lg:sticky lg:top-4 lg:self-start space-y-4">
               {/* Prize Pool */}
-              {payoutRows.length > 0 && (
+              {hasTiers ? (
+                <Card className="rounded-xl">
+                  <CardContent className="p-4">
+                    <h3 className="font-heading text-sm font-bold mb-3 flex items-center gap-2"><Trophy className="h-4 w-4 text-gold" />Prize Pool</h3>
+                    <div className="space-y-4">
+                      {entryTiers!.map((tier) => {
+                        const tierPayoutRows = Object.entries(tier.payout_structure)
+                          .map(([rank, cents]) => ({ rank: Number(rank), cents }))
+                          .sort((a, b) => a.rank - b.rank);
+                        return (
+                          <div key={tier.name}>
+                            <p className="text-xs font-semibold text-muted-foreground mb-1.5">{tier.name} ({formatCents(tier.entry_fee_cents)} entry)</p>
+                            <div className="space-y-1">
+                              {tierPayoutRows.map((row) => (
+                                <div key={row.rank} className="flex justify-between text-sm">
+                                  <span className={row.rank === 1 ? "font-semibold text-gold" : "text-muted-foreground"}>{ordinal(row.rank)}</span>
+                                  <span className={row.rank === 1 ? "font-bold text-gold" : "font-medium"}>{formatCents(row.cents)}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : payoutRows.length > 0 && (
                 <Card className="rounded-xl">
                   <CardContent className="p-4">
                     <h3 className="font-heading text-sm font-bold mb-3 flex items-center gap-2"><Trophy className="h-4 w-4 text-gold" />Prize Pool</h3>
