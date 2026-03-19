@@ -120,16 +120,20 @@ export const ContestCard = ({
         </div>
 
         {/* Prize Pool */}
-        {(firstPlacePrize > 0 || totalPrizes > 0) && (
+        {(firstPlacePrize > 0 || totalPrizes > 0 || maxTierFirstPrize > 0) && (
           <div className="p-4 rounded-xl bg-gradient-to-br from-amber-50 to-yellow-50/50 dark:from-amber-950/30 dark:to-yellow-950/20 border border-amber-200/40 dark:border-amber-800/30">
             <div className="flex items-center gap-2 mb-1">
               <Trophy className="h-5 w-5 text-gold" />
               <span className="text-xl font-heading font-extrabold text-gold">
-                {hasPayoutStructure ? formatCents(firstPlacePrize) : formatCents(totalPrizes)}
+                {hasTiers
+                  ? `Win up to ${formatCents(maxTierFirstPrize)}`
+                  : hasPayoutStructure ? formatCents(firstPlacePrize) : formatCents(totalPrizes)}
               </span>
             </div>
             <p className="text-xs text-muted-foreground font-medium">
-              {hasPayoutStructure ? `1st Place • ${formatCents(totalPrizes)} total` : "Prize Pool"}
+              {hasTiers
+                ? `${entryTiers.length} tier levels available`
+                : hasPayoutStructure ? `1st Place • ${formatCents(totalPrizes)} total` : "Prize Pool"}
             </p>
           </div>
         )}
