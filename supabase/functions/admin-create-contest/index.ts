@@ -100,6 +100,7 @@ Deno.serve(async (req) => {
       p_crews: body.crews,
       p_payout_structure: body.payouts,
       p_allow_overflow: body.allowOverflow ?? false,
+      p_entry_tiers: body.entryTiers ?? null,
     };
 
     const { data, error } = await supabaseAdmin.rpc('admin_create_contest', rpcParams);
