@@ -8,6 +8,12 @@ import { formatCents } from "@/lib/formatCurrency";
 
 type GenderCategory = "Men's" | "Women's";
 
+interface EntryTier {
+  name: string;
+  entry_fee_cents: number;
+  payout_structure: Record<string, number>;
+}
+
 interface ContestCardProps {
   id: string;
   regattaName: string;
@@ -23,6 +29,7 @@ interface ContestCardProps {
   allowOverflow?: boolean;
   siblingPoolCount?: number;
   userEntered?: boolean;
+  entryTiers?: EntryTier[] | null;
 }
 
 export const ContestCard = ({
