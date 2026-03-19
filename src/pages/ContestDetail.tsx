@@ -155,6 +155,10 @@ const ContestDetail = () => {
   const maxPicks = Math.min(contestPool?.contest_templates?.max_picks ?? 4, numEvents);
   const isOpen = contestPool?.status === "open" && new Date(contestPool.lock_time) > new Date();
 
+  const entryTiers = contestPool?.entry_tiers as EntryTier[] | null;
+  const hasTiers = entryTiers && entryTiers.length > 0;
+  const activeEntryFee = hasTiers && selectedTier ? selectedTier.entry_fee_cents : contestPool?.entry_fee_cents ?? 0;
+
   const payoutRows = useMemo(() => {
     if (!contestPool?.payout_structure) return [];
     return Object.entries(contestPool.payout_structure)
