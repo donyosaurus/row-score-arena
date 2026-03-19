@@ -228,8 +228,10 @@ const ContestDetail = () => {
       }
     }
 
-    if (walletBalanceCents !== null && walletBalanceCents < contestPool.entry_fee_cents) {
-      toast.error(`Insufficient balance. Need ${formatCents(contestPool.entry_fee_cents)}, have ${formatCents(walletBalanceCents)}.`);
+    if (hasTiers && !selectedTier) { toast.error("Please select an entry tier"); return; }
+
+    if (walletBalanceCents !== null && walletBalanceCents < activeEntryFee) {
+      toast.error(`Insufficient balance. Need ${formatCents(activeEntryFee)}, have ${formatCents(walletBalanceCents)}.`);
       return;
     }
 
@@ -246,7 +248,8 @@ const ContestDetail = () => {
           contestTemplateId: contestPool.contest_template_id,
           tierId: contestPool.id,
           picks,
-          entryFeeCents: contestPool.entry_fee_cents,
+          entryFeeCents: activeEntryFee,
+          tierName: selectedTier?.name ?? null,
           stateCode: null,
         },
       });
