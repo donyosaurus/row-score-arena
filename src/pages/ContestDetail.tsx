@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { formatCents } from "@/lib/formatCurrency";
+import { TierSelector, type EntryTier } from "@/components/TierSelector";
 import { CrewLogo } from "@/components/CrewLogo";
 
 // ---------------------------------------------------------------------------
