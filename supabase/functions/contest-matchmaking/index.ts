@@ -49,6 +49,7 @@ Deno.serve(async (req) => {
         .max(10),
       entryFeeCents: z.number().int().positive().max(1000000),
       stateCode: z.string().length(2).optional().nullable(),
+      tierName: z.string().max(100).optional().nullable(),
     });
 
     const body = entrySchema.parse(await req.json());
