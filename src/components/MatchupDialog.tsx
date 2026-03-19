@@ -87,6 +87,7 @@ export function MatchupDialog({
         id: e.id,
         user_id: e.user_id,
         username: usernameMap.get(e.user_id) || null,
+        tier_name: e.tier_name || null,
         picks: e.picks,
         total_points: e.total_points,
         margin_error: e.margin_error,
