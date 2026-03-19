@@ -29,6 +29,13 @@ interface Entry {
   picks: PickNew[] | string[] | unknown;
   payout_cents?: number;
   rank?: number;
+  tier_name?: string | null;
+  status: string;
+  entry_fee_cents: number;
+  pool_id: string;
+  picks: PickNew[] | string[] | unknown;
+  payout_cents?: number;
+  rank?: number;
   contest_templates: {
     regatta_name: string;
     lock_time: string;
