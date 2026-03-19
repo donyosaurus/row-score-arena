@@ -18,6 +18,7 @@ interface ContestPool {
   entry_fee_cents: number;
   current_entries: number;
   tier_id: string;
+  entry_tiers: Array<{ name: string; entry_fee_cents: number; payout_structure: PayoutStructure }> | null;
 }
 
 interface ContestEntry {
@@ -25,6 +26,8 @@ interface ContestEntry {
   user_id: string;
   status: string;
   payout_cents: number | null;
+  entry_fee_cents: number;
+  tier_name: string | null;
 }
 
 interface ContestScore {
@@ -62,7 +65,7 @@ async function processSinglePool(
   // 1. Fetch pool details
   const { data: poolData, error: poolError } = await supabaseAdmin
     .from('contest_pools')
-    .select('id, status, prize_pool_cents, contest_template_id, payout_structure, entry_fee_cents, current_entries')
+    .select('id, status, prize_pool_cents, contest_template_id, payout_structure, entry_fee_cents, current_entries, entry_tiers')
     .eq('id', poolId)
     .single();
 
@@ -121,7 +124,7 @@ async function processSinglePool(
   // 2. Fetch ALL contest_entries for this pool
   const { data: entriesData, error: entriesError } = await supabaseAdmin
     .from('contest_entries')
-    .select('id, user_id, status, payout_cents')
+    .select('id, user_id, status, payout_cents, entry_fee_cents, tier_name')
     .eq('pool_id', poolId);
 
   if (entriesError) {
@@ -192,63 +195,134 @@ async function processSinglePool(
   console.log('[settle:single] Found', allScores.length, 'scored entries');
 
   // ========== PROCESS WINNERS ==========
-  const payoutStructure = pool.payout_structure;
-  const collectedRevenue = pool.entry_fee_cents * pool.current_entries;
-  const processedEntryIds = new Set<string>();
+  // Check if this is a tiered contest
+  const entryTiers = pool.entry_tiers;
+  const isTiered = entryTiers && Array.isArray(entryTiers) && entryTiers.length > 0;
 
-  const payoutResults: Array<{
-    userId: string;
-    entryId: string;
-    rank: number;
-    payoutCents: number;
-    success: boolean;
-    error?: string;
-  }> = [];
+  if (isTiered) {
+    // ========== TIERED PAYOUT: Group entries by their entry_fee_cents ==========
+    console.log('[settle:single] Tiered contest detected with', entryTiers.length, 'tiers');
 
-  let totalPayoutCents = 0;
-
-  if (payoutStructure && Object.keys(payoutStructure).length > 0) {
-    console.log('[settle:single] Using payout structure:', payoutStructure);
-
-    // Group scores by rank to handle ties
-    const scoresByRank: Record<number, ContestScore[]> = {};
-    for (const score of allScores) {
-      const rank = score.rank || 999;
-      if (!scoresByRank[rank]) {
-        scoresByRank[rank] = [];
-      }
-      scoresByRank[rank].push(score);
+    // Build a map of entry_fee_cents -> tier payout structure
+    const tierPayoutMap = new Map<number, PayoutStructure>();
+    for (const tier of entryTiers) {
+      tierPayoutMap.set(tier.entry_fee_cents, tier.payout_structure || {});
     }
 
-    // Process each rank that has a payout defined
-    for (const [rankStr, payoutAmountCents] of Object.entries(payoutStructure)) {
-      const rank = parseInt(rankStr);
-      const scoresAtRank = scoresByRank[rank] || [];
+    // Group entries by their entry_fee_cents
+    const entriesByFee = new Map<number, string[]>(); // fee -> entry_ids
+    for (const entry of allEntries) {
+      const fee = entry.entry_fee_cents;
+      if (!entriesByFee.has(fee)) entriesByFee.set(fee, []);
+      entriesByFee.get(fee)!.push(entry.id);
+    }
 
-      if (scoresAtRank.length === 0) {
-        console.log(`[settle:single] No entries at rank ${rank}, skipping payout of ${payoutAmountCents} cents`);
+    // For each tier group, rank scores and distribute that tier's payouts
+    for (const [feeCents, entryIds] of entriesByFee) {
+      const tierPayout = tierPayoutMap.get(feeCents);
+      if (!tierPayout || Object.keys(tierPayout).length === 0) {
+        console.log(`[settle:single] No payout structure for fee ${feeCents}, skipping`);
         continue;
       }
 
-      // Split this rank's prize among tied entries
+      // Get scores for entries in this tier, sorted by rank
+      const tierScores = allScores.filter(s => entryIds.includes(s.entry_id));
+      tierScores.sort((a, b) => (a.rank || 999) - (b.rank || 999));
+
+      // Re-rank within this tier group
+      let tierRank = 1;
+      for (let i = 0; i < tierScores.length; i++) {
+        if (i > 0) {
+          const prev = tierScores[i - 1];
+          const curr = tierScores[i];
+          if (curr.total_points !== prev.total_points) {
+            tierRank = i + 1;
+          }
+        }
+        const score = tierScores[i];
+        const payoutCents = tierPayout[String(tierRank)] || 0;
+        const isWinner = payoutCents > 0;
+
+        if (isWinner) {
+          try {
+            const { data: wallet } = await supabaseAdmin
+              .from('wallets').select('id').eq('user_id', score.user_id).single();
+            if (!wallet) throw new Error('Wallet not found');
+
+            await supabaseAdmin.rpc('update_wallet_balance', {
+              _wallet_id: (wallet as { id: string }).id,
+              _available_delta: payoutCents,
+              _pending_delta: 0,
+              _lifetime_winnings_delta: payoutCents,
+              _lifetime_deposits_delta: 0,
+              _lifetime_withdrawals_delta: 0,
+            });
+
+            await supabaseAdmin.from('ledger_entries').insert({
+              user_id: score.user_id,
+              transaction_type: 'PRIZE_PAYOUT',
+              amount: payoutCents,
+              description: `Contest payout - Rank ${tierRank} (Tier ${feeCents / 100}) - Pool ${poolId}`,
+              reference_id: poolId,
+            });
+
+            await supabaseAdmin.from('transactions').insert({
+              user_id: score.user_id,
+              wallet_id: (wallet as { id: string }).id,
+              type: 'payout',
+              amount: payoutCents,
+              status: 'completed',
+              completed_at: new Date().toISOString(),
+              description: `Contest winnings - Rank ${tierRank} (Tier)`,
+              reference_id: score.entry_id,
+              reference_type: 'contest_entry',
+              is_taxable: true,
+              tax_year: new Date().getFullYear(),
+              metadata: { contest_pool_id: poolId, rank: tierRank, tier_fee_cents: feeCents },
+            });
+
+            await supabaseAdmin.from('contest_scores').update({ payout_cents: payoutCents }).eq('id', score.id);
+            await supabaseAdmin.from('contest_entries').update({ payout_cents: payoutCents, status: 'settled' }).eq('id', score.entry_id);
+
+            processedEntryIds.add(score.entry_id);
+            totalPayoutCents += payoutCents;
+            payoutResults.push({ userId: score.user_id, entryId: score.entry_id, rank: tierRank, payoutCents, success: true });
+            console.log(`[settle:single] Tiered payout: ${payoutCents} cents to ${score.user_id} (rank ${tierRank}, fee tier ${feeCents})`);
+          } catch (error: unknown) {
+            const errMsg = error instanceof Error ? error.message : 'Unknown error';
+            payoutResults.push({ userId: score.user_id, entryId: score.entry_id, rank: tierRank, payoutCents: 0, success: false, error: errMsg });
+            processedEntryIds.add(score.entry_id);
+          }
+        } else {
+          processedEntryIds.add(score.entry_id);
+        }
+      }
+    }
+  } else if (payoutStructure && Object.keys(payoutStructure).length > 0) {
+    // ========== STANDARD (non-tiered) PAYOUT ==========
+    console.log('[settle:single] Using payout structure:', payoutStructure);
+
+    const scoresByRank: Record<number, ContestScore[]> = {};
+    for (const score of allScores) {
+      const rank = score.rank || 999;
+      if (!scoresByRank[rank]) scoresByRank[rank] = [];
+      scoresByRank[rank].push(score);
+    }
+
+    for (const [rankStr, payoutAmountCents] of Object.entries(payoutStructure)) {
+      const rank = parseInt(rankStr);
+      const scoresAtRank = scoresByRank[rank] || [];
+      if (scoresAtRank.length === 0) continue;
+
       const payoutPerEntry = Math.floor(payoutAmountCents / scoresAtRank.length);
-      console.log(`[settle:single] Rank ${rank}: ${scoresAtRank.length} entries split ${payoutAmountCents} cents (${payoutPerEntry} each)`);
 
       for (const winner of scoresAtRank) {
         try {
-          // Get user's wallet
           const { data: wallet, error: walletError } = await supabaseAdmin
-            .from('wallets')
-            .select('id')
-            .eq('user_id', winner.user_id)
-            .single();
+            .from('wallets').select('id').eq('user_id', winner.user_id).single();
+          if (walletError || !wallet) throw new Error(`Wallet not found for user ${winner.user_id}`);
 
-          if (walletError || !wallet) {
-            throw new Error(`Wallet not found for user ${winner.user_id}`);
-          }
-
-          // 1. Update wallet balance via RPC
-          const { error: balanceError } = await supabaseAdmin.rpc('update_wallet_balance', {
+          await supabaseAdmin.rpc('update_wallet_balance', {
             _wallet_id: (wallet as { id: string }).id,
             _available_delta: payoutPerEntry,
             _pending_delta: 0,
@@ -257,11 +331,6 @@ async function processSinglePool(
             _lifetime_withdrawals_delta: 0,
           });
 
-          if (balanceError) {
-            throw new Error(`Failed to update wallet balance: ${balanceError.message}`);
-          }
-
-          // 2. Insert ledger entry
           await supabaseAdmin.from('ledger_entries').insert({
             user_id: winner.user_id,
             transaction_type: 'PRIZE_PAYOUT',
@@ -270,7 +339,6 @@ async function processSinglePool(
             reference_id: poolId,
           });
 
-          // 3. Insert transaction record
           await supabaseAdmin.from('transactions').insert({
             user_id: winner.user_id,
             wallet_id: (wallet as { id: string }).id,
@@ -283,52 +351,18 @@ async function processSinglePool(
             reference_type: 'contest_entry',
             is_taxable: true,
             tax_year: new Date().getFullYear(),
-            metadata: {
-              contest_pool_id: poolId,
-              rank: rank,
-              total_points: winner.total_points,
-            },
+            metadata: { contest_pool_id: poolId, rank, total_points: winner.total_points },
           });
 
-          // 4. Update contest_scores
-          await supabaseAdmin
-            .from('contest_scores')
-            .update({ payout_cents: payoutPerEntry })
-            .eq('id', winner.id);
-
-          // 5. Update contest_entries - mark as settled with payout
-          await supabaseAdmin
-            .from('contest_entries')
-            .update({
-              payout_cents: payoutPerEntry,
-              status: 'settled'
-            })
-            .eq('id', winner.entry_id);
+          await supabaseAdmin.from('contest_scores').update({ payout_cents: payoutPerEntry }).eq('id', winner.id);
+          await supabaseAdmin.from('contest_entries').update({ payout_cents: payoutPerEntry, status: 'settled' }).eq('id', winner.entry_id);
 
           processedEntryIds.add(winner.entry_id);
           totalPayoutCents += payoutPerEntry;
-
-          payoutResults.push({
-            userId: winner.user_id,
-            entryId: winner.entry_id,
-            rank: rank,
-            payoutCents: payoutPerEntry,
-            success: true,
-          });
-
-          console.log(`[settle:single] Paid ${payoutPerEntry} cents to user ${winner.user_id} (rank ${rank})`);
-
+          payoutResults.push({ userId: winner.user_id, entryId: winner.entry_id, rank, payoutCents: payoutPerEntry, success: true });
         } catch (error: unknown) {
           const errMsg = error instanceof Error ? error.message : 'Unknown error';
-          console.error(`[settle:single] Payout failed for user ${winner.user_id}:`, error);
-          payoutResults.push({
-            userId: winner.user_id,
-            entryId: winner.entry_id,
-            rank: rank,
-            payoutCents: 0,
-            success: false,
-            error: errMsg,
-          });
+          payoutResults.push({ userId: winner.user_id, entryId: winner.entry_id, rank, payoutCents: 0, success: false, error: errMsg });
           processedEntryIds.add(winner.entry_id);
         }
       }
@@ -345,11 +379,7 @@ async function processSinglePool(
       for (const winner of winners) {
         try {
           const { data: wallet } = await supabaseAdmin
-            .from('wallets')
-            .select('id')
-            .eq('user_id', winner.user_id)
-            .single();
-
+            .from('wallets').select('id').eq('user_id', winner.user_id).single();
           if (!wallet) throw new Error('Wallet not found');
 
           await supabaseAdmin.rpc('update_wallet_balance', {

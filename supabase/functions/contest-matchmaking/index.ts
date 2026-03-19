@@ -49,6 +49,7 @@ Deno.serve(async (req) => {
         .max(10),
       entryFeeCents: z.number().int().positive().max(1000000),
       stateCode: z.string().length(2).optional().nullable(),
+      tierName: z.string().max(100).optional().nullable(),
     });
 
     const body = entrySchema.parse(await req.json());
@@ -159,6 +160,18 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Validate entry fee against pool's entry_tiers if present
+    const poolEntryTiers = contestPool.entry_tiers as any[] | null;
+    if (poolEntryTiers && Array.isArray(poolEntryTiers) && poolEntryTiers.length > 0) {
+      const validFees = poolEntryTiers.map((t: any) => t.entry_fee_cents);
+      if (!validFees.includes(body.entryFeeCents)) {
+        return new Response(JSON.stringify({ error: "Invalid entry fee for this contest's tiers." }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
+
     // Determine which pool to actually place the entry in
     let targetPoolId = contestPoolId;
     let targetPool = contestPool;
@@ -258,11 +271,12 @@ Deno.serve(async (req) => {
       .from("contest_entries")
       .insert({
         user_id: userId,
-        pool_id: targetPoolId, // ← contest_pools.id (correct)
+        pool_id: targetPoolId,
         contest_template_id: body.contestTemplateId,
         picks: body.picks,
         entry_fee_cents: body.entryFeeCents,
         state_code: body.stateCode ?? null,
+        tier_name: body.tierName ?? null,
         status: "active",
       })
       .select()

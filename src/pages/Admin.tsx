@@ -44,6 +44,12 @@ interface PrizeTier {
   amount: string;
 }
 
+interface EntryTierForm {
+  name: string;
+  entryFee: string;
+  prizes: PrizeTier[];
+}
+
 interface CreateContestForm {
   regattaName: string;
   genderCategory: string;
@@ -53,6 +59,8 @@ interface CreateContestForm {
   crews: NewCrew[];
   prizes: PrizeTier[];
   allowOverflow: boolean;
+  multiTier: boolean;
+  entryTiers: EntryTierForm[];
 }
 
 const Admin = () => {
@@ -87,6 +95,11 @@ const Admin = () => {
     crews: [],
     prizes: [{ rank: 1, amount: "" }],
     allowOverflow: false,
+    multiTier: false,
+    entryTiers: [
+      { name: "Bronze", entryFee: "", prizes: [{ rank: 1, amount: "" }] },
+      { name: "Silver", entryFee: "", prizes: [{ rank: 1, amount: "" }] },
+    ],
   });
   const [newCrewInput, setNewCrewInput] = useState<NewCrew>({
     crew_name: "",
@@ -201,7 +214,6 @@ const Admin = () => {
 
   const isContestPastLockTime = (contest: any) => new Date() > new Date(contest.lock_time);
 
-  // Group contest pools by template
   const groupedContests = useMemo(() => {
     const groups = new Map<string, any[]>();
     for (const pool of contests) {
@@ -236,6 +248,11 @@ const Admin = () => {
     setCreateForm({
       regattaName: "", genderCategory: "Men's", entryFee: "", maxEntries: "", lockTime: "",
       crews: [], prizes: [{ rank: 1, amount: "" }], allowOverflow: false,
+      multiTier: false,
+      entryTiers: [
+        { name: "Bronze", entryFee: "", prizes: [{ rank: 1, amount: "" }] },
+        { name: "Silver", entryFee: "", prizes: [{ rank: 1, amount: "" }] },
+      ],
     });
     setNewCrewInput({ crew_name: "", crew_id: "", event_id: "", logo_url: null });
   };
@@ -262,7 +279,70 @@ const Admin = () => {
     setCreateForm(prev => ({ ...prev, prizes: prev.prizes.map(p => p.rank === rank ? { ...p, amount } : p) }));
   };
 
+  // Entry Tier helpers
+  const addEntryTier = () => {
+    if (createForm.entryTiers.length >= 5) { toast.error("Maximum 5 tiers allowed"); return; }
+    const names = ["Bronze", "Silver", "Gold", "Platinum", "Diamond"];
+    const nextName = names[createForm.entryTiers.length] || `Tier ${createForm.entryTiers.length + 1}`;
+    setCreateForm(prev => ({
+      ...prev,
+      entryTiers: [...prev.entryTiers, { name: nextName, entryFee: "", prizes: [{ rank: 1, amount: "" }] }],
+    }));
+  };
+
+  const removeEntryTier = (idx: number) => {
+    if (createForm.entryTiers.length <= 2) { toast.error("Minimum 2 tiers required"); return; }
+    setCreateForm(prev => ({
+      ...prev,
+      entryTiers: prev.entryTiers.filter((_, i) => i !== idx),
+    }));
+  };
+
+  const updateEntryTier = (idx: number, field: string, value: string) => {
+    setCreateForm(prev => ({
+      ...prev,
+      entryTiers: prev.entryTiers.map((t, i) => i === idx ? { ...t, [field]: value } : t),
+    }));
+  };
+
+  const addTierPrize = (tierIdx: number) => {
+    setCreateForm(prev => ({
+      ...prev,
+      entryTiers: prev.entryTiers.map((t, i) => i === tierIdx
+        ? { ...t, prizes: [...t.prizes, { rank: t.prizes.length + 1, amount: "" }] }
+        : t),
+    }));
+  };
+
+  const removeTierPrize = (tierIdx: number, prizeRank: number) => {
+    setCreateForm(prev => ({
+      ...prev,
+      entryTiers: prev.entryTiers.map((t, i) => i === tierIdx
+        ? { ...t, prizes: t.prizes.filter(p => p.rank !== prizeRank).map((p, j) => ({ ...p, rank: j + 1 })) }
+        : t),
+    }));
+  };
+
+  const updateTierPrizeAmount = (tierIdx: number, rank: number, amount: string) => {
+    setCreateForm(prev => ({
+      ...prev,
+      entryTiers: prev.entryTiers.map((t, i) => i === tierIdx
+        ? { ...t, prizes: t.prizes.map(p => p.rank === rank ? { ...p, amount } : p) }
+        : t),
+    }));
+  };
+
   const calculateProfitMetrics = () => {
+    if (createForm.multiTier) {
+      const maxEntries = parseInt(createForm.maxEntries) || 0;
+      // Use highest tier fee for max revenue estimate
+      const fees = createForm.entryTiers.map(t => parseFloat(t.entryFee) || 0);
+      const avgFee = fees.length > 0 ? fees.reduce((a, b) => a + b, 0) / fees.length : 0;
+      const maxRevenue = avgFee * maxEntries;
+      const totalPayout = createForm.entryTiers.reduce((sum, t) =>
+        sum + t.prizes.reduce((s, p) => s + (parseFloat(p.amount) || 0), 0), 0);
+      return { maxRevenue, totalPayout, projectedProfit: maxRevenue - totalPayout };
+    }
     const entryFeeDollars = parseFloat(createForm.entryFee) || 0;
     const maxEntries = parseInt(createForm.maxEntries) || 0;
     const maxRevenue = entryFeeDollars * maxEntries;
@@ -277,18 +357,57 @@ const Admin = () => {
     const lockDate = new Date(createForm.lockTime);
     if (lockDate <= new Date()) { toast.error("Lock time must be in the future"); return; }
     if (createForm.crews.length < 2) { toast.error("At least 2 crews are required"); return; }
-
-    const entryFeeDollars = parseFloat(createForm.entryFee);
-    if (isNaN(entryFeeDollars) || entryFeeDollars < 0) { toast.error("Entry fee must be valid"); return; }
     const maxEntries = parseInt(createForm.maxEntries);
     if (isNaN(maxEntries) || maxEntries < 2) { toast.error("Max entries must be at least 2"); return; }
-    const firstPlacePrize = createForm.prizes.find(p => p.rank === 1);
-    if (!firstPlacePrize?.amount || parseFloat(firstPlacePrize.amount) <= 0) { toast.error("1st place prize is required"); return; }
 
-    const payouts: Record<string, number> = {};
-    for (const prize of createForm.prizes) {
-      const amt = parseFloat(prize.amount);
-      if (!isNaN(amt) && amt > 0) payouts[prize.rank.toString()] = Math.round(amt * 100);
+    let entryFeeCents: number;
+    let payouts: Record<string, number> = {};
+    let entryTiersPayload: any[] | null = null;
+
+    if (createForm.multiTier) {
+      // Validate tiers
+      for (let i = 0; i < createForm.entryTiers.length; i++) {
+        const tier = createForm.entryTiers[i];
+        if (!tier.name.trim()) { toast.error(`Tier ${i + 1} needs a name`); return; }
+        const fee = parseFloat(tier.entryFee);
+        if (isNaN(fee) || fee <= 0) { toast.error(`Tier "${tier.name}" needs a valid entry fee`); return; }
+        const firstPrize = tier.prizes.find(p => p.rank === 1);
+        if (!firstPrize?.amount || parseFloat(firstPrize.amount) <= 0) { toast.error(`Tier "${tier.name}" needs a 1st place prize`); return; }
+      }
+
+      // Build entry_tiers payload
+      entryTiersPayload = createForm.entryTiers.map(t => {
+        const ps: Record<string, number> = {};
+        for (const p of t.prizes) {
+          const amt = parseFloat(p.amount);
+          if (!isNaN(amt) && amt > 0) ps[p.rank.toString()] = Math.round(amt * 100);
+        }
+        return {
+          name: t.name.trim(),
+          entry_fee_cents: Math.round(parseFloat(t.entryFee) * 100),
+          payout_structure: ps,
+        };
+      });
+
+      // Set pool-level fields: lowest entry fee, highest tier's payout for display
+      const fees = entryTiersPayload.map(t => t.entry_fee_cents);
+      entryFeeCents = Math.min(...fees);
+
+      // Use the highest tier's payout for the pool-level payout_structure
+      const highestTier = entryTiersPayload.reduce((a, b) => a.entry_fee_cents > b.entry_fee_cents ? a : b);
+      payouts = highestTier.payout_structure;
+    } else {
+      const entryFeeDollars = parseFloat(createForm.entryFee);
+      if (isNaN(entryFeeDollars) || entryFeeDollars < 0) { toast.error("Entry fee must be valid"); return; }
+      entryFeeCents = Math.round(entryFeeDollars * 100);
+
+      const firstPlacePrize = createForm.prizes.find(p => p.rank === 1);
+      if (!firstPlacePrize?.amount || parseFloat(firstPlacePrize.amount) <= 0) { toast.error("1st place prize is required"); return; }
+
+      for (const prize of createForm.prizes) {
+        const amt = parseFloat(prize.amount);
+        if (!isNaN(amt) && amt > 0) payouts[prize.rank.toString()] = Math.round(amt * 100);
+      }
     }
 
     setCreatingContest(true);
@@ -297,12 +416,13 @@ const Admin = () => {
         body: {
           regattaName: createForm.regattaName.trim(),
           genderCategory: createForm.genderCategory,
-          entryFeeCents: Math.round(entryFeeDollars * 100),
+          entryFeeCents,
           maxEntries,
           lockTime: lockDate.toISOString(),
           crews: createForm.crews,
           payouts,
           allowOverflow: createForm.allowOverflow,
+          entryTiers: entryTiersPayload,
         }
       });
       if (error) throw error;
@@ -438,13 +558,20 @@ const Admin = () => {
                       <tbody>
                         {groupedContests.map((group) => {
                           const { primary, poolCount, totalEntries, totalMaxEntries, totalPrize, overallStatus, regattaName } = group;
+                          const hasTiers = primary.entry_tiers && Array.isArray(primary.entry_tiers) && primary.entry_tiers.length > 0;
                           return (
                             <tr key={primary.id} className="border-b hover:bg-muted/50">
                               <td className="p-2">
                                 <span>{regattaName}</span>
                                 {poolCount > 1 && <Badge variant="outline" className="ml-2 text-xs">{poolCount} Pools</Badge>}
+                                {hasTiers && <Badge variant="secondary" className="ml-2 text-xs">{primary.entry_tiers.length} Tiers</Badge>}
                               </td>
-                              <td className="p-2">${(primary.entry_fee_cents / 100).toFixed(2)}</td>
+                              <td className="p-2">
+                                {hasTiers
+                                  ? `From $${(primary.entry_fee_cents / 100).toFixed(2)}`
+                                  : `$${(primary.entry_fee_cents / 100).toFixed(2)}`
+                                }
+                              </td>
                               <td className="p-2">{totalEntries} / {totalMaxEntries}</td>
                               <td className="p-2">${(totalPrize / 100).toFixed(2)}</td>
                               <td className="p-2">
@@ -552,12 +679,14 @@ const Admin = () => {
               </div>
             </div>
 
-            {/* Entry Fee & Max Entries */}
+            {/* Max Entries */}
             <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="entryFee">Entry Fee ($) *</Label>
-                <Input id="entryFee" type="number" min="0" step="0.01" placeholder="10.00" value={createForm.entryFee} onChange={(e) => setCreateForm(prev => ({ ...prev, entryFee: e.target.value }))} />
-              </div>
+              {!createForm.multiTier && (
+                <div>
+                  <Label htmlFor="entryFee">Entry Fee ($) *</Label>
+                  <Input id="entryFee" type="number" min="0" step="0.01" placeholder="10.00" value={createForm.entryFee} onChange={(e) => setCreateForm(prev => ({ ...prev, entryFee: e.target.value }))} />
+                </div>
+              )}
               <div>
                 <Label htmlFor="maxEntries">Max Entries *</Label>
                 <Input id="maxEntries" type="number" min="2" placeholder="100" value={createForm.maxEntries} onChange={(e) => setCreateForm(prev => ({ ...prev, maxEntries: e.target.value }))} />
@@ -571,34 +700,98 @@ const Admin = () => {
               </div>
             </div>
 
-            {/* Prize Structure */}
-            <div className="border-t pt-4">
-              <Label className="text-base font-semibold">Prize Structure</Label>
-              <p className="text-sm text-muted-foreground mb-3">Define fixed payouts for each finishing position</p>
-              <div className="space-y-2 mb-4">
-                {createForm.prizes.map((prize) => (
-                  <div key={prize.rank} className="flex items-center gap-3">
-                    <div className="w-20 text-sm font-medium">{prize.rank === 1 ? "🥇 1st" : prize.rank === 2 ? "🥈 2nd" : prize.rank === 3 ? "🥉 3rd" : `${prize.rank}th`}</div>
-                    <div className="flex-1"><Input type="number" min="0" step="0.01" placeholder="50.00" value={prize.amount} onChange={(e) => updatePrizeAmount(prize.rank, e.target.value)} /></div>
-                    {prize.rank > 1 && <Button size="sm" variant="ghost" onClick={() => removePrizeTier(prize.rank)}><X className="h-4 w-4" /></Button>}
+            {/* Multi-Tier Toggle */}
+            <div className="flex items-start space-x-3 border-t pt-4">
+              <Checkbox id="multiTier" checked={createForm.multiTier} onCheckedChange={(checked) => setCreateForm(prev => ({ ...prev, multiTier: checked === true }))} />
+              <div className="grid gap-1.5 leading-none">
+                <Label htmlFor="multiTier" className="text-sm font-medium cursor-pointer">Multiple Entry Tiers</Label>
+                <p className="text-xs text-muted-foreground">Offer multiple entry fee/payout levels within the same pool.</p>
+              </div>
+            </div>
+
+            {/* Single-tier Prize Structure */}
+            {!createForm.multiTier && (
+              <div className="border-t pt-4">
+                <Label className="text-base font-semibold">Prize Structure</Label>
+                <p className="text-sm text-muted-foreground mb-3">Define fixed payouts for each finishing position</p>
+                <div className="space-y-2 mb-4">
+                  {createForm.prizes.map((prize) => (
+                    <div key={prize.rank} className="flex items-center gap-3">
+                      <div className="w-20 text-sm font-medium">{prize.rank === 1 ? "🥇 1st" : prize.rank === 2 ? "🥈 2nd" : prize.rank === 3 ? "🥉 3rd" : `${prize.rank}th`}</div>
+                      <div className="flex-1"><Input type="number" min="0" step="0.01" placeholder="50.00" value={prize.amount} onChange={(e) => updatePrizeAmount(prize.rank, e.target.value)} /></div>
+                      {prize.rank > 1 && <Button size="sm" variant="ghost" onClick={() => removePrizeTier(prize.rank)}><X className="h-4 w-4" /></Button>}
+                    </div>
+                  ))}
+                </div>
+                <Button variant="outline" size="sm" onClick={addPrizeTier} className="mb-4"><Plus className="mr-2 h-4 w-4" />Add Prize Tier</Button>
+              </div>
+            )}
+
+            {/* Multi-Tier Builder */}
+            {createForm.multiTier && (
+              <div className="border rounded-lg p-4 space-y-4 bg-muted/30">
+                <Label className="text-base font-semibold">Entry Tiers</Label>
+                <p className="text-sm text-muted-foreground">Define 2-5 entry fee/payout tiers. All tiers share the same pool.</p>
+
+                {createForm.entryTiers.map((tier, idx) => (
+                  <div key={idx} className="border rounded-lg p-4 bg-background space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-semibold">Tier {idx + 1}</span>
+                      {createForm.entryTiers.length > 2 && (
+                        <Button size="sm" variant="ghost" onClick={() => removeEntryTier(idx)}>
+                          <X className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label className="text-xs">Name</Label>
+                        <Input placeholder="Bronze" value={tier.name} onChange={(e) => updateEntryTier(idx, "name", e.target.value)} />
+                      </div>
+                      <div>
+                        <Label className="text-xs">Entry Fee ($)</Label>
+                        <Input type="number" min="0" step="0.01" placeholder="10.00" value={tier.entryFee} onChange={(e) => updateEntryTier(idx, "entryFee", e.target.value)} />
+                      </div>
+                    </div>
+                    <div>
+                      <Label className="text-xs">Prizes</Label>
+                      <div className="space-y-1.5 mt-1">
+                        {tier.prizes.map((prize) => (
+                          <div key={prize.rank} className="flex items-center gap-2">
+                            <span className="text-xs w-12 text-muted-foreground">{prize.rank === 1 ? "1st" : `${prize.rank}th`}</span>
+                            <Input type="number" min="0" step="0.01" placeholder="19.00" className="h-8 text-sm" value={prize.amount} onChange={(e) => updateTierPrizeAmount(idx, prize.rank, e.target.value)} />
+                            {prize.rank > 1 && <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => removeTierPrize(idx, prize.rank)}><X className="h-3 w-3" /></Button>}
+                          </div>
+                        ))}
+                      </div>
+                      <Button variant="ghost" size="sm" className="text-xs mt-1" onClick={() => addTierPrize(idx)}><Plus className="h-3 w-3 mr-1" />Add Place</Button>
+                    </div>
                   </div>
                 ))}
-              </div>
-              <Button variant="outline" size="sm" onClick={addPrizeTier} className="mb-4"><Plus className="mr-2 h-4 w-4" />Add Prize Tier</Button>
 
-              {(() => {
-                const { maxRevenue, totalPayout, projectedProfit } = calculateProfitMetrics();
-                const hasData = createForm.entryFee && createForm.maxEntries;
-                return hasData ? (
-                  <div className="bg-muted/50 rounded-lg p-4 space-y-2">
-                    <div className="flex justify-between text-sm"><span className="text-muted-foreground">Max Potential Revenue:</span><span className="font-medium">${maxRevenue.toFixed(2)}</span></div>
-                    <div className="flex justify-between text-sm"><span className="text-muted-foreground">Total Guaranteed Payout:</span><span className="font-medium">${totalPayout.toFixed(2)}</span></div>
-                    <div className="flex justify-between text-sm border-t pt-2"><span className="font-medium">Projected Profit:</span><span className={`font-bold ${projectedProfit >= 0 ? 'text-green-600' : 'text-destructive'}`}>${projectedProfit.toFixed(2)}</span></div>
-                    {projectedProfit < 0 && <p className="text-xs text-destructive">⚠️ Payouts exceed max revenue.</p>}
-                  </div>
-                ) : null;
-              })()}
-            </div>
+                {createForm.entryTiers.length < 5 && (
+                  <Button variant="outline" size="sm" onClick={addEntryTier}>
+                    <Plus className="mr-2 h-4 w-4" />Add Tier
+                  </Button>
+                )}
+              </div>
+            )}
+
+            {/* Profit Projection */}
+            {(() => {
+              const { maxRevenue, totalPayout, projectedProfit } = calculateProfitMetrics();
+              const hasData = createForm.multiTier
+                ? createForm.maxEntries && createForm.entryTiers.some(t => t.entryFee)
+                : createForm.entryFee && createForm.maxEntries;
+              return hasData ? (
+                <div className="bg-muted/50 rounded-lg p-4 space-y-2">
+                  <div className="flex justify-between text-sm"><span className="text-muted-foreground">{createForm.multiTier ? "Est. Avg Revenue:" : "Max Potential Revenue:"}</span><span className="font-medium">${maxRevenue.toFixed(2)}</span></div>
+                  <div className="flex justify-between text-sm"><span className="text-muted-foreground">Total Guaranteed Payout:</span><span className="font-medium">${totalPayout.toFixed(2)}</span></div>
+                  <div className="flex justify-between text-sm border-t pt-2"><span className="font-medium">Projected Profit:</span><span className={`font-bold ${projectedProfit >= 0 ? 'text-green-600' : 'text-destructive'}`}>${projectedProfit.toFixed(2)}</span></div>
+                  {projectedProfit < 0 && <p className="text-xs text-destructive">⚠️ Payouts exceed max revenue.</p>}
+                </div>
+              ) : null;
+            })()}
 
             {/* Crew Management */}
             <div className="border-t pt-4">
