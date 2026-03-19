@@ -335,10 +335,12 @@ const Admin = () => {
   const calculateProfitMetrics = () => {
     if (createForm.multiTier) {
       const maxEntries = parseInt(createForm.maxEntries) || 0;
-      // Use highest tier fee for max revenue estimate
-      const fees = createForm.entryTiers.map(t => parseFloat(t.entryFee) || 0);
-      const avgFee = fees.length > 0 ? fees.reduce((a, b) => a + b, 0) / fees.length : 0;
-      const maxRevenue = avgFee * maxEntries;
+      // Revenue assumes max_entries players at EACH tier
+      const totalFeePerRound = createForm.entryTiers.reduce(
+        (sum, t) => sum + (parseFloat(t.entryFee) || 0), 0
+      );
+      const maxRevenue = totalFeePerRound * maxEntries;
+      // Payout is the sum of all prizes across all tiers
       const totalPayout = createForm.entryTiers.reduce((sum, t) =>
         sum + t.prizes.reduce((s, p) => s + (parseFloat(p.amount) || 0), 0), 0);
       return { maxRevenue, totalPayout, projectedProfit: maxRevenue - totalPayout };
@@ -785,7 +787,7 @@ const Admin = () => {
                 : createForm.entryFee && createForm.maxEntries;
               return hasData ? (
                 <div className="bg-muted/50 rounded-lg p-4 space-y-2">
-                  <div className="flex justify-between text-sm"><span className="text-muted-foreground">{createForm.multiTier ? "Est. Avg Revenue:" : "Max Potential Revenue:"}</span><span className="font-medium">${maxRevenue.toFixed(2)}</span></div>
+                  <div className="flex justify-between text-sm"><span className="text-muted-foreground">Max Potential Revenue:</span><span className="font-medium">${maxRevenue.toFixed(2)}</span></div>
                   <div className="flex justify-between text-sm"><span className="text-muted-foreground">Total Guaranteed Payout:</span><span className="font-medium">${totalPayout.toFixed(2)}</span></div>
                   <div className="flex justify-between text-sm border-t pt-2"><span className="font-medium">Projected Profit:</span><span className={`font-bold ${projectedProfit >= 0 ? 'text-green-600' : 'text-destructive'}`}>${projectedProfit.toFixed(2)}</span></div>
                   {projectedProfit < 0 && <p className="text-xs text-destructive">⚠️ Payouts exceed max revenue.</p>}
