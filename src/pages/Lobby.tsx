@@ -23,6 +23,7 @@ interface ContestPool {
   allow_overflow: boolean;
   created_at: string;
   tier_id: string;
+  entry_tiers: unknown;
   contest_templates: {
     regatta_name: string;
   };
@@ -49,6 +50,7 @@ interface MappedContest {
   status: string;
   siblingPoolCount: number;
   userEntered: boolean;
+  entryTiers: any[] | null;
 }
 
 const Lobby = () => {
@@ -68,7 +70,7 @@ const Lobby = () => {
         .select(`
            id, contest_template_id, lock_time, status, entry_fee_cents,
            prize_pool_cents, payout_structure, current_entries, max_entries,
-           allow_overflow, created_at, tier_id,
+           allow_overflow, created_at, tier_id, entry_tiers,
            contest_templates(regatta_name),
            contest_pool_crews(event_id)
          `)
@@ -140,6 +142,7 @@ const Lobby = () => {
           createdAt: primary.created_at,
           status: primary.status,
           siblingPoolCount, userEntered,
+          entryTiers: (primary.entry_tiers as any[] | null) || null,
         };
       });
 
@@ -240,6 +243,7 @@ const Lobby = () => {
                     allowOverflow={contest.allowOverflow}
                     siblingPoolCount={contest.siblingPoolCount}
                     userEntered={contest.userEntered}
+                    entryTiers={contest.entryTiers}
                   />
                 </div>
               ))}

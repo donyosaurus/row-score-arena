@@ -95,6 +95,7 @@ function EntrantCard({
                   @{entrant.username || "anonymous"}
                 </span>
                 {isCurrentUser && <span className="text-[10px] text-muted-foreground">(you)</span>}
+                {entrant.tier_name && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-accent/10 text-accent border border-accent/20 font-medium">{entrant.tier_name}</span>}
               </div>
               {canSeePicks && picks.length > 0 && (
                 <div className="flex flex-wrap gap-1 mt-1">

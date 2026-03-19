@@ -15,6 +15,7 @@ export interface EntrantRow {
   id: string;
   user_id: string;
   username: string | null;
+  tier_name: string | null;
   picks: unknown;
   total_points: number | null;
   margin_error: number | null;

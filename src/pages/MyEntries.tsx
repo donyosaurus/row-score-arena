@@ -29,6 +29,7 @@ interface Entry {
   picks: PickNew[] | string[] | unknown;
   payout_cents?: number;
   rank?: number;
+  tier_name?: string | null;
   contest_templates: {
     regatta_name: string;
     lock_time: string;
@@ -109,7 +110,7 @@ const MyEntries = () => {
       const { data, error } = await supabase.
       from('contest_entries').
       select(`
-          id, created_at, status, entry_fee_cents, pool_id, picks, payout_cents, rank,
+          id, created_at, status, entry_fee_cents, pool_id, picks, payout_cents, rank, tier_name,
           contest_templates!inner (regatta_name, lock_time),
           contest_pools!inner (status, prize_pool_cents, max_entries, current_entries, payout_structure, tier_id, entry_fee_cents),
           contest_scores (rank, total_points, margin_bonus, is_winner, payout_cents)
@@ -280,6 +281,7 @@ const MyEntries = () => {
               <CardTitle className="text-lg font-heading">{entry.contest_templates.regatta_name}</CardTitle>
               <CardDescription className="space-y-1 mt-1">
                 <div>
+                  {entry.tier_name && <span className="text-accent font-medium">{entry.tier_name} Tier · </span>}
                   Entry: ${(entry.entry_fee_cents / 100).toFixed(2)}
                   {prizeText && <span className="text-gold font-medium"> • {prizeText}</span>}
                 </div>

@@ -30,6 +30,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { formatCents } from "@/lib/formatCurrency";
+import { TierSelector, type EntryTier } from "@/components/TierSelector";
 
 interface PoolCrew {
   id: string;
@@ -50,6 +51,7 @@ interface ContestPool {
   payout_structure: Record<string, number> | null;
   contest_template_id: string;
   tier_id: string;
+  entry_tiers: EntryTier[] | null;
   contest_templates: {
     regatta_name: string;
     gender_category: string;
@@ -82,6 +84,7 @@ const RegattaDetail = () => {
   const [submitting, setSubmitting] = useState(false);
   const [scoringOpen, setScoringOpen] = useState(false);
   const [walletBalanceCents, setWalletBalanceCents] = useState<number | null>(null);
+  const [selectedTier, setSelectedTier] = useState<EntryTier | null>(null);
 
   useEffect(() => {
     if (!authLoading && !user) navigate("/login");
@@ -96,7 +99,7 @@ const RegattaDetail = () => {
         .eq("id", id)
         .single();
       if (fetchError || !data) { setError("Contest not found"); setLoading(false); return; }
-      setContestPool(data as ContestPool);
+      setContestPool(data as unknown as ContestPool);
       setLoading(false);
     };
     fetchPoolData();
@@ -168,6 +171,11 @@ const RegattaDetail = () => {
     return true;
   }, [crewPicks]);
 
+  const entryTiers = contestPool?.entry_tiers as EntryTier[] | null;
+  const hasTiers = entryTiers && entryTiers.length > 0;
+
+  const activeEntryFee = hasTiers && selectedTier ? selectedTier.entry_fee_cents : contestPool?.entry_fee_cents ?? 0;
+
   const payoutRows = useMemo(() => {
     if (!contestPool?.payout_structure) return [];
     return Object.entries(contestPool.payout_structure)
@@ -205,8 +213,11 @@ const RegattaDetail = () => {
       if (crew) selectedDivisions.add(crew.event_id);
     }
     if (selectedDivisions.size < 2) { toast.error("You must select crews from at least 2 different events"); return; }
-    if (walletBalanceCents !== null && walletBalanceCents < contestPool.entry_fee_cents) {
-      toast.error(`Insufficient balance. You need ${formatCents(contestPool.entry_fee_cents)} but have ${formatCents(walletBalanceCents)}.`);
+
+    if (hasTiers && !selectedTier) { toast.error("Please select an entry tier"); return; }
+
+    if (walletBalanceCents !== null && walletBalanceCents < activeEntryFee) {
+      toast.error(`Insufficient balance. You need ${formatCents(activeEntryFee)} but have ${formatCents(walletBalanceCents)}.`);
       return;
     }
 
@@ -222,7 +233,8 @@ const RegattaDetail = () => {
           contestTemplateId: contestPool.contest_template_id,
           tierId: contestPool.id,
           picks,
-          entryFeeCents: contestPool.entry_fee_cents,
+          entryFeeCents: activeEntryFee,
+          tierName: selectedTier?.name ?? null,
           stateCode: null,
         },
       });
@@ -419,7 +431,33 @@ const RegattaDetail = () => {
             {/* ── RIGHT: Sticky Sidebar ── */}
             <div className="w-full lg:w-[340px] lg:sticky lg:top-4 lg:self-start space-y-4">
               {/* Prize Pool */}
-              {payoutRows.length > 0 && (
+              {hasTiers ? (
+                <Card className="rounded-xl">
+                  <CardContent className="p-4">
+                    <h3 className="font-heading text-sm font-bold mb-3 flex items-center gap-2"><Trophy className="h-4 w-4 text-gold" />Prize Pool</h3>
+                    <div className="space-y-4">
+                      {entryTiers!.map((tier) => {
+                        const tierPayoutRows = Object.entries(tier.payout_structure)
+                          .map(([rank, cents]) => ({ rank: Number(rank), cents }))
+                          .sort((a, b) => a.rank - b.rank);
+                        return (
+                          <div key={tier.name}>
+                            <p className="text-xs font-semibold text-muted-foreground mb-1.5">{tier.name} ({formatCents(tier.entry_fee_cents)} entry)</p>
+                            <div className="space-y-1">
+                              {tierPayoutRows.map((row) => (
+                                <div key={row.rank} className="flex justify-between text-sm">
+                                  <span className={row.rank === 1 ? "font-semibold text-gold" : "text-muted-foreground"}>{ordinal(row.rank)}</span>
+                                  <span className={row.rank === 1 ? "font-bold text-gold" : "font-medium"}>{formatCents(row.cents)}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : payoutRows.length > 0 && (
                 <Card className="rounded-xl">
                   <CardContent className="p-4">
                     <h3 className="font-heading text-sm font-bold mb-3 flex items-center gap-2"><Trophy className="h-4 w-4 text-gold" />Prize Pool</h3>
@@ -462,6 +500,17 @@ const RegattaDetail = () => {
               <Card className="rounded-xl border-2 border-accent/30">
                 <CardContent className="p-4">
                   <h3 className="font-heading text-sm font-bold mb-3 flex items-center gap-2"><Zap className="h-4 w-4 text-accent" />Your Draft</h3>
+
+                  {/* Tier Selection */}
+                  {hasTiers && (
+                    <TierSelector
+                      tiers={entryTiers!}
+                      selectedTier={selectedTier}
+                      onSelectTier={setSelectedTier}
+                      walletBalanceCents={walletBalanceCents}
+                    />
+                  )}
+
                   <p className="text-xs text-muted-foreground mb-3">{crewPicks.size}/{maxPicks} picks selected</p>
                   {draftPicksList.length > 0 ? (
                     <div className="space-y-2 mb-4">
@@ -482,14 +531,14 @@ const RegattaDetail = () => {
                   <Button
                     variant="hero"
                     className="w-full rounded-xl font-semibold"
-                    disabled={!isContestOpen || crewPicks.size < minPicks || !allMarginsValid || submitting}
+                    disabled={!isContestOpen || crewPicks.size < minPicks || !allMarginsValid || (hasTiers && !selectedTier) || submitting}
                     onClick={handleSubmitEntry}
                   >
-                    {submitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Entering...</> : `Enter Contest — ${formatCents(contestPool.entry_fee_cents)}`}
+                    {submitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Entering...</> : `Enter Contest — ${formatCents(activeEntryFee)}`}
                   </Button>
 
                   {walletBalanceCents !== null && (
-                    <div className={`flex items-center gap-1.5 mt-3 text-xs ${walletBalanceCents < contestPool.entry_fee_cents ? "text-destructive" : "text-muted-foreground"}`}>
+                    <div className={`flex items-center gap-1.5 mt-3 text-xs ${walletBalanceCents < activeEntryFee ? "text-destructive" : "text-muted-foreground"}`}>
                       <Wallet className="h-3.5 w-3.5" />
                       Balance: {formatCents(walletBalanceCents)}
                     </div>
@@ -506,7 +555,7 @@ const RegattaDetail = () => {
         <div className="flex items-center justify-between mb-2">
           <span className="text-sm font-medium">{crewPicks.size} pick{crewPicks.size !== 1 ? "s" : ""} selected</span>
           {walletBalanceCents !== null && (
-            <span className={`text-xs ${walletBalanceCents < contestPool.entry_fee_cents ? "text-destructive" : "text-muted-foreground"}`}>
+            <span className={`text-xs ${walletBalanceCents < activeEntryFee ? "text-destructive" : "text-muted-foreground"}`}>
               Balance: {formatCents(walletBalanceCents)}
             </span>
           )}
@@ -514,10 +563,10 @@ const RegattaDetail = () => {
         <Button
           variant="hero"
           className="w-full rounded-xl font-semibold"
-          disabled={!isContestOpen || crewPicks.size < minPicks || !allMarginsValid || submitting}
+          disabled={!isContestOpen || crewPicks.size < minPicks || !allMarginsValid || (hasTiers && !selectedTier) || submitting}
           onClick={handleSubmitEntry}
         >
-          {submitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Entering...</> : `Enter Contest — ${formatCents(contestPool.entry_fee_cents)}`}
+          {submitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Entering...</> : `Enter Contest — ${formatCents(activeEntryFee)}`}
         </Button>
       </div>
 

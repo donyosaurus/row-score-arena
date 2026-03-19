@@ -8,6 +8,12 @@ import { formatCents } from "@/lib/formatCurrency";
 
 type GenderCategory = "Men's" | "Women's";
 
+interface EntryTier {
+  name: string;
+  entry_fee_cents: number;
+  payout_structure: Record<string, number>;
+}
+
 interface ContestCardProps {
   id: string;
   regattaName: string;
@@ -23,6 +29,7 @@ interface ContestCardProps {
   allowOverflow?: boolean;
   siblingPoolCount?: number;
   userEntered?: boolean;
+  entryTiers?: EntryTier[] | null;
 }
 
 export const ContestCard = ({
@@ -40,12 +47,20 @@ export const ContestCard = ({
   allowOverflow = false,
   siblingPoolCount = 1,
   userEntered = false,
+  entryTiers = null,
 }: ContestCardProps) => {
+  const hasTiers = entryTiers && entryTiers.length > 0;
+
   const hasPayoutStructure = payoutStructure && Object.keys(payoutStructure).length > 0;
   const firstPlacePrize = hasPayoutStructure ? payoutStructure["1"] : 0;
   const totalPrizes = hasPayoutStructure
     ? Object.values(payoutStructure).reduce((sum, val) => sum + val, 0)
     : prizePoolCents;
+
+  // For tiered contests, find max 1st-place prize across tiers
+  const maxTierFirstPrize = hasTiers
+    ? Math.max(...entryTiers.map(t => t.payout_structure["1"] || 0))
+    : 0;
 
   const isFull = maxEntries > 0 && currentEntries >= maxEntries;
   const hasMultiplePools = siblingPoolCount > 1;
@@ -92,22 +107,33 @@ export const ContestCard = ({
           <div className="flex items-center gap-2">
             <Zap className="h-4 w-4 text-accent" />
             <span className="text-sm font-semibold">
-              {entryFeeCents > 0 ? `${formatCents(entryFeeCents)} entry` : "Free entry"}
+              {hasTiers
+                ? `From ${formatCents(entryFeeCents)} entry`
+                : entryFeeCents > 0 ? `${formatCents(entryFeeCents)} entry` : "Free entry"}
             </span>
+            {hasTiers && (
+              <span className="inline-flex items-center text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-accent/10 text-accent border border-accent/20">
+                {entryTiers.length} Tiers
+              </span>
+            )}
           </div>
         </div>
 
         {/* Prize Pool */}
-        {(firstPlacePrize > 0 || totalPrizes > 0) && (
+        {(firstPlacePrize > 0 || totalPrizes > 0 || maxTierFirstPrize > 0) && (
           <div className="p-4 rounded-xl bg-gradient-to-br from-amber-50 to-yellow-50/50 dark:from-amber-950/30 dark:to-yellow-950/20 border border-amber-200/40 dark:border-amber-800/30">
             <div className="flex items-center gap-2 mb-1">
               <Trophy className="h-5 w-5 text-gold" />
               <span className="text-xl font-heading font-extrabold text-gold">
-                {hasPayoutStructure ? formatCents(firstPlacePrize) : formatCents(totalPrizes)}
+                {hasTiers
+                  ? `Win up to ${formatCents(maxTierFirstPrize)}`
+                  : hasPayoutStructure ? formatCents(firstPlacePrize) : formatCents(totalPrizes)}
               </span>
             </div>
             <p className="text-xs text-muted-foreground font-medium">
-              {hasPayoutStructure ? `1st Place • ${formatCents(totalPrizes)} total` : "Prize Pool"}
+              {hasTiers
+                ? `${entryTiers.length} tier levels available`
+                : hasPayoutStructure ? `1st Place • ${formatCents(totalPrizes)} total` : "Prize Pool"}
             </p>
           </div>
         )}
