@@ -271,11 +271,12 @@ Deno.serve(async (req) => {
       .from("contest_entries")
       .insert({
         user_id: userId,
-        pool_id: targetPoolId, // ← contest_pools.id (correct)
+        pool_id: targetPoolId,
         contest_template_id: body.contestTemplateId,
         picks: body.picks,
         entry_fee_cents: body.entryFeeCents,
         state_code: body.stateCode ?? null,
+        tier_name: body.tierName ?? null,
         status: "active",
       })
       .select()
