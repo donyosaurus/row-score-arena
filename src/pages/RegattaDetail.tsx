@@ -171,6 +171,11 @@ const RegattaDetail = () => {
     return true;
   }, [crewPicks]);
 
+  const entryTiers = contestPool?.entry_tiers as EntryTier[] | null;
+  const hasTiers = entryTiers && entryTiers.length > 0;
+
+  const activeEntryFee = hasTiers && selectedTier ? selectedTier.entry_fee_cents : contestPool?.entry_fee_cents ?? 0;
+
   const payoutRows = useMemo(() => {
     if (!contestPool?.payout_structure) return [];
     return Object.entries(contestPool.payout_structure)
