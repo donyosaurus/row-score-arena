@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { CrewCard } from "@/components/CrewCard";
+import { CrewLogo } from "@/components/CrewLogo";
 import {
   Collapsible,
   CollapsibleContent,
@@ -29,11 +31,6 @@ import {
 import { toast } from "sonner";
 import { formatCents } from "@/lib/formatCurrency";
 import { TierSelector, type EntryTier } from "@/components/TierSelector";
-import { CrewLogo } from "@/components/CrewLogo";
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
 
 interface PoolCrew {
   id: string;
@@ -75,9 +72,11 @@ function ordinal(n: number): string {
   return n + (s[(v - 20) % 10] || s[v] || s[0]);
 }
 
-// ---------------------------------------------------------------------------
-// Component
-// ---------------------------------------------------------------------------
+const TIER_ACCENT: Record<string, string> = {
+  Bronze: "border-l-amber-600 bg-amber-500/5",
+  Silver: "border-l-slate-400 bg-slate-300/5",
+  Gold: "border-l-yellow-500 bg-yellow-400/5",
+};
 
 const ContestDetail = () => {
   const { id } = useParams<{ id: string }>();
@@ -88,19 +87,15 @@ const ContestDetail = () => {
   const [poolLoading, setPoolLoading] = useState(true);
   const [poolError, setPoolError] = useState<string | null>(null);
   const [walletBalanceCents, setWalletBalanceCents] = useState<number | null>(null);
-
-  // Draft state — direct click-to-select, Map<crewId, margin>
   const [crewPicks, setCrewPicks] = useState<Map<string, number>>(new Map());
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [scoringOpen, setScoringOpen] = useState(false);
   const [selectedTier, setSelectedTier] = useState<EntryTier | null>(null);
 
-  // Auth guard
   useEffect(() => {
     if (!authLoading && !user) navigate("/login");
   }, [user, authLoading, navigate]);
 
-  // Fetch contest pool
   useEffect(() => {
     if (!id) return;
     const fetchPool = async () => {
@@ -125,7 +120,6 @@ const ContestDetail = () => {
     fetchPool();
   }, [id]);
 
-  // Fetch wallet
   useEffect(() => {
     if (!user) return;
     const fetchWallet = async () => {
@@ -139,7 +133,6 @@ const ContestDetail = () => {
     fetchWallet();
   }, [user]);
 
-  // Derived state
   const crewsByEvent = useMemo(() => {
     if (!contestPool) return {} as Record<string, PoolCrew[]>;
     return contestPool.contest_pool_crews.reduce((acc, crew) => {
@@ -190,7 +183,6 @@ const ContestDetail = () => {
     });
   }, [crewPicks, contestPool]);
 
-  // Crew selection
   const toggleCrewSelection = (crewId: string) => {
     setCrewPicks((prev) => {
       const newPicks = new Map(prev);
@@ -212,14 +204,11 @@ const ContestDetail = () => {
     });
   };
 
-  // Submit
   const handleSubmit = async () => {
     if (!contestPool || !user) return;
-
     if (crewPicks.size < minPicks) { toast.error(`Select at least ${minPicks} crews from different events.`); return; }
     const uniqueEvents = new Set(draftPicksList.map((p) => p.eventId));
     if (uniqueEvents.size < 2) { toast.error("Pick crews from at least 2 different events."); return; }
-
     for (const [crewId, margin] of crewPicks) {
       if (margin <= 0) {
         const crew = contestPool.contest_pool_crews.find((c) => c.crew_id === crewId);
@@ -227,9 +216,7 @@ const ContestDetail = () => {
         return;
       }
     }
-
     if (hasTiers && !selectedTier) { toast.error("Please select an entry tier"); return; }
-
     if (walletBalanceCents !== null && walletBalanceCents < activeEntryFee) {
       toast.error(`Insufficient balance. Need ${formatCents(activeEntryFee)}, have ${formatCents(walletBalanceCents)}.`);
       return;
@@ -265,35 +252,31 @@ const ContestDetail = () => {
       if (walletData) setWalletBalanceCents(Number(walletData.available_balance));
       setTimeout(() => navigate("/my-entries"), 1500);
     } catch (err: any) {
-      const msg = err.message || "An unexpected error occurred.";
-      toast.error(msg);
+      toast.error(err.message || "An unexpected error occurred.");
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // Loading / Error
   if (authLoading || poolLoading) {
     return (
-      <div className="flex flex-col min-h-screen">
+      <div className="flex flex-col min-h-screen bg-gradient-to-b from-primary via-primary/90 to-primary/80">
         <Header />
         <main className="flex-1 flex items-center justify-center">
           <Loader2 className="h-12 w-12 animate-spin text-accent" />
         </main>
-        <Footer />
       </div>
     );
   }
 
   if (poolError || !contestPool) {
     return (
-      <div className="flex flex-col min-h-screen">
+      <div className="flex flex-col min-h-screen bg-gradient-to-b from-primary via-primary/90 to-primary/80">
         <Header />
         <main className="flex-1 flex flex-col items-center justify-center gap-4">
-          <p className="text-xl text-muted-foreground">{poolError || "Contest not found."}</p>
+          <p className="text-xl text-white/60">{poolError || "Contest not found."}</p>
           <Button variant="outline" onClick={() => navigate("/lobby")}>Back to Lobby</Button>
         </main>
-        <Footer />
       </div>
     );
   }
@@ -302,7 +285,7 @@ const ContestDetail = () => {
   const statusLabel = isOpen ? "Open" : contestPool.status.charAt(0).toUpperCase() + contestPool.status.slice(1);
 
   return (
-    <div className="flex flex-col min-h-screen">
+    <div className="flex flex-col min-h-screen bg-gradient-to-b from-primary via-primary/90 to-primary/80">
       <Header />
 
       {/* ── Gradient Hero Header ── */}
@@ -334,50 +317,33 @@ const ContestDetail = () => {
             </Badge>
           </div>
 
-          {/* Stat cards */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             <div className="rounded-xl bg-primary-foreground/10 backdrop-blur-sm border border-primary-foreground/10 p-3 lg:p-4">
-              <div className="flex items-center gap-2 mb-1">
-                <Trophy className="h-4 w-4 text-gold" />
-                <span className="text-xs text-primary-foreground/60 font-medium">1st Prize</span>
-              </div>
+              <div className="flex items-center gap-2 mb-1"><Trophy className="h-4 w-4 text-gold" /><span className="text-xs text-primary-foreground/60 font-medium">1st Prize</span></div>
               <p className="font-heading text-xl lg:text-2xl font-bold text-gold">{formatCents(firstPrize)}</p>
             </div>
             <div className="rounded-xl bg-primary-foreground/10 backdrop-blur-sm border border-primary-foreground/10 p-3 lg:p-4">
-              <div className="flex items-center gap-2 mb-1">
-                <Zap className="h-4 w-4 text-accent" />
-                <span className="text-xs text-primary-foreground/60 font-medium">Entry Fee</span>
-              </div>
+              <div className="flex items-center gap-2 mb-1"><Zap className="h-4 w-4 text-accent" /><span className="text-xs text-primary-foreground/60 font-medium">Entry Fee</span></div>
               <p className="font-heading text-xl lg:text-2xl font-bold">{formatCents(contestPool.entry_fee_cents)}</p>
             </div>
             <div className="rounded-xl bg-primary-foreground/10 backdrop-blur-sm border border-primary-foreground/10 p-3 lg:p-4">
-              <div className="flex items-center gap-2 mb-1">
-                <Clock className="h-4 w-4 text-primary-foreground/60" />
-                <span className="text-xs text-primary-foreground/60 font-medium">Locks</span>
-              </div>
+              <div className="flex items-center gap-2 mb-1"><Clock className="h-4 w-4 text-primary-foreground/60" /><span className="text-xs text-primary-foreground/60 font-medium">Locks</span></div>
               <p className="font-heading text-lg lg:text-xl font-bold">{formattedLockTime}</p>
             </div>
             <div className="rounded-xl bg-primary-foreground/10 backdrop-blur-sm border border-primary-foreground/10 p-3 lg:p-4">
-              <div className="flex items-center gap-2 mb-1">
-                <Users className="h-4 w-4 text-primary-foreground/60" />
-                <span className="text-xs text-primary-foreground/60 font-medium">Entries</span>
-              </div>
-              <p className="font-heading text-xl lg:text-2xl font-bold mb-1.5">
-                {contestPool.current_entries}/{contestPool.max_entries}
-              </p>
-              <div className="h-1 w-full rounded-full bg-primary-foreground/10 overflow-hidden">
-                <div className="h-full rounded-full bg-accent transition-all" style={{ width: `${fillPercent}%` }} />
-              </div>
+              <div className="flex items-center gap-2 mb-1"><Users className="h-4 w-4 text-primary-foreground/60" /><span className="text-xs text-primary-foreground/60 font-medium">Entries</span></div>
+              <p className="font-heading text-xl lg:text-2xl font-bold mb-1.5">{contestPool.current_entries}/{contestPool.max_entries}</p>
+              <div className="h-1 w-full rounded-full bg-primary-foreground/10 overflow-hidden"><div className="h-full rounded-full bg-accent transition-all" style={{ width: `${fillPercent}%` }} /></div>
             </div>
           </div>
         </div>
       </div>
 
       {/* ── Main Content ── */}
-      <main className="flex-1 bg-background pb-32 lg:pb-12">
+      <main className="flex-1 pb-32 lg:pb-12">
         <div className="container mx-auto px-4 max-w-6xl py-6 lg:py-8">
           {!isOpen && (
-            <div className="mb-6 p-4 rounded-xl border border-destructive/30 bg-destructive/5 text-center">
+            <div className="mb-6 p-4 rounded-xl border border-destructive/30 bg-destructive/10 text-center">
               <p className="text-destructive font-semibold flex items-center justify-center gap-2">
                 <Lock className="h-4 w-4" />
                 Contest is {contestPool.status} — entries are closed.
@@ -389,79 +355,39 @@ const ContestDetail = () => {
             {/* ── LEFT: Crew Selection ── */}
             <div className="flex-1 min-w-0 space-y-5">
               <div>
-                <h2 className="font-heading text-xl font-bold mb-1">Select Your Crews</h2>
-                <p className="text-sm text-muted-foreground">
+                <h2 className="font-heading text-xl lg:text-2xl font-bold mb-1 text-white">Select Your Crews</h2>
+                <p className="text-sm text-white/50">
                   Draft a crew from each event. Your entry will be matched against other players.
                 </p>
               </div>
 
               {events.length === 0 ? (
-                <Card><CardContent className="py-8 text-center text-muted-foreground">No crews available.</CardContent></Card>
+                <Card className="bg-white/10 border-white/10"><CardContent className="py-8 text-center text-white/50">No crews available.</CardContent></Card>
               ) : (
                 events.map((eventId) => (
                   <div key={eventId}>
                     <div className="flex items-center gap-2 mb-3">
-                      <Badge variant="outline" className="font-semibold text-xs px-2.5 py-1 bg-muted/50">
-                        {eventId}
-                      </Badge>
-                      <span className="text-xs text-muted-foreground">
-                        {crewsByEvent[eventId].length} crews
-                      </span>
+                      <div className="flex items-center gap-2 rounded-full bg-white/10 border-l-4 border-accent px-4 py-1.5">
+                        <span className="text-white font-semibold text-xs">{eventId}</span>
+                        <span className="text-white/50 text-xs">· {crewsByEvent[eventId].length} crews</span>
+                      </div>
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
-                      {crewsByEvent[eventId].map((crew) => {
-                        const isSelected = crewPicks.has(crew.crew_id);
-                        const marginVal = crewPicks.get(crew.crew_id) ?? 0;
-                        return (
-                          <div
-                            key={crew.id}
-                            className={`group relative rounded-xl border-2 transition-all overflow-hidden ${
-                              !isOpen ? "opacity-50 pointer-events-none" : "cursor-pointer"
-                            } ${
-                              isSelected
-                                ? "border-accent bg-accent/5 shadow-sm"
-                                : "border-border hover:border-muted-foreground/30 hover:shadow-md hover:-translate-y-0.5"
-                            }`}
-                          >
-                            <div
-                              className="flex flex-col items-center text-center p-4 pb-3"
-                              onClick={() => isOpen && toggleCrewSelection(crew.crew_id)}
-                            >
-                              {isSelected && (
-                                <div className="absolute top-2 left-2">
-                                  <div className="w-5 h-5 rounded-full bg-accent flex items-center justify-center">
-                                    <Check className="h-3 w-3 text-accent-foreground" />
-                                  </div>
-                                </div>
-                              )}
-                              <CrewLogo logoUrl={crew.logo_url} crewName={crew.crew_name} size={48} className="mb-2" />
-                              <p className="font-semibold text-sm">{crew.crew_name}</p>
-                              <p className="text-xs text-muted-foreground">{eventId}</p>
-                            </div>
-
-                            {isSelected && isOpen && (
-                              <div className="px-3 pb-3 animate-fade-in">
-                                <div className="space-y-1">
-                                  <p className="text-[10px] text-muted-foreground font-medium">Predicted Margin</p>
-                                  <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/50 border border-border/50">
-                                    <Input
-                                      type="number"
-                                      min="0.01"
-                                      step="0.1"
-                                      placeholder="e.g. 2.5"
-                                      className="h-7 text-sm border-0 bg-transparent p-0 focus-visible:ring-0"
-                                      value={marginVal || ""}
-                                      onClick={(e) => e.stopPropagation()}
-                                      onChange={(e) => { e.stopPropagation(); updateCrewMargin(crew.crew_id, parseFloat(e.target.value) || 0); }}
-                                    />
-                                    <span className="text-xs text-muted-foreground">seconds</span>
-                                  </div>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
+                    <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                      {crewsByEvent[eventId].map((crew, idx) => (
+                        <CrewCard
+                          key={crew.id}
+                          crewId={crew.crew_id}
+                          crewName={crew.crew_name}
+                          eventId={eventId}
+                          logoUrl={crew.logo_url}
+                          isSelected={crewPicks.has(crew.crew_id)}
+                          marginVal={crewPicks.get(crew.crew_id) ?? 0}
+                          isOpen={!!isOpen}
+                          onToggle={toggleCrewSelection}
+                          onMarginChange={updateCrewMargin}
+                          animDelay={idx * 50}
+                        />
+                      ))}
                     </div>
                   </div>
                 ))
@@ -472,25 +398,25 @@ const ContestDetail = () => {
             <div className="w-full lg:w-[340px] xl:w-[380px] flex-shrink-0 space-y-4 lg:sticky lg:top-4 lg:self-start">
               {/* Prize Pool */}
               {hasTiers ? (
-                <Card className="border-gold/20">
+                <Card className="rounded-xl bg-white/95 backdrop-blur-sm shadow-xl border-white/20">
                   <CardContent className="p-4">
                     <h3 className="font-heading text-sm font-bold flex items-center gap-2 mb-3">
-                      <Trophy className="h-4 w-4 text-gold" />
-                      Prize Pool
+                      <Trophy className="h-4 w-4 text-gold" />Prize Pool
                     </h3>
-                    <div className="space-y-4">
+                    <div className="space-y-3">
                       {entryTiers!.map((tier) => {
                         const tierPayoutRows = Object.entries(tier.payout_structure)
                           .map(([rank, cents]) => ({ rank: Number(rank), cents }))
                           .sort((a, b) => a.rank - b.rank);
+                        const accentClass = TIER_ACCENT[tier.name] || "border-l-accent bg-accent/5";
                         return (
-                          <div key={tier.name}>
-                            <p className="text-xs font-semibold text-muted-foreground mb-1.5">{tier.name} ({formatCents(tier.entry_fee_cents)} entry)</p>
-                            <div className="space-y-1">
+                          <div key={tier.name} className={`border-l-4 rounded-r-lg pl-3 py-2 ${accentClass}`}>
+                            <p className="text-xs font-semibold text-foreground mb-1">{tier.name} <span className="text-muted-foreground font-normal">({formatCents(tier.entry_fee_cents)} entry)</span></p>
+                            <div className="space-y-0.5">
                               {tierPayoutRows.map(({ rank, cents }) => (
-                                <div key={rank} className={`flex items-center justify-between py-1.5 px-2.5 rounded-lg text-sm ${rank === 1 ? "bg-gold/10 font-semibold" : ""}`}>
-                                  <span className={rank === 1 ? "text-gold" : "text-muted-foreground"}>{ordinal(rank)} Place</span>
-                                  <span className={rank === 1 ? "text-gold font-bold" : "font-semibold"}>{formatCents(cents)}</span>
+                                <div key={rank} className="flex justify-between text-sm">
+                                  <span className={rank === 1 ? "font-semibold text-gold" : "text-muted-foreground"}>{ordinal(rank)}</span>
+                                  <span className={rank === 1 ? "font-bold text-gold" : "font-medium"}>{formatCents(cents)}</span>
                                 </div>
                               ))}
                             </div>
@@ -501,17 +427,16 @@ const ContestDetail = () => {
                   </CardContent>
                 </Card>
               ) : payoutRows.length > 0 && (
-                <Card className="border-gold/20">
+                <Card className="rounded-xl bg-white/95 backdrop-blur-sm shadow-xl border-white/20">
                   <CardContent className="p-4">
                     <h3 className="font-heading text-sm font-bold flex items-center gap-2 mb-3">
-                      <Trophy className="h-4 w-4 text-gold" />
-                      Prize Pool
+                      <Trophy className="h-4 w-4 text-gold" />Prize Pool
                     </h3>
                     <div className="space-y-1.5">
                       {payoutRows.map(({ rank, cents }) => (
-                        <div key={rank} className={`flex items-center justify-between py-1.5 px-2.5 rounded-lg text-sm ${rank === 1 ? "bg-gold/10 font-semibold" : ""}`}>
-                          <span className={rank === 1 ? "text-gold" : "text-muted-foreground"}>{ordinal(rank)} Place</span>
-                          <span className={rank === 1 ? "text-gold font-bold" : "font-semibold"}>{formatCents(cents)}</span>
+                        <div key={rank} className="flex justify-between text-sm">
+                          <span className={rank === 1 ? "font-semibold text-gold" : "text-muted-foreground"}>{ordinal(rank)}</span>
+                          <span className={rank === 1 ? "font-bold text-gold" : "font-medium"}>{formatCents(cents)}</span>
                         </div>
                       ))}
                     </div>
@@ -525,7 +450,7 @@ const ContestDetail = () => {
 
               {/* Scoring — Collapsible */}
               <Collapsible open={scoringOpen} onOpenChange={setScoringOpen}>
-                <Card>
+                <Card className="rounded-xl bg-white/95 backdrop-blur-sm shadow-xl border-white/20">
                   <CardContent className="p-4">
                     <CollapsibleTrigger className="flex items-center justify-between w-full">
                       <h3 className="font-heading text-sm font-bold">How Scoring Works</h3>
@@ -553,7 +478,7 @@ const ContestDetail = () => {
               </Collapsible>
 
               {/* Your Draft */}
-              <Card className="border-2 border-accent/30 shadow-sm">
+              <Card className="rounded-xl bg-white/95 backdrop-blur-sm shadow-xl border-white/20 ring-2 ring-accent/30">
                 <CardContent className="p-4">
                   <h3 className="font-heading text-sm font-bold flex items-center gap-2 mb-3">
                     Your Draft
@@ -562,7 +487,6 @@ const ContestDetail = () => {
                     </Badge>
                   </h3>
 
-                  {/* Tier Selection */}
                   {hasTiers && (
                     <TierSelector
                       tiers={entryTiers!}
@@ -605,6 +529,8 @@ const ContestDetail = () => {
                     >
                       {isSubmitting ? (
                         <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Processing…</>
+                      ) : hasTiers && !selectedTier ? (
+                        "Select a Tier"
                       ) : (
                         <>Enter Contest — {formatCents(activeEntryFee)}</>
                       )}
@@ -628,8 +554,33 @@ const ContestDetail = () => {
 
       {/* ── Mobile Sticky Bottom Bar ── */}
       {isOpen && (
-        <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur-md border-t shadow-lg z-50">
+        <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur-md border-t shadow-lg z-50">
           <div className="container mx-auto px-4 py-3">
+            {hasTiers && (
+              <div className="flex gap-2 mb-2 overflow-x-auto">
+                {entryTiers!.map((tier) => {
+                  const isSelected = selectedTier?.name === tier.name;
+                  const dollars = tier.entry_fee_cents / 100;
+                  const displayFee = Number.isInteger(dollars) ? `$${dollars}` : `$${dollars.toFixed(2)}`;
+                  const insufficientBalance = walletBalanceCents !== null && walletBalanceCents < tier.entry_fee_cents;
+                  return (
+                    <button
+                      key={tier.name}
+                      disabled={insufficientBalance}
+                      onClick={() => !insufficientBalance && setSelectedTier(tier)}
+                      className={`flex-1 min-w-0 rounded-lg px-2 py-1.5 text-center transition-all border-2 text-xs ${
+                        insufficientBalance ? "opacity-40 cursor-not-allowed border-border bg-muted/30"
+                        : isSelected ? "border-accent bg-accent/15 font-bold"
+                        : "border-border bg-secondary cursor-pointer"
+                      }`}
+                    >
+                      <span className="block text-[9px] text-muted-foreground">{tier.name}</span>
+                      <span className={`block font-bold ${isSelected ? "text-accent" : ""}`}>{displayFee}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
                 <p className="font-semibold text-sm">

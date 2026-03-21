@@ -1,5 +1,6 @@
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { CrewLogo } from "@/components/CrewLogo";
+import { CrewCard } from "@/components/CrewCard";
 import { useEffect, useState, useMemo } from "react";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
@@ -71,6 +72,12 @@ function ordinal(n: number): string {
   const v = n % 100;
   return n + (s[(v - 20) % 10] || s[v] || s[0]);
 }
+
+const TIER_ACCENT: Record<string, string> = {
+  Bronze: "border-l-amber-600 bg-amber-500/5",
+  Silver: "border-l-slate-400 bg-slate-300/5",
+  Gold: "border-l-yellow-500 bg-yellow-400/5",
+};
 
 const RegattaDetail = () => {
   const { id } = useParams();
@@ -173,7 +180,6 @@ const RegattaDetail = () => {
 
   const entryTiers = contestPool?.entry_tiers as EntryTier[] | null;
   const hasTiers = entryTiers && entryTiers.length > 0;
-
   const activeEntryFee = hasTiers && selectedTier ? selectedTier.entry_fee_cents : contestPool?.entry_fee_cents ?? 0;
 
   const payoutRows = useMemo(() => {
@@ -187,7 +193,6 @@ const RegattaDetail = () => {
   const totalPrize = payoutRows.length > 0
     ? payoutRows.reduce((sum, r) => sum + r.cents, 0)
     : contestPool?.prize_pool_cents ?? 0;
-
   const fillPercent = contestPool ? Math.min(100, (contestPool.current_entries / contestPool.max_entries) * 100) : 0;
 
   const draftPicksList = useMemo(() => {
@@ -213,9 +218,7 @@ const RegattaDetail = () => {
       if (crew) selectedDivisions.add(crew.event_id);
     }
     if (selectedDivisions.size < 2) { toast.error("You must select crews from at least 2 different events"); return; }
-
     if (hasTiers && !selectedTier) { toast.error("Please select an entry tier"); return; }
-
     if (walletBalanceCents !== null && walletBalanceCents < activeEntryFee) {
       toast.error(`Insufficient balance. You need ${formatCents(activeEntryFee)} but have ${formatCents(walletBalanceCents)}.`);
       return;
@@ -262,31 +265,28 @@ const RegattaDetail = () => {
     }
   };
 
-  // Loading / Error states
   if (authLoading || loading) {
     return (
-      <div className="flex flex-col min-h-screen">
+      <div className="flex flex-col min-h-screen bg-gradient-to-b from-primary via-primary/90 to-primary/80">
         <Header />
         <main className="flex-1 flex items-center justify-center">
           <Loader2 className="h-12 w-12 animate-spin text-accent" />
         </main>
-        <Footer />
       </div>
     );
   }
 
   if (error || !contestPool) {
     return (
-      <div className="flex flex-col min-h-screen">
+      <div className="flex flex-col min-h-screen bg-gradient-to-b from-primary via-primary/90 to-primary/80">
         <Header />
         <main className="flex-1 flex items-center justify-center">
           <div className="text-center">
-            <h2 className="text-2xl font-bold mb-2">Contest Not Found</h2>
-            <p className="text-muted-foreground mb-4">{error}</p>
+            <h2 className="text-2xl font-bold mb-2 text-white">Contest Not Found</h2>
+            <p className="text-white/60 mb-4">{error}</p>
             <Link to="/lobby"><Button>Back to Lobby</Button></Link>
           </div>
         </main>
-        <Footer />
       </div>
     );
   }
@@ -294,7 +294,7 @@ const RegattaDetail = () => {
   const statusLabel = isContestOpen ? "Open" : contestPool.status.charAt(0).toUpperCase() + contestPool.status.slice(1);
 
   return (
-    <div className="flex flex-col min-h-screen">
+    <div className="flex flex-col min-h-screen bg-gradient-to-b from-primary via-primary/90 to-primary/80">
       <Header />
 
       {/* ── Gradient Hero Header ── */}
@@ -352,10 +352,10 @@ const RegattaDetail = () => {
       </div>
 
       {/* ── Main Content ── */}
-      <main className="flex-1 bg-background pb-32 lg:pb-12">
+      <main className="flex-1 pb-32 lg:pb-12">
         <div className="container mx-auto px-4 max-w-6xl py-6 lg:py-8">
           {!isContestOpen && (
-            <div className="mb-6 p-4 rounded-xl border border-destructive/30 bg-destructive/5 text-center">
+            <div className="mb-6 p-4 rounded-xl border border-destructive/30 bg-destructive/10 text-center">
               <p className="text-destructive font-semibold flex items-center justify-center gap-2">
                 <Lock className="h-4 w-4" />
                 This contest is no longer accepting entries.
@@ -367,61 +367,39 @@ const RegattaDetail = () => {
             {/* ── LEFT: Crew Selection ── */}
             <div className="flex-1 min-w-0 space-y-5">
               <div>
-                <h2 className="font-heading text-xl font-bold mb-1">Select Your Crews</h2>
-                <p className="text-sm text-muted-foreground">
+                <h2 className="font-heading text-xl lg:text-2xl font-bold mb-1 text-white">Select Your Crews</h2>
+                <p className="text-sm text-white/50">
                   Draft a crew from each event. Your entry will be matched against other players.
                 </p>
               </div>
 
               {divisions.length === 0 ? (
-                <Card><CardContent className="py-8 text-center text-muted-foreground">No crews available.</CardContent></Card>
+                <Card className="bg-white/10 border-white/10"><CardContent className="py-8 text-center text-white/50">No crews available.</CardContent></Card>
               ) : (
                 divisions.map((divisionId) => (
                   <div key={divisionId}>
                     <div className="flex items-center gap-2 mb-3">
-                      <Badge variant="outline" className="font-semibold text-xs px-2.5 py-1 bg-muted/50">{divisionId}</Badge>
-                      <span className="text-xs text-muted-foreground">{crewsByDivision[divisionId].length} crews</span>
+                      <div className="flex items-center gap-2 rounded-full bg-white/10 border-l-4 border-accent px-4 py-1.5">
+                        <span className="text-white font-semibold text-xs">{divisionId}</span>
+                        <span className="text-white/50 text-xs">· {crewsByDivision[divisionId].length} crews</span>
+                      </div>
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
-                      {crewsByDivision[divisionId].map((crew) => {
-                        const isSelected = crewPicks.has(crew.crew_id);
-                        const marginVal = crewPicks.get(crew.crew_id) ?? 0;
-                        return (
-                          <div
-                            key={crew.id}
-                            className={`group rounded-xl border-2 transition-all overflow-hidden ${!isContestOpen ? "opacity-50 pointer-events-none" : "cursor-pointer"} ${
-                              isSelected ? "border-accent bg-accent/5 shadow-sm" : "border-border hover:border-muted-foreground/30 hover:shadow-md hover:-translate-y-0.5"
-                            }`}
-                          >
-                            <div className="flex flex-col items-center text-center p-4 pb-3" onClick={() => isContestOpen && toggleCrewSelection(crew.crew_id)}>
-                              {isSelected && (
-                                <div className="absolute top-2 left-2">
-                                  <div className="w-5 h-5 rounded-full bg-accent flex items-center justify-center">
-                                    <Check className="h-3 w-3 text-accent-foreground" />
-                                  </div>
-                                </div>
-                              )}
-                              <CrewLogo logoUrl={crew.logo_url} crewName={crew.crew_name} size={48} className="mb-2" />
-                              <p className="font-semibold text-sm">{crew.crew_name}</p>
-                              <p className="text-xs text-muted-foreground">{divisionId}</p>
-                            </div>
-                            {isSelected && isContestOpen && (
-                              <div className="px-3 pb-3 animate-fade-in">
-                                <div className="space-y-1">
-                                  <p className="text-[10px] text-muted-foreground font-medium">Predicted Margin</p>
-                                  <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/50 border border-border/50">
-                                    <Input type="number" min="0.01" step="0.1" placeholder="e.g. 2.5" className="h-7 text-sm border-0 bg-transparent p-0 focus-visible:ring-0"
-                                      value={marginVal || ""} onClick={(e) => e.stopPropagation()}
-                                      onChange={(e) => { e.stopPropagation(); updateCrewMargin(crew.crew_id, parseFloat(e.target.value) || 0); }}
-                                    />
-                                    <span className="text-xs text-muted-foreground">seconds</span>
-                                  </div>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
+                    <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                      {crewsByDivision[divisionId].map((crew, idx) => (
+                        <CrewCard
+                          key={crew.id}
+                          crewId={crew.crew_id}
+                          crewName={crew.crew_name}
+                          eventId={divisionId}
+                          logoUrl={crew.logo_url}
+                          isSelected={crewPicks.has(crew.crew_id)}
+                          marginVal={crewPicks.get(crew.crew_id) ?? 0}
+                          isOpen={!!isContestOpen}
+                          onToggle={toggleCrewSelection}
+                          onMarginChange={updateCrewMargin}
+                          animDelay={idx * 50}
+                        />
+                      ))}
                     </div>
                   </div>
                 ))
@@ -432,18 +410,19 @@ const RegattaDetail = () => {
             <div className="w-full lg:w-[340px] lg:sticky lg:top-4 lg:self-start space-y-4">
               {/* Prize Pool */}
               {hasTiers ? (
-                <Card className="rounded-xl">
+                <Card className="rounded-xl bg-white/95 backdrop-blur-sm shadow-xl border-white/20">
                   <CardContent className="p-4">
                     <h3 className="font-heading text-sm font-bold mb-3 flex items-center gap-2"><Trophy className="h-4 w-4 text-gold" />Prize Pool</h3>
-                    <div className="space-y-4">
+                    <div className="space-y-3">
                       {entryTiers!.map((tier) => {
                         const tierPayoutRows = Object.entries(tier.payout_structure)
                           .map(([rank, cents]) => ({ rank: Number(rank), cents }))
                           .sort((a, b) => a.rank - b.rank);
+                        const accentClass = TIER_ACCENT[tier.name] || "border-l-accent bg-accent/5";
                         return (
-                          <div key={tier.name}>
-                            <p className="text-xs font-semibold text-muted-foreground mb-1.5">{tier.name} ({formatCents(tier.entry_fee_cents)} entry)</p>
-                            <div className="space-y-1">
+                          <div key={tier.name} className={`border-l-4 rounded-r-lg pl-3 py-2 ${accentClass}`}>
+                            <p className="text-xs font-semibold text-foreground mb-1">{tier.name} <span className="text-muted-foreground font-normal">({formatCents(tier.entry_fee_cents)} entry)</span></p>
+                            <div className="space-y-0.5">
                               {tierPayoutRows.map((row) => (
                                 <div key={row.rank} className="flex justify-between text-sm">
                                   <span className={row.rank === 1 ? "font-semibold text-gold" : "text-muted-foreground"}>{ordinal(row.rank)}</span>
@@ -458,7 +437,7 @@ const RegattaDetail = () => {
                   </CardContent>
                 </Card>
               ) : payoutRows.length > 0 && (
-                <Card className="rounded-xl">
+                <Card className="rounded-xl bg-white/95 backdrop-blur-sm shadow-xl border-white/20">
                   <CardContent className="p-4">
                     <h3 className="font-heading text-sm font-bold mb-3 flex items-center gap-2"><Trophy className="h-4 w-4 text-gold" />Prize Pool</h3>
                     <div className="space-y-1.5">
@@ -475,7 +454,7 @@ const RegattaDetail = () => {
               )}
 
               {/* Scoring (Collapsible) */}
-              <Card className="rounded-xl">
+              <Card className="rounded-xl bg-white/95 backdrop-blur-sm shadow-xl border-white/20">
                 <CardContent className="p-4">
                   <Collapsible open={scoringOpen} onOpenChange={setScoringOpen}>
                     <CollapsibleTrigger className="flex items-center justify-between w-full">
@@ -497,7 +476,7 @@ const RegattaDetail = () => {
               </Card>
 
               {/* Your Draft */}
-              <Card className="rounded-xl border-2 border-accent/30">
+              <Card className="rounded-xl bg-white/95 backdrop-blur-sm shadow-xl border-white/20 ring-2 ring-accent/30">
                 <CardContent className="p-4">
                   <h3 className="font-heading text-sm font-bold mb-3 flex items-center gap-2"><Zap className="h-4 w-4 text-accent" />Your Draft</h3>
 
@@ -534,7 +513,13 @@ const RegattaDetail = () => {
                     disabled={!isContestOpen || crewPicks.size < minPicks || !allMarginsValid || (hasTiers && !selectedTier) || submitting}
                     onClick={handleSubmitEntry}
                   >
-                    {submitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Entering...</> : `Enter Contest — ${formatCents(activeEntryFee)}`}
+                    {submitting ? (
+                      <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Entering...</>
+                    ) : hasTiers && !selectedTier ? (
+                      "Select a Tier"
+                    ) : (
+                      `Enter Contest — ${formatCents(activeEntryFee)}`
+                    )}
                   </Button>
 
                   {walletBalanceCents !== null && (
@@ -552,6 +537,31 @@ const RegattaDetail = () => {
 
       {/* Mobile sticky footer */}
       <div className="lg:hidden fixed bottom-0 left-0 right-0 z-50 border-t bg-card/95 backdrop-blur-sm p-4 shadow-lg">
+        {hasTiers && (
+          <div className="flex gap-2 mb-2 overflow-x-auto">
+            {entryTiers!.map((tier) => {
+              const isSelected = selectedTier?.name === tier.name;
+              const dollars = tier.entry_fee_cents / 100;
+              const displayFee = Number.isInteger(dollars) ? `$${dollars}` : `$${dollars.toFixed(2)}`;
+              const insufficientBalance = walletBalanceCents !== null && walletBalanceCents < tier.entry_fee_cents;
+              return (
+                <button
+                  key={tier.name}
+                  disabled={insufficientBalance}
+                  onClick={() => !insufficientBalance && setSelectedTier(tier)}
+                  className={`flex-1 min-w-0 rounded-lg px-2 py-1.5 text-center transition-all border-2 text-xs ${
+                    insufficientBalance ? "opacity-40 cursor-not-allowed border-border bg-muted/30"
+                    : isSelected ? "border-accent bg-accent/15 font-bold"
+                    : "border-border bg-secondary cursor-pointer"
+                  }`}
+                >
+                  <span className="block text-[9px] text-muted-foreground">{tier.name}</span>
+                  <span className={`block font-bold ${isSelected ? "text-accent" : ""}`}>{displayFee}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
         <div className="flex items-center justify-between mb-2">
           <span className="text-sm font-medium">{crewPicks.size} pick{crewPicks.size !== 1 ? "s" : ""} selected</span>
           {walletBalanceCents !== null && (
@@ -566,7 +576,7 @@ const RegattaDetail = () => {
           disabled={!isContestOpen || crewPicks.size < minPicks || !allMarginsValid || (hasTiers && !selectedTier) || submitting}
           onClick={handleSubmitEntry}
         >
-          {submitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Entering...</> : `Enter Contest — ${formatCents(activeEntryFee)}`}
+          {submitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Entering...</> : hasTiers && !selectedTier ? "Select a Tier" : `Enter Contest — ${formatCents(activeEntryFee)}`}
         </Button>
       </div>
 
