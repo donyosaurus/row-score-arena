@@ -355,8 +355,8 @@ const ContestDetail = () => {
             {/* ── LEFT: Crew Selection ── */}
             <div className="flex-1 min-w-0 space-y-5">
               <div>
-                <h2 className="font-heading text-xl lg:text-2xl font-bold mb-1 text-white">Select Your Crews</h2>
-                <p className="text-sm text-white/50">
+                <h2 className="font-heading text-xl lg:text-2xl font-bold mb-1 text-foreground">Select Your Crews</h2>
+                <p className="text-sm text-muted-foreground">
                   Draft a crew from each event. Your entry will be matched against other players.
                 </p>
               </div>
