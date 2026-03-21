@@ -398,7 +398,7 @@ const ContestDetail = () => {
             <div className="w-full lg:w-[340px] xl:w-[380px] flex-shrink-0 space-y-4 lg:sticky lg:top-4 lg:self-start">
               {/* Prize Pool */}
               {hasTiers ? (
-                <Card className="rounded-xl bg-white/95 backdrop-blur-sm shadow-xl border-white/20">
+                <Card className="rounded-xl bg-card shadow-lg border border-border">
                   <CardContent className="p-4">
                     <h3 className="font-heading text-sm font-bold flex items-center gap-2 mb-3">
                       <Trophy className="h-4 w-4 text-gold" />Prize Pool
