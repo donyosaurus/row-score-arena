@@ -271,7 +271,7 @@ const ContestDetail = () => {
 
   if (poolError || !contestPool) {
     return (
-      <div className="flex flex-col min-h-screen bg-gradient-to-b from-primary via-primary/90 to-primary/80">
+      <div className="flex flex-col min-h-screen bg-background">
         <Header />
         <main className="flex-1 flex flex-col items-center justify-center gap-4">
           <p className="text-xl text-white/60">{poolError || "Contest not found."}</p>
