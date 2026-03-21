@@ -367,9 +367,9 @@ const ContestDetail = () => {
                 events.map((eventId) => (
                   <div key={eventId}>
                     <div className="flex items-center gap-2 mb-3">
-                      <div className="flex items-center gap-2 rounded-full bg-white/10 border-l-4 border-accent px-4 py-1.5">
-                        <span className="text-white font-semibold text-xs">{eventId}</span>
-                        <span className="text-white/50 text-xs">· {crewsByEvent[eventId].length} crews</span>
+                      <div className="flex items-center gap-2 rounded-full bg-primary text-primary-foreground px-3 py-1">
+                        <span className="font-semibold text-xs">{eventId}</span>
+                        <span className="opacity-60 text-xs">· {crewsByEvent[eventId].length} crews</span>
                       </div>
                     </div>
                     <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
