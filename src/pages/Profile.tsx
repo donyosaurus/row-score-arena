@@ -238,9 +238,10 @@ const Profile = () => {
 
   if (loading || !profileData) {
     return (
-      <div className="flex flex-col min-h-screen">
+      <div className="flex flex-col min-h-screen relative">
+        <DraftPageBackground />
         <Header />
-        <main className="flex-1 bg-background py-12">
+        <main className="flex-1 py-12 relative z-10">
           <div className="container mx-auto px-4 max-w-6xl space-y-6">
             <Skeleton className="h-10 w-48" />
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
