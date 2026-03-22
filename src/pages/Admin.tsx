@@ -101,6 +101,7 @@ const Admin = () => {
       { name: "Bronze", entryFee: "", prizes: [{ rank: 1, amount: "" }] },
       { name: "Silver", entryFee: "", prizes: [{ rank: 1, amount: "" }] },
     ],
+    bannerUrl: "",
   });
   const [newCrewInput, setNewCrewInput] = useState<NewCrew>({
     crew_name: "",
