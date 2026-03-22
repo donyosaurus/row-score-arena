@@ -33,7 +33,8 @@ export function CrewLogo({ logoUrl, crewName, size = 48, className, ...rest }: C
         <img
           src={logoUrl}
           alt={crewName}
-          className="w-full h-full object-cover"
+          style={{ width: size, height: size }}
+          className="object-contain"
           onError={() => setImgError(true)}
           loading="lazy"
         />
