@@ -321,7 +321,7 @@ const Profile = () => {
         </div>
       </div>
 
-      <main className="flex-1 bg-background py-8">
+      <main className="flex-1 py-8 relative z-10">
         <div className="container mx-auto px-4 max-w-6xl">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Sidebar - Wallet */}
