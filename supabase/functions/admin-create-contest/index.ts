@@ -25,6 +25,7 @@ interface CreateContestRequest {
   payouts: Record<string, number>;
   allowOverflow?: boolean;
   entryTiers?: EntryTierInput[] | null;
+  bannerUrl?: string | null;
 }
 
 const VALID_GENDER_CATEGORIES = ["Men's", "Women's", "Mixed"];
