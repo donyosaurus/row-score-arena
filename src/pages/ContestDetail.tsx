@@ -613,6 +613,7 @@ const ContestDetail = () => {
       )}
 
       <Footer />
+      </div>
     </div>
   );
 };
