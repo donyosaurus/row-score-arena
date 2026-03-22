@@ -262,6 +262,7 @@ const Profile = () => {
 
   return (
     <div className="flex flex-col min-h-screen relative">
+      <DraftPageBackground />
       <Header />
       
       {/* Profile Hero */}
