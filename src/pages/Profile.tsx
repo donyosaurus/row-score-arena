@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { DraftPageBackground } from "@/components/DraftPageBackground";
 import { useNavigate } from "react-router-dom";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
@@ -237,9 +238,10 @@ const Profile = () => {
 
   if (loading || !profileData) {
     return (
-      <div className="flex flex-col min-h-screen">
+      <div className="flex flex-col min-h-screen relative">
+        <DraftPageBackground />
         <Header />
-        <main className="flex-1 bg-background py-12">
+        <main className="flex-1 py-12 relative z-10">
           <div className="container mx-auto px-4 max-w-6xl space-y-6">
             <Skeleton className="h-10 w-48" />
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -259,11 +261,12 @@ const Profile = () => {
   }
 
   return (
-    <div className="flex flex-col min-h-screen">
+    <div className="flex flex-col min-h-screen relative">
+      <DraftPageBackground />
       <Header />
       
       {/* Profile Hero */}
-      <section className="gradient-hero py-10 relative overflow-hidden">
+      <section className="gradient-hero py-10 relative overflow-hidden z-10">
         <div className="absolute inset-0 opacity-10">
           <div className="absolute top-5 right-20 w-64 h-64 rounded-full bg-accent blur-3xl" />
         </div>
@@ -293,7 +296,7 @@ const Profile = () => {
       </section>
 
       {/* Stats bar */}
-      <div className="bg-background border-b">
+      <div className="border-b border-white/10 relative z-10">
         <div className="container mx-auto px-4 max-w-6xl">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 py-5 -mt-1">
             {[
@@ -318,7 +321,7 @@ const Profile = () => {
         </div>
       </div>
 
-      <main className="flex-1 bg-background py-8">
+      <main className="flex-1 py-8 relative z-10">
         <div className="container mx-auto px-4 max-w-6xl">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Sidebar - Wallet */}
