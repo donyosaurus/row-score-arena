@@ -300,7 +300,7 @@ const RegattaDetail = () => {
       <div className="relative z-10 flex flex-col min-h-screen">
       <Header />
       {/* ── Gradient Hero Header ── */}
-      <div className="gradient-hero text-primary-foreground relative z-10">
+      <div className="gradient-hero text-primary-foreground">
         <div className="container mx-auto px-4 max-w-6xl py-6 lg:py-8">
           <Link
             to="/lobby"
