@@ -299,7 +299,7 @@ const RegattaDetail = () => {
       <DraftPageBackground />
 
       {/* ── Gradient Hero Header ── */}
-      <div className="gradient-hero text-primary-foreground">
+      <div className="gradient-hero text-primary-foreground relative z-10">
         <div className="container mx-auto px-4 max-w-6xl py-6 lg:py-8">
           <Link
             to="/lobby"
