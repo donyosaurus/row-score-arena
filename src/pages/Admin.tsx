@@ -428,6 +428,7 @@ const Admin = () => {
           payouts,
           allowOverflow: createForm.allowOverflow,
           entryTiers: entryTiersPayload,
+          bannerUrl: createForm.bannerUrl.trim() || null,
         }
       });
       if (error) throw error;
