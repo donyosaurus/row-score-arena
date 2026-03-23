@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { formatCents } from "@/lib/formatCurrency";
+import { Trophy } from "lucide-react";
 
 type GenderCategory = "Men's" | "Women's";
 
@@ -114,6 +115,12 @@ export const ContestCard = ({
       })
     : lockTime;
 
+  const fillBarColor = fillPercent >= 100
+    ? "bg-gradient-to-r from-red-400 to-red-500"
+    : fillPercent > 80
+      ? "bg-gradient-to-r from-amber-400 to-amber-500"
+      : "bg-gradient-to-r from-teal-400 to-teal-500";
+
   return (
     <Link to={`/regatta/${id}`} className="block group">
       <div className="rounded-xl overflow-hidden bg-white shadow-md hover:shadow-xl transition-all duration-300 hover:-translate-y-1 border border-slate-200/80">
@@ -125,7 +132,6 @@ export const ContestCard = ({
               alt={regattaName}
               className="w-full h-full object-cover"
               onError={(e) => {
-                // Fallback to gradient on error
                 const target = e.currentTarget;
                 target.style.display = 'none';
                 const fallback = target.nextElementSibling as HTMLElement;
@@ -164,9 +170,9 @@ export const ContestCard = ({
 
         {/* Fill bar */}
         {maxEntries > 0 && (
-          <div className="h-1 bg-slate-200">
+          <div className="h-1.5 bg-slate-200 group-hover:h-2 transition-all duration-300">
             <div
-              className="h-full bg-teal-400 transition-all duration-500"
+              className={`h-full ${fillBarColor} rounded-r-full transition-all duration-500`}
               style={{ width: `${Math.min(fillPercent, 100)}%` }}
             />
           </div>
@@ -174,35 +180,40 @@ export const ContestCard = ({
 
         {/* Info Area */}
         <div className="p-4 bg-white">
-          <h3 className="text-lg font-bold text-slate-900 line-clamp-1">{regattaName}</h3>
-          <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-            <span className="text-sm text-slate-500">{genderCategory}</span>
-            <span className="text-slate-300">·</span>
-            <span className="text-sm text-slate-500">Locks {lockTimeFormatted}</span>
-            {hasTiers && (
-              <>
-                <span className="text-slate-300">·</span>
-                <span className="bg-teal-50 text-teal-700 text-xs font-medium px-2 py-0.5 rounded-full">
-                  {entryTiers.length} Tiers
-                </span>
-              </>
-            )}
+          <div className="border-l-4 border-teal-400 pl-3">
+            <div className="flex items-center gap-2">
+              <Trophy className="h-4 w-4 text-amber-500 group-hover:scale-110 transition-transform" />
+              <h3 className="text-lg font-bold text-slate-900 line-clamp-1">{regattaName}</h3>
+            </div>
+            <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+              <span className="text-sm text-slate-500">{genderCategory}</span>
+              <span className="text-slate-300">·</span>
+              <span className="text-sm text-slate-500">Locks {lockTimeFormatted}</span>
+              {hasTiers && (
+                <>
+                  <span className="text-slate-300">·</span>
+                  <span className="bg-gradient-to-r from-teal-500 to-cyan-500 text-white text-xs font-semibold px-2.5 py-0.5 rounded-full">
+                    {entryTiers.length} Tiers
+                  </span>
+                </>
+              )}
+            </div>
           </div>
 
-          <div className="border-t border-slate-100 my-3" />
-
-          <div className="flex justify-between text-center">
-            <div>
-              <div className="font-bold text-slate-900">{currentEntries}/{maxEntries}</div>
-              <div className="text-xs text-slate-500">Entries</div>
+          <div className="flex gap-2 mt-4">
+            <div className="bg-slate-50 group-hover:bg-slate-100 transition-colors rounded-lg px-3 py-2 text-center flex-1">
+              <div className="text-base font-bold text-slate-900">{currentEntries}/{maxEntries}</div>
+              <div className="text-[10px] font-medium text-slate-500 uppercase tracking-wider mt-0.5">Entries</div>
             </div>
-            <div>
-              <div className="font-bold text-slate-900">{entryDisplay}</div>
-              <div className="text-xs text-slate-500">Entry</div>
+            <div className="bg-slate-50 group-hover:bg-slate-100 transition-colors rounded-lg px-3 py-2 text-center flex-1">
+              <div className="text-base font-bold text-teal-600">{entryDisplay}</div>
+              <div className="text-[10px] font-medium text-slate-500 uppercase tracking-wider mt-0.5">Entry</div>
             </div>
-            <div>
-              <div className="font-bold text-slate-900">{prizeDisplay}</div>
-              <div className="text-xs text-slate-500">Prizes</div>
+            <div className="bg-slate-50 group-hover:bg-slate-100 transition-colors rounded-lg px-3 py-2 text-center flex-1">
+              <div className="text-base font-bold text-amber-600 flex items-center justify-center gap-1">
+                {prizeDisplay} 🏅
+              </div>
+              <div className="text-[10px] font-medium text-slate-500 uppercase tracking-wider mt-0.5">Prizes</div>
             </div>
           </div>
         </div>
