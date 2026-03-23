@@ -82,7 +82,7 @@ const Lobby = () => {
         .select(`
            id, contest_template_id, lock_time, status, entry_fee_cents,
            prize_pool_cents, payout_structure, current_entries, max_entries,
-           allow_overflow, created_at, tier_id, entry_tiers,
+           allow_overflow, created_at, tier_id, tier_name, entry_tiers,
            contest_templates(regatta_name, banner_url, contest_group_id, display_order_in_group),
            contest_pool_crews(event_id)
          `)
