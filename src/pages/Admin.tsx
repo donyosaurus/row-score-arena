@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Users, DollarSign, Trophy, Shield, Download, Settings, Loader2, Plus, X } from "lucide-react";
+import { Users, DollarSign, Trophy, Shield, Download, Settings, Loader2, Plus, X, Upload, ImageIcon } from "lucide-react";
 import { LogoPicker } from "@/components/LogoPicker";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
@@ -64,6 +64,24 @@ interface CreateContestForm {
   bannerUrl: string;
 }
 
+const CARD_GRADIENTS = [
+  'linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%)',
+  'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)',
+  'linear-gradient(135deg, #0c1222 0%, #1b3a4b 100%)',
+  'linear-gradient(135deg, #1a0e2e 0%, #2d1b69 100%)',
+  'linear-gradient(135deg, #1e1e1e 0%, #2d3436 100%)',
+  'linear-gradient(135deg, #0a1628 0%, #1a3c34 100%)',
+];
+
+function hashString(str: string): number {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) - hash) + str.charCodeAt(i);
+    hash |= 0;
+  }
+  return Math.abs(hash);
+}
+
 const Admin = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -87,6 +105,7 @@ const Admin = () => {
   const [exporting, setExporting] = useState(false);
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [creatingContest, setCreatingContest] = useState(false);
+  const [uploadingBanner, setUploadingBanner] = useState(false);
   const [createForm, setCreateForm] = useState<CreateContestForm>({
     regattaName: "",
     genderCategory: "Men's",
@@ -672,18 +691,99 @@ const Admin = () => {
                 <Input id="regattaName" placeholder="e.g., Harvard-Yale Regatta 2026" value={createForm.regattaName} onChange={(e) => setCreateForm(prev => ({ ...prev, regattaName: e.target.value }))} />
               </div>
               <div>
-                <Label htmlFor="bannerUrl">Banner Image URL (optional)</Label>
-                <Input id="bannerUrl" placeholder="https://example.com/banner.jpg" value={createForm.bannerUrl} onChange={(e) => setCreateForm(prev => ({ ...prev, bannerUrl: e.target.value }))} />
-                <p className="text-xs text-muted-foreground mt-1">Displayed as the contest card header in the lobby</p>
-                {createForm.bannerUrl && (
-                  <img
-                    src={createForm.bannerUrl}
-                    alt="Banner preview"
-                    className="mt-2 w-full h-[200px] object-cover rounded-lg border"
-                    onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
-                    onLoad={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'block'; }}
-                  />
+                <Label>Banner Image (optional)</Label>
+                {!createForm.bannerUrl ? (
+                  <label className="mt-1 flex flex-col items-center justify-center border-2 border-dashed border-slate-300 rounded-lg p-8 text-center cursor-pointer hover:border-slate-400 hover:bg-slate-50 transition-all">
+                    {uploadingBanner ? (
+                      <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                    ) : (
+                      <>
+                        <Upload className="h-8 w-8 text-muted-foreground mb-2" />
+                        <span className="text-sm text-muted-foreground">Drop image here or click to upload</span>
+                        <span className="text-xs text-muted-foreground mt-1">PNG, JPG up to 5MB</span>
+                      </>
+                    )}
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        if (file.size > 5 * 1024 * 1024) { toast.error("File must be under 5MB"); return; }
+                        setUploadingBanner(true);
+                        try {
+                          const fileName = `banner-${Date.now()}-${file.name}`;
+                          const { data, error } = await supabase.storage.from('contest-banners').upload(fileName, file, { contentType: file.type });
+                          if (error) throw error;
+                          const { data: { publicUrl } } = supabase.storage.from('contest-banners').getPublicUrl(fileName);
+                          setCreateForm(prev => ({ ...prev, bannerUrl: publicUrl }));
+                          toast.success("Banner uploaded!");
+                        } catch (err: any) {
+                          console.error("Upload error:", err);
+                          toast.error(err.message || "Failed to upload banner");
+                        } finally {
+                          setUploadingBanner(false);
+                        }
+                      }}
+                    />
+                  </label>
+                ) : (
+                  <div className="mt-1 relative">
+                    <img src={createForm.bannerUrl} alt="Banner" className="w-full h-[120px] object-cover rounded-lg border" />
+                    <button
+                      type="button"
+                      className="absolute top-2 right-2 bg-black/60 text-white rounded-full p-1 hover:bg-black/80"
+                      onClick={() => setCreateForm(prev => ({ ...prev, bannerUrl: "" }))}
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
                 )}
+                {/* Card Preview */}
+                <div className="mt-3">
+                  <p className="text-xs font-medium text-muted-foreground mb-2">Card Preview</p>
+                  <div className="rounded-xl overflow-hidden border border-slate-200 shadow-sm max-w-xs">
+                    <div className="relative h-28 overflow-hidden">
+                      {createForm.bannerUrl ? (
+                        <img src={createForm.bannerUrl} alt="Preview" className="w-full h-full object-cover" />
+                      ) : (
+                        <div
+                          className="w-full h-full flex items-center justify-center"
+                          style={{ background: CARD_GRADIENTS[hashString(createForm.regattaName || 'Contest') % CARD_GRADIENTS.length] }}
+                        >
+                          <span className="text-white/20 text-lg font-bold text-center px-4 select-none">
+                            {createForm.regattaName || 'Contest Name'}
+                          </span>
+                        </div>
+                      )}
+                      <div className="absolute bottom-2 left-2 bg-black/60 text-white text-[10px] font-semibold px-2 py-0.5 rounded-full">
+                        2d 8h
+                      </div>
+                    </div>
+                    <div className="h-1 bg-slate-200"><div className="h-full w-0 bg-teal-400 rounded-r-full" /></div>
+                    <div className="p-3 bg-white">
+                      <div className="border-l-3 border-teal-400 pl-2">
+                        <p className="text-sm font-bold text-slate-900 truncate">{createForm.regattaName || 'Contest Name'}</p>
+                        <p className="text-xs text-slate-500">{createForm.genderCategory} · Locks Thu 8:00 AM</p>
+                      </div>
+                      <div className="flex gap-1.5 mt-2">
+                        <div className="bg-slate-50 rounded px-2 py-1 text-center flex-1">
+                          <div className="text-xs font-bold text-slate-900">0/{createForm.maxEntries || '?'}</div>
+                          <div className="text-[8px] text-slate-500 uppercase">Entries</div>
+                        </div>
+                        <div className="bg-slate-50 rounded px-2 py-1 text-center flex-1">
+                          <div className="text-xs font-bold text-teal-600">{createForm.entryFee ? `$${parseFloat(createForm.entryFee).toFixed(2)}` : '$?.??'}</div>
+                          <div className="text-[8px] text-slate-500 uppercase">Entry</div>
+                        </div>
+                        <div className="bg-slate-50 rounded px-2 py-1 text-center flex-1">
+                          <div className="text-xs font-bold text-amber-600">{createForm.prizes[0]?.amount ? `$${parseFloat(createForm.prizes[0].amount).toFixed(2)}` : '$?.??'}</div>
+                          <div className="text-[8px] text-slate-500 uppercase">Prizes</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
               <div>
                 <Label htmlFor="genderCategory">Gender Category *</Label>

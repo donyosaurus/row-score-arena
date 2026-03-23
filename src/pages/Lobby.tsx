@@ -2,9 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { ContestCard } from "@/components/ContestCard";
-import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Loader2, Trophy, Waves } from "lucide-react";
+import { Loader2, Trophy } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
@@ -60,9 +58,6 @@ const Lobby = () => {
   const { user } = useAuth();
   const [contests, setContests] = useState<MappedContest[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [genderFilter, setGenderFilter] = useState("all");
-  const [lockFilter, setLockFilter] = useState("all");
 
   useEffect(() => {
     const fetchContests = async () => {
@@ -101,7 +96,6 @@ const Lobby = () => {
 
       const allPools = poolsResult.data as unknown as ContestPool[];
 
-      // Group by template
       const grouped = allPools.reduce((acc, pool) => {
         const key = pool.contest_template_id;
         if (!key) return acc;
@@ -114,7 +108,6 @@ const Lobby = () => {
         const userEntered = pools.some((p) => enteredPoolIds.has(p.id));
         const siblingPoolCount = pools.length;
 
-        // Pick representative pool (open with capacity, oldest)
         const sorted = [...pools].sort((a, b) => {
           const aOpen = a.status === "open" && a.current_entries < a.max_entries ? 1 : 0;
           const bOpen = b.status === "open" && b.current_entries < b.max_entries ? 1 : 0;
@@ -157,65 +150,26 @@ const Lobby = () => {
     fetchContests();
   }, [user]);
 
-  const filteredContests = useMemo(() => {
-    const now = new Date();
-    return contests.filter((c) => {
-      const matchSearch = c.regattaName.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchGender =
-        genderFilter === "all" ||
-        (genderFilter === "mens" && c.genderCategory === "Men's") ||
-        (genderFilter === "womens" && c.genderCategory === "Women's");
-      const lockDate = new Date(c.lockTimeRaw);
-      const hoursUntilLock = (lockDate.getTime() - now.getTime()) / (1000 * 60 * 60);
-      const matchLock =
-        lockFilter === "all" ||
-        (lockFilter === "soon" && hoursUntilLock > 0 && hoursUntilLock <= 6) ||
-        (lockFilter === "today" && lockDate.toDateString() === now.toDateString()) ||
-        (lockFilter === "week" && hoursUntilLock > 0 && hoursUntilLock <= 168);
-      return matchSearch && matchGender && matchLock;
-    });
-  }, [contests, searchTerm, genderFilter, lockFilter]);
-
   return (
     <div className="flex flex-col min-h-screen relative">
       <LobbyBackground />
       <Header />
 
-      <section className="gradient-hero py-16 pb-24 relative overflow-hidden">
+      <section className="gradient-hero py-16 pb-24 relative overflow-hidden z-10">
         <div className="absolute inset-0 opacity-10">
           <div className="absolute top-10 left-10 w-64 h-64 rounded-full bg-accent blur-3xl" />
           <div className="absolute bottom-10 right-10 w-96 h-96 rounded-full bg-accent blur-3xl" />
         </div>
         <div className="container mx-auto px-4 relative z-10">
-          <div className="text-center max-w-3xl mx-auto mb-10">
+          <div className="text-center max-w-3xl mx-auto">
             <h1 className="text-4xl md:text-5xl font-heading font-extrabold text-white mb-4 animate-fade-in">Available Contests</h1>
             <p className="text-lg text-white/70 animate-fade-in" style={{ animationDelay: "0.1s" }}>Pick your crews, predict the margin, win real prizes</p>
-          </div>
-          <div className="max-w-4xl mx-auto animate-fade-in" style={{ animationDelay: "0.2s" }}>
-            <Card className="shadow-xl border-0 rounded-2xl">
-              <CardContent className="p-4">
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                  <div className="relative md:col-span-2">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input placeholder="Search contests..." className="pl-10 rounded-xl border-border/50" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
-                  </div>
-                  <Select value={genderFilter} onValueChange={setGenderFilter}>
-                    <SelectTrigger className="rounded-xl border-border/50"><SelectValue placeholder="Gender" /></SelectTrigger>
-                    <SelectContent><SelectItem value="all">All</SelectItem><SelectItem value="mens">Men's</SelectItem><SelectItem value="womens">Women's</SelectItem></SelectContent>
-                  </Select>
-                  <Select value={lockFilter} onValueChange={setLockFilter}>
-                    <SelectTrigger className="rounded-xl border-border/50"><SelectValue placeholder="Lock Time" /></SelectTrigger>
-                    <SelectContent><SelectItem value="all">All Times</SelectItem><SelectItem value="soon">Next 6 hours</SelectItem><SelectItem value="today">Today</SelectItem><SelectItem value="week">This Week</SelectItem></SelectContent>
-                  </Select>
-                </div>
-              </CardContent>
-            </Card>
           </div>
         </div>
       </section>
 
       <main className="flex-1 -mt-8 relative z-10">
-        <div className="container mx-auto px-4 pb-16">
+        <div className="container mx-auto px-4 pb-16 pt-6">
           {loading && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {[1, 2, 3].map((i) => (
@@ -229,9 +183,9 @@ const Lobby = () => {
             </div>
           )}
 
-          {!loading && filteredContests.length > 0 && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredContests.map((contest, idx) => (
+          {!loading && contests.length > 0 && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 relative z-0">
+              {contests.map((contest, idx) => (
                 <div key={contest.id} className="animate-fade-in" style={{ animationDelay: `${idx * 0.05}s` }}>
                   <ContestCard
                     id={contest.id}
@@ -256,18 +210,14 @@ const Lobby = () => {
             </div>
           )}
 
-          {!loading && filteredContests.length === 0 && (
+          {!loading && contests.length === 0 && (
             <Card className="max-w-md mx-auto rounded-2xl shadow-lg border-border/40">
               <CardContent className="py-16 text-center">
                 <div className="w-20 h-20 rounded-full bg-accent/10 flex items-center justify-center mx-auto mb-6">
                   <Trophy className="h-10 w-10 text-accent" />
                 </div>
-                <h3 className="text-xl font-heading font-bold mb-2">
-                  {searchTerm || genderFilter !== "all" || lockFilter !== "all" ? "No contests match your filters" : "No contests available yet"}
-                </h3>
-                <p className="text-muted-foreground">
-                  {searchTerm || genderFilter !== "all" || lockFilter !== "all" ? "Try adjusting your search or filters" : "New contests are posted regularly — check back soon!"}
-                </p>
+                <h3 className="text-xl font-heading font-bold mb-2">No contests available yet</h3>
+                <p className="text-muted-foreground">New contests are posted regularly — check back soon!</p>
               </CardContent>
             </Card>
           )}
