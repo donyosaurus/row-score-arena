@@ -185,14 +185,32 @@ const ContestDetail = () => {
   }, [crewPicks, contestPool]);
 
   const toggleCrewSelection = (crewId: string) => {
+    const clickedCrew = contestPool?.contest_pool_crews.find((c) => c.crew_id === crewId);
+    if (!clickedCrew) return;
+
     setCrewPicks((prev) => {
       const newPicks = new Map(prev);
+
+      // Already selected — toggle off
       if (newPicks.has(crewId)) {
         newPicks.delete(crewId);
-      } else {
-        if (newPicks.size >= maxPicks) { toast.error(`Maximum ${maxPicks} picks allowed`); return prev; }
-        newPicks.set(crewId, 0);
+        return newPicks;
       }
+
+      // Check if another crew from the same event is selected — swap it
+      const existingFromSameEvent = contestPool?.contest_pool_crews.find(
+        (c) => c.event_id === clickedCrew.event_id && newPicks.has(c.crew_id)
+      );
+      if (existingFromSameEvent) {
+        const oldMargin = newPicks.get(existingFromSameEvent.crew_id) ?? 0;
+        newPicks.delete(existingFromSameEvent.crew_id);
+        newPicks.set(crewId, oldMargin);
+        return newPicks;
+      }
+
+      // No crew from this event yet — add if under max
+      if (newPicks.size >= maxPicks) { toast.error(`Maximum ${maxPicks} picks allowed`); return prev; }
+      newPicks.set(crewId, 0);
       return newPicks;
     });
   };
