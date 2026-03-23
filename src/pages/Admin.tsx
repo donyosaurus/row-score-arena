@@ -12,7 +12,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Users, DollarSign, Trophy, Shield, Download, Settings, Loader2, Plus, X, Upload, ImageIcon } from "lucide-react";
+import { Users, DollarSign, Trophy, Shield, Download, Settings, Loader2, Plus, X, Upload, ImageIcon, Layers } from "lucide-react";
+import { ContestGroupsManager } from "@/components/admin/ContestGroupsManager";
 import { LogoPicker } from "@/components/LogoPicker";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
@@ -62,6 +63,7 @@ interface CreateContestForm {
   multiTier: boolean;
   entryTiers: EntryTierForm[];
   bannerUrl: string;
+  contestGroupId: string;
 }
 
 const CARD_GRADIENTS = [
@@ -92,6 +94,7 @@ const Admin = () => {
   const [contests, setContests] = useState<any[]>([]);
   const [complianceLogs, setComplianceLogs] = useState<any[]>([]);
   const [featureFlags, setFeatureFlags] = useState<any>({});
+  const [contestGroups, setContestGroups] = useState<{ id: string; name: string }[]>([]);
   
   const [selectedContest, setSelectedContest] = useState<any | null>(null);
   const [resultsModalOpen, setResultsModalOpen] = useState(false);
@@ -121,6 +124,7 @@ const Admin = () => {
       { name: "Silver", entryFee: "", prizes: [{ rank: 1, amount: "" }] },
     ],
     bannerUrl: "",
+    contestGroupId: "",
   });
   const [newCrewInput, setNewCrewInput] = useState<NewCrew>({
     crew_name: "",
@@ -156,6 +160,8 @@ const Admin = () => {
       setContests(poolsData || []);
       const { data: logsData } = await supabase.from("compliance_audit_logs").select("*").order("created_at", { ascending: false }).limit(100);
       setComplianceLogs(logsData || []);
+      const { data: groupsData } = await supabase.from("contest_groups").select("id, name").order("display_order");
+      setContestGroups(groupsData || []);
       setLoading(false);
     } catch (error) {
       console.error("Error loading dashboard data:", error);
@@ -275,6 +281,7 @@ const Admin = () => {
         { name: "Silver", entryFee: "", prizes: [{ rank: 1, amount: "" }] },
       ],
       bannerUrl: "",
+      contestGroupId: "",
     });
     setNewCrewInput({ crew_name: "", crew_id: "", event_id: "", logo_url: null });
   };
@@ -448,6 +455,7 @@ const Admin = () => {
           allowOverflow: createForm.allowOverflow,
           entryTiers: entryTiersPayload,
           bannerUrl: createForm.bannerUrl.trim() || null,
+          contestGroupId: (createForm.contestGroupId && createForm.contestGroupId !== "none") ? createForm.contestGroupId : null,
         }
       });
       if (error) throw error;
@@ -536,6 +544,7 @@ const Admin = () => {
               <TabsTrigger value="users">Users</TabsTrigger>
               <TabsTrigger value="transactions">Transactions</TabsTrigger>
               <TabsTrigger value="contests">Contests</TabsTrigger>
+              <TabsTrigger value="groups">Groups</TabsTrigger>
               <TabsTrigger value="compliance">Compliance Logs</TabsTrigger>
             </TabsList>
 
@@ -624,6 +633,11 @@ const Admin = () => {
                   </div>
                 </CardContent>
               </Card>
+            </TabsContent>
+
+            {/* Contest Groups Tab */}
+            <TabsContent value="groups" className="space-y-4">
+              <ContestGroupsManager />
             </TabsContent>
 
             {/* Compliance Tab */}
@@ -785,6 +799,18 @@ const Admin = () => {
                   </div>
                 </div>
               </div>
+              {contestGroups.length > 0 && (
+                <div>
+                  <Label>Contest Group (optional)</Label>
+                  <Select value={createForm.contestGroupId} onValueChange={(value) => setCreateForm(prev => ({ ...prev, contestGroupId: value }))}>
+                    <SelectTrigger><SelectValue placeholder="Select a group..." /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">None / Ungrouped</SelectItem>
+                      {contestGroups.map(g => <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <div>
                 <Label htmlFor="genderCategory">Gender Category *</Label>
                 <Select value={createForm.genderCategory} onValueChange={(value) => setCreateForm(prev => ({ ...prev, genderCategory: value }))}>
