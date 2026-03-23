@@ -26,6 +26,7 @@ interface CreateContestRequest {
   allowOverflow?: boolean;
   entryTiers?: EntryTierInput[] | null;
   bannerUrl?: string | null;
+  contestGroupId?: string | null;
 }
 
 const VALID_GENDER_CATEGORIES = ["Men's", "Women's", "Mixed"];
