@@ -63,6 +63,7 @@ interface CreateContestForm {
   multiTier: boolean;
   entryTiers: EntryTierForm[];
   bannerUrl: string;
+  contestGroupId: string;
 }
 
 const CARD_GRADIENTS = [
