@@ -50,16 +50,14 @@ interface MappedContest {
   genderCategory: "Men's" | "Women's";
   lockTime: string;
   lockTimeRaw: string;
-  divisions: string[];
   entryFeeCents: number;
   payoutStructure: Record<string, number> | null;
   prizePoolCents: number;
   currentEntries: number;
   maxEntries: number;
-  allowOverflow: boolean;
+  hasOverflow: boolean;
   createdAt: string;
   status: string;
-  siblingPoolCount: number;
   userEntered: boolean;
   entryTiers: any[] | null;
   bannerUrl: string | null;
@@ -141,7 +139,6 @@ const Lobby = () => {
 
         const regattaName = primary.contest_templates?.regatta_name || "Unknown Regatta";
         const genderCategory: "Men's" | "Women's" = regattaName.toLowerCase().includes("women") ? "Women's" : "Men's";
-        const divisions = [...new Set(primary.contest_pool_crews?.map((c) => c.event_id) || [])];
         const lockTime = new Date(primary.lock_time).toLocaleString("en-US", {
           month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true,
         });
@@ -176,16 +173,15 @@ const Lobby = () => {
           contestTemplateId: primary.contest_template_id,
           regattaName, genderCategory, lockTime,
           lockTimeRaw: primary.lock_time,
-          divisions,
           entryFeeCents: hasTiers ? lowestFee : primary.entry_fee_cents,
           payoutStructure: primary.payout_structure,
           prizePoolCents: hasTiers ? highestFirstPrize : primary.prize_pool_cents,
           currentEntries: totalCurrentEntries,
           maxEntries: totalMaxEntries,
-          allowOverflow: primary.allow_overflow || false,
+          hasOverflow: pools.some(p => p.allow_overflow),
           createdAt: primary.created_at,
           status: primary.status,
-          siblingPoolCount, userEntered,
+          userEntered,
           entryTiers: entryTiersForCard,
           bannerUrl: primary.contest_templates?.banner_url || null,
           contestGroupId: primary.contest_templates?.contest_group_id || null,
@@ -281,14 +277,12 @@ const Lobby = () => {
                     genderCategory={contest.genderCategory}
                     lockTime={contest.lockTime}
                     lockTimeRaw={contest.lockTimeRaw}
-                    divisions={contest.divisions}
                     entryFeeCents={contest.entryFeeCents}
                     payoutStructure={contest.payoutStructure}
                     prizePoolCents={contest.prizePoolCents}
                     currentEntries={contest.currentEntries}
                     maxEntries={contest.maxEntries}
-                    allowOverflow={contest.allowOverflow}
-                    siblingPoolCount={contest.siblingPoolCount}
+                    hasOverflow={contest.hasOverflow}
                     userEntered={contest.userEntered}
                     entryTiers={contest.entryTiers}
                     bannerUrl={contest.bannerUrl}
