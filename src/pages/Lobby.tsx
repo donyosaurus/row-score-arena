@@ -23,6 +23,7 @@ interface ContestPool {
   allow_overflow: boolean;
   created_at: string;
   tier_id: string;
+  tier_name: string | null;
   entry_tiers: unknown;
   contest_templates: {
     regatta_name: string;
@@ -81,7 +82,7 @@ const Lobby = () => {
         .select(`
            id, contest_template_id, lock_time, status, entry_fee_cents,
            prize_pool_cents, payout_structure, current_entries, max_entries,
-           allow_overflow, created_at, tier_id, entry_tiers,
+           allow_overflow, created_at, tier_id, tier_name, entry_tiers,
            contest_templates(regatta_name, banner_url, contest_group_id, display_order_in_group),
            contest_pool_crews(event_id)
          `)
@@ -129,6 +130,7 @@ const Lobby = () => {
         const userEntered = pools.some((p) => enteredPoolIds.has(p.id));
         const siblingPoolCount = pools.length;
 
+        // Pick a representative pool for display (prefer open with capacity)
         const sorted = [...pools].sort((a, b) => {
           const aOpen = a.status === "open" && a.current_entries < a.max_entries ? 1 : 0;
           const bOpen = b.status === "open" && b.current_entries < b.max_entries ? 1 : 0;
@@ -144,22 +146,47 @@ const Lobby = () => {
           month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true,
         });
 
+        // Aggregate across ALL pools for this template
+        const totalCurrentEntries = pools.reduce((sum, p) => sum + p.current_entries, 0);
+        const totalMaxEntries = pools.reduce((sum, p) => sum + p.max_entries, 0);
+
+        // Detect tiers: distinct tier_name values (excluding null)
+        const tierNames = [...new Set(pools.map(p => p.tier_name).filter(Boolean))];
+        const hasTiers = tierNames.length > 1;
+
+        // For display: lowest entry fee, highest first-place prize
+        const lowestFee = Math.min(...pools.map(p => p.entry_fee_cents));
+        const highestFirstPrize = Math.max(...pools.map(p => {
+          const ps = p.payout_structure;
+          return ps && ps["1"] ? ps["1"] : 0;
+        }));
+
+        // Build entry tiers info for the card
+        const entryTiersForCard = hasTiers ? tierNames.map(name => {
+          const tierPool = pools.find(p => p.tier_name === name);
+          return {
+            name: name!,
+            entry_fee_cents: tierPool?.entry_fee_cents ?? 0,
+            payout_structure: tierPool?.payout_structure ?? {},
+          };
+        }) : null;
+
         return {
           id: primary.id,
           contestTemplateId: primary.contest_template_id,
           regattaName, genderCategory, lockTime,
           lockTimeRaw: primary.lock_time,
           divisions,
-          entryFeeCents: primary.entry_fee_cents,
+          entryFeeCents: hasTiers ? lowestFee : primary.entry_fee_cents,
           payoutStructure: primary.payout_structure,
-          prizePoolCents: primary.prize_pool_cents,
-          currentEntries: primary.current_entries || 0,
-          maxEntries: primary.max_entries || 0,
+          prizePoolCents: hasTiers ? highestFirstPrize : primary.prize_pool_cents,
+          currentEntries: totalCurrentEntries,
+          maxEntries: totalMaxEntries,
           allowOverflow: primary.allow_overflow || false,
           createdAt: primary.created_at,
           status: primary.status,
           siblingPoolCount, userEntered,
-          entryTiers: (primary.entry_tiers as any[] | null) || null,
+          entryTiers: entryTiersForCard,
           bannerUrl: primary.contest_templates?.banner_url || null,
           contestGroupId: primary.contest_templates?.contest_group_id || null,
           displayOrderInGroup: primary.contest_templates?.display_order_in_group || 0,
