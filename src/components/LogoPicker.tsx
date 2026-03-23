@@ -27,7 +27,7 @@ const COLLEGES: CollegeEntry[] = [
   { name: "Virginia", id: 258 }, { name: "Clemson", id: 228 }, { name: "Notre Dame", id: 87 },
   { name: "Texas", id: 251 }, { name: "Ohio State", id: 194 }, { name: "Gonzaga", id: 2250 },
   { name: "Villanova", id: 222 }, { name: "Drexel", id: 2182 }, { name: "Temple", id: 218 },
-  { name: "Tulsa", id: 202 }, { name: "MIT", id: 2509 }, { name: "Duke", id: 150 },
+  { name: "Tulsa", id: 202 }, { name: "MIT", id: 109 }, { name: "Duke", id: 150 },
   { name: "North Carolina", id: 153 }, { name: "Minnesota", id: 135 }, { name: "Indiana", id: 84 },
   { name: "Oregon State", id: 204 }, { name: "USC", id: 30 }, { name: "UCLA", id: 26 },
   { name: "Rutgers", id: 164 }, { name: "Bucknell", id: 2083 }, { name: "Colgate", id: 2142 },
