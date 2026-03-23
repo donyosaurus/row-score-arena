@@ -123,7 +123,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    // wallet.available_balance is stored in CENTS; body.entryFeeCents is also cents
     const balanceCents = Number(wallet.available_balance);
     const entryFeeCents = body.entryFeeCents;
     const entryFeeDollars = entryFeeCents / 100;
@@ -134,68 +133,116 @@ Deno.serve(async (req) => {
         JSON.stringify({
           error: `Insufficient balance. You need $${entryFeeDollars.toFixed(2)} but have $${balanceDollars.toFixed(2)}.`,
         }),
-        {
-          status: 402,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
+        { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
     // -----------------------------------------------------------------------
-    // POOL: find the contest_pool for this tierId (tierId IS the contest_pools.id)
-    // If full, clone it for overflow
+    // POOL: find the correct pool for this tier (by tier_name or fallback to tierId)
+    // For tiered contests, find pool matching template + tier_name
+    // For non-tiered, find pool matching the provided tierId (pool id)
     // -----------------------------------------------------------------------
-    // tierId passed from ContestDetail is the contest_pools.id
-    const contestPoolId = body.tierId;
+    let targetPoolId: string;
+    let targetPool: any;
 
-    const { data: contestPool, error: poolError } = await supabaseAdmin
-      .from("contest_pools")
-      .select("*")
-      .eq("id", contestPoolId)
-      .single();
-
-    if (poolError || !contestPool) {
-      return new Response(JSON.stringify({ error: "Contest pool not found." }), {
-        status: 404,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    // Validate entry fee against pool's entry_tiers if present
-    const poolEntryTiers = contestPool.entry_tiers as any[] | null;
-    if (poolEntryTiers && Array.isArray(poolEntryTiers) && poolEntryTiers.length > 0) {
-      const validFees = poolEntryTiers.map((t: any) => t.entry_fee_cents);
-      if (!validFees.includes(body.entryFeeCents)) {
-        return new Response(JSON.stringify({ error: "Invalid entry fee for this contest's tiers." }), {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-    }
-
-    // Determine which pool to actually place the entry in
-    let targetPoolId = contestPoolId;
-    let targetPool = contestPool;
-
-    if (contestPool.current_entries >= contestPool.max_entries) {
-      // Pool is full — try to find an overflow pool or clone one
-      const { data: overflowPools } = await supabaseAdmin
+    if (body.tierName) {
+      // Tiered contest: find an open pool matching template + tier_name
+      const { data: tierPools } = await supabaseAdmin
         .from("contest_pools")
         .select("*")
-        .eq("contest_template_id", contestPool.contest_template_id)
-        .eq("tier_id", contestPool.tier_id)
+        .eq("contest_template_id", body.contestTemplateId)
+        .eq("tier_name", body.tierName)
         .eq("status", "open")
         .order("created_at", { ascending: true });
 
-      const available = (overflowPools || []).find(
-        (p: any) => p.id !== contestPoolId && p.current_entries < p.max_entries,
-      );
+      const available = (tierPools || []).find((p: any) => p.current_entries < p.max_entries);
 
       if (available) {
         targetPoolId = available.id;
         targetPool = available;
-        console.log("[matchmaking] Using overflow pool:", targetPoolId);
+        console.log("[matchmaking] Found tier pool:", targetPoolId, "tier:", body.tierName);
       } else {
+        // All pools for this tier are full — try overflow
+        const { data: anyTierPool } = await supabaseAdmin
+          .from("contest_pools")
+          .select("*")
+          .eq("contest_template_id", body.contestTemplateId)
+          .eq("tier_name", body.tierName)
+          .order("created_at", { ascending: true })
+          .limit(1)
+          .single();
+
+        if (!anyTierPool) {
+          return new Response(JSON.stringify({ error: "No pool found for this tier." }), {
+            status: 404,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        if (!anyTierPool.allow_overflow) {
+          return new Response(JSON.stringify({ error: "This tier is full." }), {
+            status: 409,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        // Clone the tier pool for overflow
+        const { data: newPoolId, error: cloneError } = await supabaseAdmin.rpc("clone_contest_pool", {
+          p_original_pool_id: anyTierPool.id,
+        });
+
+        if (cloneError || !newPoolId) {
+          console.error("[matchmaking] Clone error:", cloneError);
+          return new Response(JSON.stringify({ error: "Unable to allocate to a contest pool. Please try again." }), {
+            status: 500,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        const { data: newPool } = await supabaseAdmin.from("contest_pools").select("*").eq("id", newPoolId).single();
+        targetPoolId = newPoolId;
+        targetPool = newPool;
+        console.log("[matchmaking] Cloned overflow tier pool:", newPoolId, "tier:", body.tierName);
+      }
+    } else {
+      // Non-tiered: use the provided tierId as pool id (existing behavior)
+      const contestPoolId = body.tierId;
+
+      const { data: contestPool, error: poolError } = await supabaseAdmin
+        .from("contest_pools")
+        .select("*")
+        .eq("id", contestPoolId)
+        .single();
+
+      if (poolError || !contestPool) {
+        return new Response(JSON.stringify({ error: "Contest pool not found." }), {
+          status: 404,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      targetPoolId = contestPoolId;
+      targetPool = contestPool;
+
+      if (contestPool.current_entries >= contestPool.max_entries) {
+        // Pool is full — try overflow
+        const { data: overflowPools } = await supabaseAdmin
+          .from("contest_pools")
+          .select("*")
+          .eq("contest_template_id", contestPool.contest_template_id)
+          .eq("tier_id", contestPool.tier_id)
+          .eq("status", "open")
+          .order("created_at", { ascending: true });
+
+        const available = (overflowPools || []).find(
+          (p: any) => p.id !== contestPoolId && p.current_entries < p.max_entries,
+        );
+
+        if (available) {
+          targetPoolId = available.id;
+          targetPool = available;
+          console.log("[matchmaking] Using overflow pool:", targetPoolId);
+        } else {
         // Clone the original pool for a new overflow slot
         const { data: newPoolId, error: cloneError } = await supabaseAdmin.rpc("clone_contest_pool", {
           p_original_pool_id: contestPoolId,
