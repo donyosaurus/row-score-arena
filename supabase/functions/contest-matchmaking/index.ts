@@ -52,6 +52,7 @@ Deno.serve(async (req) => {
       tierName: z.string().max(100).optional().nullable(),
     });
 
+
     const body = entrySchema.parse(await req.json());
 
     const eventIdList = body.picks.map((p) => p.event_id);
