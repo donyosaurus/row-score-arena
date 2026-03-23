@@ -94,6 +94,7 @@ const Admin = () => {
   const [contests, setContests] = useState<any[]>([]);
   const [complianceLogs, setComplianceLogs] = useState<any[]>([]);
   const [featureFlags, setFeatureFlags] = useState<any>({});
+  const [contestGroups, setContestGroups] = useState<{ id: string; name: string }[]>([]);
   
   const [selectedContest, setSelectedContest] = useState<any | null>(null);
   const [resultsModalOpen, setResultsModalOpen] = useState(false);
