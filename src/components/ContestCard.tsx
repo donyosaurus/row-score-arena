@@ -99,6 +99,9 @@ export const ContestCard = ({
   const entriesDisplay = hasOverflow
     ? `${maxEntries}`
     : `${currentEntries}/${maxEntries}`;
+  const contestType = hasOverflow
+    ? (maxEntries === 2 ? 'Head to Head' : `${maxEntries} Player Pool`)
+    : null;
   const countdown = getCountdown(lockTimeRaw);
   const gradientIndex = hashString(regattaName) % CARD_GRADIENTS.length;
 
