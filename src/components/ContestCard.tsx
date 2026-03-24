@@ -96,6 +96,9 @@ export const ContestCard = ({
 
   const showFillBar = !hasTiers && !hasOverflow && maxEntries > 0;
   const fillPercent = maxEntries > 0 ? (currentEntries / maxEntries) * 100 : 0;
+  const entriesDisplay = hasOverflow
+    ? `${maxEntries}`
+    : `${currentEntries}/${maxEntries}`;
   const countdown = getCountdown(lockTimeRaw);
   const gradientIndex = hashString(regattaName) % CARD_GRADIENTS.length;
 
