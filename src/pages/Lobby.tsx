@@ -143,13 +143,27 @@ const Lobby = () => {
           month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true,
         });
 
-        // Aggregate across ALL pools for this template
-        const totalCurrentEntries = pools.reduce((sum, p) => sum + p.current_entries, 0);
-        const totalMaxEntries = pools.reduce((sum, p) => sum + p.max_entries, 0);
-
         // Detect tiers: distinct tier_name values (excluding null)
         const tierNames = [...new Set(pools.map(p => p.tier_name).filter(Boolean))];
         const hasTiers = tierNames.length > 1;
+        const hasOverflow = pools.some(p => p.allow_overflow);
+
+        // For tiered contests, maxEntries is per-tier (all tiers share same max)
+        // For non-tiered, aggregate across all pools
+        const perTierMax = pools[0]?.max_entries || 0;
+        let displayCurrentEntries: number;
+        let displayMaxEntries: number;
+
+        if (hasTiers) {
+          displayMaxEntries = perTierMax;
+          displayCurrentEntries = 0; // not meaningful for tiered
+        } else if (hasOverflow) {
+          displayMaxEntries = perTierMax;
+          displayCurrentEntries = 0;
+        } else {
+          displayCurrentEntries = pools.reduce((sum, p) => sum + p.current_entries, 0);
+          displayMaxEntries = pools.reduce((sum, p) => sum + p.max_entries, 0);
+        }
 
         // For display: lowest entry fee, highest first-place prize
         const lowestFee = Math.min(...pools.map(p => p.entry_fee_cents));
