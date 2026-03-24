@@ -282,7 +282,7 @@ const Lobby = () => {
           )}
 
           {!loading && contests.length > 0 && !hasGroups && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 relative z-0">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 items-stretch relative z-0">
               {contests.map((contest, idx) => (
                 <div key={contest.id} className="animate-fade-in" style={{ animationDelay: `${idx * 0.05}s` }}>
                   <ContestCard

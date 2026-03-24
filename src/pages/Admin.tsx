@@ -258,6 +258,24 @@ const Admin = () => {
       let overallStatus = 'settled';
       for (const s of statusPriority) { if (pools.some((p: any) => p.status === s)) { overallStatus = s; break; } }
 
+      const hasTiers = pools.some((p: any) => p.tier_name);
+
+      // Sub-group by tier_name
+      const tierMap = new Map<string, any[]>();
+      for (const pool of pools) {
+        const tierKey = pool.tier_name || '__default__';
+        if (!tierMap.has(tierKey)) tierMap.set(tierKey, []);
+        tierMap.get(tierKey)!.push(pool);
+      }
+      const tierGroups = Array.from(tierMap.entries()).map(([tierName, tierPools]) => ({
+        tierName: tierName === '__default__' ? null : tierName,
+        pools: tierPools,
+        entryFeeCents: tierPools[0].entry_fee_cents,
+        totalEntries: tierPools.reduce((sum: number, p: any) => sum + p.current_entries, 0),
+        totalMaxEntries: tierPools.reduce((sum: number, p: any) => sum + p.max_entries, 0),
+        overallStatus: tierPools.some((p: any) => p.status === 'open') ? 'open' : tierPools[0].status,
+      }));
+
       return {
         primary,
         pools,
@@ -267,6 +285,8 @@ const Admin = () => {
         totalPrize,
         overallStatus,
         regattaName: primary.contest_templates?.regatta_name || 'Unknown',
+        hasTiers,
+        tierGroups,
       };
     });
   }, [contests]);
