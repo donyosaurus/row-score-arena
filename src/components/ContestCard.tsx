@@ -61,62 +61,11 @@ function getCountdown(lockTimeRaw?: string): string | null {
   return `${totalMinutes}m`;
 }
 
-export const ContestCard = ({
-  id,
-  regattaName,
-  genderCategory,
-  lockTime,
-  lockTimeRaw,
-  entryFeeCents = 0,
-  payoutStructure,
-  prizePoolCents = 0,
-  currentEntries = 0,
-  maxEntries = 0,
-  hasOverflow = false,
-  userEntered = false,
-  entryTiers = null,
-  bannerUrl = null,
-}: ContestCardProps) => {
-  const hasTiers = entryTiers && entryTiers.length > 0;
-  const hasPayoutStructure = payoutStructure && Object.keys(payoutStructure).length > 0;
-  const firstPlacePrize = hasPayoutStructure ? payoutStructure["1"] : 0;
-  const totalPrizes = hasPayoutStructure
-    ? Object.values(payoutStructure).reduce((sum, val) => sum + val, 0)
-    : prizePoolCents;
-  const maxTierFirstPrize = hasTiers
-    ? Math.max(...entryTiers.map(t => t.payout_structure["1"] || 0))
-    : 0;
-
-  const fillPercent = maxEntries > 0 ? (currentEntries / maxEntries) * 100 : 0;
-  const countdown = getCountdown(lockTimeRaw);
-  const gradientIndex = hashString(regattaName) % CARD_GRADIENTS.length;
-
-  const prizeDisplay = hasTiers
-    ? `Up to ${formatCents(maxTierFirstPrize)}`
-    : hasPayoutStructure
-      ? formatCents(firstPlacePrize)
-      : formatCents(totalPrizes);
-
-  const entryDisplay = hasTiers
-    ? `From ${formatCents(entryFeeCents)}`
-    : entryFeeCents > 0
-      ? formatCents(entryFeeCents)
-      : "Free";
-
-  const lockTimeFormatted = lockTimeRaw
-    ? new Date(lockTimeRaw).toLocaleString("en-US", {
-        weekday: "short",
-        hour: "numeric",
-        minute: "2-digit",
-        hour12: true,
-      })
-    : lockTime;
-
-  const fillBarColor = fillPercent >= 100
-    ? "bg-gradient-to-r from-red-400 to-red-500"
-    : fillPercent > 80
-      ? "bg-gradient-to-r from-amber-400 to-amber-500"
-      : "bg-gradient-to-r from-teal-400 to-teal-500";
+function formatFee(cents: number): string {
+  const dollars = cents / 100;
+  if (Number.isInteger(dollars)) return `$${dollars}`;
+  return `$${dollars.toFixed(2)}`;
+}
 
   return (
     <Link to={`/regatta/${id}`} className="block group">
