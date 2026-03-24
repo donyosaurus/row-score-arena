@@ -67,6 +67,69 @@ function formatFee(cents: number): string {
   return `$${dollars.toFixed(2)}`;
 }
 
+export const ContestCard = ({
+  id,
+  regattaName,
+  genderCategory,
+  lockTime,
+  lockTimeRaw,
+  entryFeeCents = 0,
+  payoutStructure,
+  prizePoolCents = 0,
+  currentEntries = 0,
+  maxEntries = 0,
+  hasOverflow = false,
+  userEntered = false,
+  entryTiers = null,
+  bannerUrl = null,
+}: ContestCardProps) => {
+  const hasTiers = entryTiers && entryTiers.length > 0;
+  const hasPayoutStructure = payoutStructure && Object.keys(payoutStructure).length > 0;
+  const firstPlacePrize = hasPayoutStructure ? payoutStructure["1"] : 0;
+  const totalPrizes = hasPayoutStructure
+    ? Object.values(payoutStructure).reduce((sum, val) => sum + val, 0)
+    : prizePoolCents;
+
+  const maxTierFirstPrize = hasTiers
+    ? Math.max(...entryTiers.map(t => t.payout_structure["1"] || 0))
+    : 0;
+
+  const showFillBar = !hasTiers && !hasOverflow && maxEntries > 0;
+  const fillPercent = maxEntries > 0 ? (currentEntries / maxEntries) * 100 : 0;
+  const countdown = getCountdown(lockTimeRaw);
+  const gradientIndex = hashString(regattaName) % CARD_GRADIENTS.length;
+
+  const prizeDisplay = hasTiers
+    ? `Up to ${formatCents(maxTierFirstPrize)}`
+    : hasPayoutStructure
+      ? formatCents(firstPlacePrize)
+      : formatCents(totalPrizes);
+
+  const entryDisplay = entryFeeCents > 0 ? formatCents(entryFeeCents) : "Free";
+
+  const lockTimeFormatted = lockTimeRaw
+    ? new Date(lockTimeRaw).toLocaleString("en-US", {
+        weekday: "short",
+        hour: "numeric",
+        minute: "2-digit",
+        hour12: true,
+      })
+    : lockTime;
+
+  const fillBarColor = fillPercent >= 100
+    ? "bg-gradient-to-r from-red-400 to-red-500"
+    : fillPercent > 80
+      ? "bg-gradient-to-r from-amber-400 to-amber-500"
+      : "bg-gradient-to-r from-teal-400 to-teal-500";
+
+  // Build tier fee display string
+  const tierFeeDisplay = hasTiers
+    ? entryTiers
+        .sort((a, b) => a.entry_fee_cents - b.entry_fee_cents)
+        .map(t => formatFee(t.entry_fee_cents))
+        .join("  ·  ")
+    : "";
+
   return (
     <Link to={`/regatta/${id}`} className="block group">
       <div className="rounded-xl overflow-hidden bg-white shadow-md hover:shadow-xl transition-all duration-300 hover:-translate-y-1 border border-slate-200/80">
@@ -94,7 +157,6 @@ function formatFee(cents: number): string {
             </span>
           </div>
 
-          {/* Countdown pill */}
           {countdown && countdown !== "Locked" && (
             <div className="absolute bottom-3 left-3 bg-black/60 text-white text-xs font-semibold px-3 py-1 rounded-full backdrop-blur-sm">
               {countdown}
@@ -106,7 +168,6 @@ function formatFee(cents: number): string {
             </div>
           )}
 
-          {/* Entered badge */}
           {userEntered && (
             <div className="absolute top-3 right-3 bg-emerald-500/90 text-white text-xs font-semibold px-3 py-1 rounded-full backdrop-blur-sm">
               ✓ Entered
@@ -114,8 +175,8 @@ function formatFee(cents: number): string {
           )}
         </div>
 
-        {/* Fill bar */}
-        {maxEntries > 0 && (
+        {/* Fill bar — only for non-overflow, non-tiered */}
+        {showFillBar && (
           <div className="h-1.5 bg-slate-200 group-hover:h-2 transition-all duration-300">
             <div
               className={`h-full ${fillBarColor} rounded-r-full transition-all duration-500`}
@@ -141,18 +202,23 @@ function formatFee(cents: number): string {
           <div className="flex gap-2 mt-4">
             {hasTiers ? (
               <>
-                {entryTiers.sort((a, b) => a.entry_fee_cents - b.entry_fee_cents).map((tier) => (
-                  <div
-                    key={tier.name}
-                    className="bg-slate-50 border border-slate-200 rounded-lg py-2 text-center flex-1"
-                  >
-                    <div className="text-sm font-bold text-slate-900">{formatCents(tier.entry_fee_cents)}</div>
-                    <div className="text-[10px] font-medium text-slate-500 mt-0.5">{tier.name}</div>
+                {/* Tiered: single fee box + prizes box */}
+                <div className="bg-slate-50 group-hover:bg-slate-100 transition-colors rounded-lg px-3 py-2 text-center flex-1">
+                  <div className={`font-bold text-teal-600 ${entryTiers.length > 3 ? 'text-xs' : 'text-sm'} leading-tight`}>
+                    {tierFeeDisplay}
                   </div>
-                ))}
+                  <div className="text-[10px] font-medium text-slate-500 uppercase tracking-wider mt-0.5">Entry</div>
+                </div>
+                <div className="bg-slate-50 group-hover:bg-slate-100 transition-colors rounded-lg px-3 py-2 text-center flex-1">
+                  <div className="text-sm font-bold text-amber-600 flex items-center justify-center gap-1">
+                    {prizeDisplay} 🏅
+                  </div>
+                  <div className="text-[10px] font-medium text-slate-500 uppercase tracking-wider mt-0.5">Prizes</div>
+                </div>
               </>
             ) : hasOverflow ? (
               <>
+                {/* Overflow, non-tiered: entry + prizes only */}
                 <div className="bg-slate-50 group-hover:bg-slate-100 transition-colors rounded-lg px-3 py-2 text-center flex-1">
                   <div className="text-base font-bold text-teal-600">{entryDisplay}</div>
                   <div className="text-[10px] font-medium text-slate-500 uppercase tracking-wider mt-0.5">Entry</div>
@@ -166,6 +232,7 @@ function formatFee(cents: number): string {
               </>
             ) : (
               <>
+                {/* Standard: entries + entry + prizes */}
                 <div className="bg-slate-50 group-hover:bg-slate-100 transition-colors rounded-lg px-3 py-2 text-center flex-1">
                   <div className="text-base font-bold text-slate-900">{currentEntries}/{maxEntries}</div>
                   <div className="text-[10px] font-medium text-slate-500 uppercase tracking-wider mt-0.5">Entries</div>
