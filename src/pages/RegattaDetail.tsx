@@ -606,9 +606,9 @@ const RegattaDetail = () => {
                         <div className="flex justify-between text-xs text-muted-foreground"><span>8th+</span><span className="font-medium text-foreground">{DEFAULT_POINTS} pts</span></div>
                       </div>
                     </CollapsibleContent>
-                  </Collapsible>
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
+              </Collapsible>
             </div>
           </div>
         </div>
