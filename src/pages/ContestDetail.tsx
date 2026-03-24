@@ -52,6 +52,7 @@ interface ContestPool {
   current_entries: number;
   max_entries: number;
   contest_template_id: string;
+  allow_overflow?: boolean;
   entry_tiers: EntryTier[] | null;
   contest_templates: {
     id: string;
@@ -86,12 +87,14 @@ const ContestDetail = () => {
   const { user, loading: authLoading } = useAuth();
 
   const [contestPool, setContestPool] = useState<ContestPool | null>(null);
+  const [allTemplatePools, setAllTemplatePools] = useState<any[]>([]);
   const [poolLoading, setPoolLoading] = useState(true);
   const [poolError, setPoolError] = useState<string | null>(null);
   const [walletBalanceCents, setWalletBalanceCents] = useState<number | null>(null);
   const [crewPicks, setCrewPicks] = useState<Map<string, number>>(new Map());
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [scoringOpen, setScoringOpen] = useState(false);
+  const [prizePoolOpen, setPrizePoolOpen] = useState(false);
   const [selectedTier, setSelectedTier] = useState<EntryTier | null>(null);
 
   useEffect(() => {
@@ -106,7 +109,7 @@ const ContestDetail = () => {
         .from("contest_pools")
         .select(`
           id, lock_time, status, entry_fee_cents, prize_pool_cents, payout_structure,
-          current_entries, max_entries, contest_template_id, tier_name,
+          current_entries, max_entries, contest_template_id, tier_name, allow_overflow,
           contest_templates (id, regatta_name, gender_category, min_picks, max_picks),
           contest_pool_crews (id, crew_id, crew_name, event_id, logo_url)
         `)
@@ -116,32 +119,31 @@ const ContestDetail = () => {
         setPoolError("Contest not found.");
       } else {
         const pool = data as unknown as ContestPool;
-        // If this is a tiered contest, fetch all tier pools for the template
-        if (pool.contest_templates?.id) {
-          const { data: allPools } = await supabase
-            .from("contest_pools")
-            .select("id, tier_name, entry_fee_cents, payout_structure, current_entries, max_entries, status")
-            .eq("contest_template_id", pool.contest_template_id)
-            .in("status", ["open", "locked"]);
-          
-          const tierPools = (allPools || []).filter((p: any) => p.tier_name);
-          if (tierPools.length > 1) {
-            // Build entry_tiers from the separate tier pools
-            const tiers: EntryTier[] = [];
-            const seenTiers = new Set<string>();
-            for (const tp of tierPools) {
-              if (seenTiers.has(tp.tier_name)) continue;
-              seenTiers.add(tp.tier_name);
-              tiers.push({
-                name: tp.tier_name,
-                entry_fee_cents: tp.entry_fee_cents,
-                payout_structure: (tp.payout_structure as Record<string, number>) || {},
-              });
-            }
-            tiers.sort((a, b) => a.entry_fee_cents - b.entry_fee_cents);
-            // Inject synthesized entry_tiers into the pool object
-            (pool as any).entry_tiers = tiers;
+        // Fetch ALL pools for this template to find all tiers
+        const { data: allPools } = await supabase
+          .from("contest_pools")
+          .select("id, tier_name, entry_fee_cents, payout_structure, current_entries, max_entries, status, allow_overflow")
+          .eq("contest_template_id", pool.contest_template_id)
+          .order("entry_fee_cents", { ascending: true });
+
+        setAllTemplatePools(allPools || []);
+
+        const tierPools = (allPools || []).filter((p: any) => p.tier_name);
+        if (tierPools.length > 1) {
+          // Build entry_tiers from the separate tier pools
+          const tiers: EntryTier[] = [];
+          const seenTiers = new Set<string>();
+          for (const tp of tierPools) {
+            if (seenTiers.has(tp.tier_name)) continue;
+            seenTiers.add(tp.tier_name);
+            tiers.push({
+              name: tp.tier_name,
+              entry_fee_cents: tp.entry_fee_cents,
+              payout_structure: (tp.payout_structure as Record<string, number>) || {},
+            });
           }
+          tiers.sort((a, b) => a.entry_fee_cents - b.entry_fee_cents);
+          (pool as any).entry_tiers = tiers;
         }
         setContestPool(pool);
       }
@@ -179,7 +181,7 @@ const ContestDetail = () => {
   const isOpen = contestPool?.status === "open" && new Date(contestPool.lock_time) > new Date();
 
   const entryTiers = contestPool?.entry_tiers as EntryTier[] | null;
-  const hasTiers = entryTiers && entryTiers.length > 0;
+  const hasTiers = !!(entryTiers && entryTiers.length > 1);
   const activeEntryFee = hasTiers && selectedTier ? selectedTier.entry_fee_cents : contestPool?.entry_fee_cents ?? 0;
 
   const payoutRows = useMemo(() => {
@@ -189,7 +191,38 @@ const ContestDetail = () => {
       .sort((a, b) => a.rank - b.rank);
   }, [contestPool]);
 
-  const firstPrize = payoutRows.length > 0 ? payoutRows[0].cents : contestPool?.prize_pool_cents ?? 0;
+  // Header stats — tiered-aware
+  const headerStats = useMemo(() => {
+    if (!contestPool) return { firstPrize: 0, entryFeeLabel: "", entriesLabel: "", isTiered: false };
+    if (hasTiers && entryTiers) {
+      const highestPrize = Math.max(...entryTiers.map(t => {
+        const ps = t.payout_structure || {};
+        return (ps as any)['1'] || 0;
+      }));
+      const lowestFee = Math.min(...entryTiers.map(t => t.entry_fee_cents));
+      const perTierMax = allTemplatePools[0]?.max_entries || contestPool.max_entries;
+      const hasOverflow = allTemplatePools.some((p: any) => p.allow_overflow);
+      const contestType = perTierMax === 2 ? 'Head to Head' : `${perTierMax} Player Pool`;
+      return {
+        firstPrize: highestPrize,
+        firstPrizePrefix: "Up to ",
+        entryFeeLabel: `From ${formatCents(lowestFee)}`,
+        entriesLabel: hasOverflow ? contestType : `${contestPool.current_entries}/${contestPool.max_entries}`,
+        entriesSublabel: hasOverflow ? "Type" : "Entries",
+        isTiered: true,
+      };
+    }
+    const firstPrize = payoutRows.length > 0 ? payoutRows[0].cents : contestPool.prize_pool_cents ?? 0;
+    return {
+      firstPrize,
+      firstPrizePrefix: "",
+      entryFeeLabel: formatCents(contestPool.entry_fee_cents),
+      entriesLabel: `${contestPool.current_entries}/${contestPool.max_entries}`,
+      entriesSublabel: "Entries",
+      isTiered: false,
+    };
+  }, [contestPool, hasTiers, entryTiers, payoutRows, allTemplatePools]);
+
   const totalPrize = payoutRows.length > 0
     ? payoutRows.reduce((sum, r) => sum + r.cents, 0)
     : contestPool?.prize_pool_cents ?? 0;
@@ -219,14 +252,10 @@ const ContestDetail = () => {
 
     setCrewPicks((prev) => {
       const newPicks = new Map(prev);
-
-      // Already selected — toggle off
       if (newPicks.has(crewId)) {
         newPicks.delete(crewId);
         return newPicks;
       }
-
-      // Check if another crew from the same event is selected — swap it
       const existingFromSameEvent = contestPool?.contest_pool_crews.find(
         (c) => c.event_id === clickedCrew.event_id && newPicks.has(c.crew_id)
       );
@@ -236,8 +265,6 @@ const ContestDetail = () => {
         newPicks.set(crewId, oldMargin);
         return newPicks;
       }
-
-      // No crew from this event yet — add if under max
       if (newPicks.size >= maxPicks) { toast.error(`Maximum ${maxPicks} picks allowed`); return prev; }
       newPicks.set(crewId, 0);
       return newPicks;
@@ -370,20 +397,24 @@ const ContestDetail = () => {
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             <div className="rounded-xl bg-primary-foreground/10 backdrop-blur-sm border border-primary-foreground/10 p-3 lg:p-4">
               <div className="flex items-center gap-2 mb-1"><Trophy className="h-4 w-4 text-gold" /><span className="text-xs text-primary-foreground/60 font-medium">1st Prize</span></div>
-              <p className="font-heading text-xl lg:text-2xl font-bold text-gold">{formatCents(firstPrize)}</p>
+              <p className="font-heading text-xl lg:text-2xl font-bold text-gold">
+                {headerStats.firstPricePrefix || ""}{formatCents(headerStats.firstPrize)}
+              </p>
             </div>
             <div className="rounded-xl bg-primary-foreground/10 backdrop-blur-sm border border-primary-foreground/10 p-3 lg:p-4">
               <div className="flex items-center gap-2 mb-1"><Zap className="h-4 w-4 text-accent" /><span className="text-xs text-primary-foreground/60 font-medium">Entry Fee</span></div>
-              <p className="font-heading text-xl lg:text-2xl font-bold">{formatCents(contestPool.entry_fee_cents)}</p>
+              <p className="font-heading text-xl lg:text-2xl font-bold">{headerStats.entryFeeLabel}</p>
             </div>
             <div className="rounded-xl bg-primary-foreground/10 backdrop-blur-sm border border-primary-foreground/10 p-3 lg:p-4">
               <div className="flex items-center gap-2 mb-1"><Clock className="h-4 w-4 text-primary-foreground/60" /><span className="text-xs text-primary-foreground/60 font-medium">Locks</span></div>
               <p className="font-heading text-lg lg:text-xl font-bold">{formattedLockTime}</p>
             </div>
             <div className="rounded-xl bg-primary-foreground/10 backdrop-blur-sm border border-primary-foreground/10 p-3 lg:p-4">
-              <div className="flex items-center gap-2 mb-1"><Users className="h-4 w-4 text-primary-foreground/60" /><span className="text-xs text-primary-foreground/60 font-medium">Entries</span></div>
-              <p className="font-heading text-xl lg:text-2xl font-bold mb-1.5">{contestPool.current_entries}/{contestPool.max_entries}</p>
-              <div className="h-1 w-full rounded-full bg-primary-foreground/10 overflow-hidden"><div className="h-full rounded-full bg-accent transition-all" style={{ width: `${fillPercent}%` }} /></div>
+              <div className="flex items-center gap-2 mb-1"><Users className="h-4 w-4 text-primary-foreground/60" /><span className="text-xs text-primary-foreground/60 font-medium">{headerStats.entriesSublabel || "Entries"}</span></div>
+              <p className="font-heading text-xl lg:text-2xl font-bold mb-1.5">{headerStats.entriesLabel}</p>
+              {!headerStats.isTiered && (
+                <div className="h-1 w-full rounded-full bg-primary-foreground/10 overflow-hidden"><div className="h-full rounded-full bg-accent transition-all" style={{ width: `${fillPercent}%` }} /></div>
+              )}
             </div>
           </div>
         </div>
@@ -446,7 +477,7 @@ const ContestDetail = () => {
 
             {/* ── RIGHT: Sidebar ── */}
             <div className="w-full lg:w-[340px] xl:w-[380px] flex-shrink-0 space-y-4 lg:sticky lg:top-4 lg:self-start">
-              {/* Your Draft — always first */}
+              {/* 1. Your Draft — always first */}
               <Card className="rounded-xl bg-white/95 backdrop-blur-sm shadow-xl border-2 border-accent/30">
                 <CardContent className="p-4">
                   <h3 className="font-heading text-sm font-bold flex items-center gap-2 mb-3">
@@ -500,7 +531,65 @@ const ContestDetail = () => {
                 </CardContent>
               </Card>
 
-              {/* Scoring — Collapsible */}
+              {/* 2. Prize Pool — Collapsible */}
+              <Collapsible open={prizePoolOpen} onOpenChange={setPrizePoolOpen}>
+                <Card className="rounded-xl bg-white/95 backdrop-blur-sm shadow-xl border border-white/10">
+                  <CardContent className="p-4">
+                    <CollapsibleTrigger className="flex items-center justify-between w-full">
+                      <h3 className="font-heading text-sm font-bold flex items-center gap-2">
+                        <Trophy className="h-4 w-4 text-gold" />Prize Pool
+                      </h3>
+                      <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${prizePoolOpen ? "rotate-180" : ""}`} />
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <div className="mt-3">
+                        {hasTiers && entryTiers ? (
+                          <div className="space-y-3">
+                            {entryTiers.map((tier) => {
+                              const tierPayoutRows = Object.entries(tier.payout_structure)
+                                .map(([rank, cents]) => ({ rank: Number(rank), cents }))
+                                .sort((a, b) => a.rank - b.rank);
+                              const accentClass = TIER_ACCENT[tier.name] || "border-l-accent bg-accent/5";
+                              return (
+                                <div key={tier.name} className={`border-l-4 rounded-r-lg pl-3 py-2 ${accentClass}`}>
+                                  <p className="text-xs font-semibold text-foreground mb-1">
+                                    {tier.name} <span className="text-muted-foreground font-normal">({formatCents(tier.entry_fee_cents)} entry)</span>
+                                  </p>
+                                  <div className="space-y-0.5">
+                                    {tierPayoutRows.map((row) => (
+                                      <div key={row.rank} className="flex justify-between text-sm">
+                                        <span className={row.rank === 1 ? "font-semibold text-gold" : "text-muted-foreground"}>{ordinal(row.rank)}</span>
+                                        <span className={row.rank === 1 ? "font-bold text-gold" : "font-medium"}>{formatCents(row.cents)}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : payoutRows.length > 0 ? (
+                          <div className="space-y-1.5">
+                            {payoutRows.map(({ rank, cents }) => (
+                              <div key={rank} className="flex justify-between text-sm">
+                                <span className={rank === 1 ? "font-semibold text-gold" : "text-muted-foreground"}>{ordinal(rank)}</span>
+                                <span className={rank === 1 ? "font-bold text-gold" : "font-medium"}>{formatCents(cents)}</span>
+                              </div>
+                            ))}
+                            <div className="flex items-center justify-between mt-2 pt-2 border-t text-xs text-muted-foreground">
+                              <span>Total</span>
+                              <span className="font-semibold text-foreground">{formatCents(totalPrize)}</span>
+                            </div>
+                          </div>
+                        ) : (
+                          <p className="text-xs text-muted-foreground">No prize details available.</p>
+                        )}
+                      </div>
+                    </CollapsibleContent>
+                  </CardContent>
+                </Card>
+              </Collapsible>
+
+              {/* 3. Scoring — Collapsible */}
               <Collapsible open={scoringOpen} onOpenChange={setScoringOpen}>
                 <Card className="rounded-xl bg-white/95 backdrop-blur-sm shadow-xl border border-white/10">
                   <CardContent className="p-4">
@@ -528,29 +617,6 @@ const ContestDetail = () => {
                   </CardContent>
                 </Card>
               </Collapsible>
-
-              {/* Prize Pool — only for non-tiered contests */}
-              {!hasTiers && payoutRows.length > 0 && (
-                <Card className="rounded-xl bg-white/95 backdrop-blur-sm shadow-xl border border-white/10">
-                  <CardContent className="p-4">
-                    <h3 className="font-heading text-sm font-bold flex items-center gap-2 mb-3">
-                      <Trophy className="h-4 w-4 text-gold" />Prize Pool
-                    </h3>
-                    <div className="space-y-1.5">
-                      {payoutRows.map(({ rank, cents }) => (
-                        <div key={rank} className="flex justify-between text-sm">
-                          <span className={rank === 1 ? "font-semibold text-gold" : "text-muted-foreground"}>{ordinal(rank)}</span>
-                          <span className={rank === 1 ? "font-bold text-gold" : "font-medium"}>{formatCents(cents)}</span>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="flex items-center justify-between mt-2 pt-2 border-t text-xs text-muted-foreground">
-                      <span>Total</span>
-                      <span className="font-semibold text-foreground">{formatCents(totalPrize)}</span>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
             </div>
           </div>
         </div>
