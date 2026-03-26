@@ -201,6 +201,7 @@ const Lobby = () => {
           bannerUrl: primary.contest_templates?.banner_url || null,
           contestGroupId: primary.contest_templates?.contest_group_id || null,
           displayOrderInGroup: primary.contest_templates?.display_order_in_group || 0,
+          events: [...new Set(pools.flatMap(p => (p.contest_pool_crews || []).map(c => c.event_id)).filter(Boolean))],
         };
       });
 
