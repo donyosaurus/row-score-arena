@@ -90,7 +90,7 @@ export function CrewCard({
       {/* Layer 3 — Text & margin input */}
       <div
         className="absolute bottom-0 left-0 right-0 text-center"
-        style={{ padding: "10px 14px 16px" }}
+        style={{ padding: "10px 14px 12px" }}
       >
         <p className="font-bold text-xl text-slate-900 tracking-tight leading-tight">
           {crewName}
