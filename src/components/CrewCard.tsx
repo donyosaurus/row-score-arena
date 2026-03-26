@@ -72,7 +72,7 @@ export function CrewCard({
       <div
         className="absolute left-1/2 -translate-x-1/2 rounded-full bg-white flex items-center justify-center z-[5]"
         style={{
-          top: 55,
+          top: 65,
           width: 78,
           height: 78,
           border: "2.5px solid rgba(255,255,255,0.5)",
@@ -90,9 +90,9 @@ export function CrewCard({
       {/* Layer 3 — Text & margin input */}
       <div
         className="absolute bottom-0 left-0 right-0 text-center"
-        style={{ padding: "10px 14px 16px" }}
+        style={{ padding: "10px 14px 12px" }}
       >
-        <p className="font-semibold text-[15px] text-slate-900 tracking-tight leading-tight">
+        <p className="font-bold text-xl text-slate-900 tracking-tight leading-tight">
           {crewName}
         </p>
         <p
