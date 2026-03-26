@@ -302,6 +302,7 @@ const Lobby = () => {
                     userEntered={contest.userEntered}
                     entryTiers={contest.entryTiers}
                     bannerUrl={contest.bannerUrl}
+                    events={contest.events}
                   />
                 </div>
               ))}

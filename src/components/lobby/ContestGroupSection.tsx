@@ -107,6 +107,7 @@ export const ContestGroupSection = ({ title, description, contests }: Props) => 
               userEntered={c.userEntered}
               entryTiers={c.entryTiers}
               bannerUrl={c.bannerUrl}
+              events={c.events}
             />
           </div>
         ))}
