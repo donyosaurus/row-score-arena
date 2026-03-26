@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Users, DollarSign, Trophy, Shield, Download, Settings, Loader2, Plus, X, Upload, ImageIcon, Layers } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import { ContestGroupsManager } from "@/components/admin/ContestGroupsManager";
 import { LogoPicker } from "@/components/LogoPicker";
 import { Checkbox } from "@/components/ui/checkbox";
