@@ -63,6 +63,7 @@ interface MappedContest {
   bannerUrl: string | null;
   contestGroupId: string | null;
   displayOrderInGroup: number;
+  events: string[];
 }
 
 const Lobby = () => {
