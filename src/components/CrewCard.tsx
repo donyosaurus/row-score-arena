@@ -72,7 +72,7 @@ export function CrewCard({
       <div
         className="absolute left-1/2 -translate-x-1/2 rounded-full bg-white flex items-center justify-center z-[5]"
         style={{
-          top: 55,
+          top: 65,
           width: 78,
           height: 78,
           border: "2.5px solid rgba(255,255,255,0.5)",
