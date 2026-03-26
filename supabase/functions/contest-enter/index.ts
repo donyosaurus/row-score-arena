@@ -36,7 +36,7 @@ Deno.serve(async (req) => {
     );
 
     // Geolocation check - block restricted states
-    checkLocationEligibility(req);
+    await checkLocationEligibility(req, user.id);
 
     // Validate input with Zod schema - picks now include per-crew predicted margins
     const pickSchema = z.object({

@@ -32,7 +32,6 @@ const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
  * Supports: Vercel, Cloudflare, and custom headers
  */
 export function getUserState(req: Request): string | null {
-  // Try various geo headers in order of preference
   const stateCode = 
     req.headers.get('x-vercel-ip-country-region') ||
     req.headers.get('cf-region-code') ||
@@ -51,18 +50,52 @@ export function isStateBlocked(stateCode: string): boolean {
 
 /**
  * Strict location eligibility check - throws error if blocked
+ * Checks feature flag and admin bypass before enforcing geo restrictions.
  * Call this at the top of protected endpoints (contest-enter, wallet-deposit)
  */
-export function checkLocationEligibility(req: Request): { allowed: true; stateCode: string | null } {
+export async function checkLocationEligibility(
+  req: Request,
+  userId?: string
+): Promise<{ allowed: true; stateCode: string | null }> {
+  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+  // Check if geo restrictions are enabled via feature flag
+  const { data: flag } = await supabase
+    .from('feature_flags')
+    .select('value')
+    .eq('key', 'ipbase_enabled')
+    .single();
+
+  const geoEnabled = (flag?.value as any)?.enabled === true;
+
+  if (!geoEnabled) {
+    console.log('[geo-eligibility] Geofencing is disabled via feature flag');
+    return { allowed: true, stateCode: null };
+  }
+
+  // Check if user is an admin — admins always bypass geo restrictions
+  if (userId) {
+    const { data: adminRole } = await supabase
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', userId)
+      .eq('role', 'admin')
+      .maybeSingle();
+
+    if (adminRole) {
+      console.log('[geo-eligibility] Admin user detected, bypassing geo check');
+      return { allowed: true, stateCode: null };
+    }
+  }
+
+  // Proceed with normal geo check
   const stateCode = getUserState(req);
   
-  // Dev mode: If no header is present (localhost), allow access
   if (!stateCode) {
-    console.log('[geo-eligibility] No location header detected - allowing access (dev mode)');
+    console.log('[geo-eligibility] No location header detected - allowing access');
     return { allowed: true, stateCode: null };
   }
   
-  // Production check: Block if state is in blocked list
   if (isStateBlocked(stateCode)) {
     console.log('[geo-eligibility] Blocking access from restricted state:', stateCode);
     throw new Error(`Location Restricted: RowFantasy is not currently available in ${stateCode}.`);
@@ -109,6 +142,35 @@ export async function checkGeoEligibility(
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
   try {
+    // Check feature flag first
+    const { data: flag } = await supabase
+      .from('feature_flags')
+      .select('value')
+      .eq('key', 'ipbase_enabled')
+      .single();
+
+    const geoEnabled = (flag?.value as any)?.enabled === true;
+
+    if (!geoEnabled) {
+      console.log('[geo-eligibility] Geofencing is disabled via feature flag (legacy check)');
+      return { allowed: true, reason: 'Geofencing disabled' };
+    }
+
+    // Check admin bypass
+    if (userId) {
+      const { data: adminRole } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', userId)
+        .eq('role', 'admin')
+        .maybeSingle();
+
+      if (adminRole) {
+        console.log('[geo-eligibility] Admin user detected, bypassing geo check (legacy)');
+        return { allowed: true, reason: 'Admin bypass' };
+      }
+    }
+
     // Clean IP address
     const cleanIp = ipAddress.split(',')[0].trim();
     
@@ -127,7 +189,6 @@ export async function checkGeoEligibility(
 
     if (!response.ok) {
       console.error('[geo-eligibility] IPBase API error:', response.status);
-      // If API fails, allow access but log the issue
       await logGeoEvent(supabase, {
         userId,
         ipAddress: cleanIp,
@@ -150,7 +211,6 @@ export async function checkGeoEligibility(
     ipCache.set(cleanIp, { stateCode, timestamp: Date.now() });
     console.log('[geo-eligibility] State detected:', stateCode);
 
-    // Check state eligibility
     return await checkStateEligibility(supabase, stateCode, userId, cleanIp);
 
   } catch (error: any) {
@@ -172,7 +232,6 @@ async function checkStateEligibility(
   userId?: string,
   ipAddress?: string
 ): Promise<GeoEligibilityResult> {
-  // Check against blocked states list first
   if (isStateBlocked(stateCode)) {
     console.log('[geo-eligibility] State in blocked list:', stateCode);
     await logGeoEvent(supabase, {
@@ -190,7 +249,6 @@ async function checkStateEligibility(
     };
   }
 
-  // Fetch state regulation rules for additional info
   const { data: stateRule, error: stateError } = await supabase
     .from('state_regulation_rules')
     .select('*')
@@ -214,7 +272,6 @@ async function checkStateEligibility(
     };
   }
 
-  // Check if state is restricted or prohibited
   if (stateRule.status === 'restricted' || stateRule.status === 'prohibited') {
     console.log('[geo-eligibility] State blocked:', stateCode, stateRule.status);
     await logGeoEvent(supabase, {
@@ -233,7 +290,6 @@ async function checkStateEligibility(
     };
   }
 
-  // State is permitted or unregulated
   console.log('[geo-eligibility] State allowed:', stateCode, stateRule.status);
   await logGeoEvent(supabase, {
     userId,
