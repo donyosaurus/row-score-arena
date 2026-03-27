@@ -69,30 +69,42 @@ Deno.serve(async (req) => {
 
     const { data: siblingPools } = await supabaseAdmin
       .from("contest_pools")
-      .select("id, status")
+      .select("id, status, void_unfilled_on_settle, current_entries, max_entries")
       .eq("contest_template_id", pool.contest_template_id)
-      .eq("status", "scoring_completed");
+      .in("status", ["scoring_completed", "locked", "results_entered"]);
 
-    const poolsToSettle = siblingPools?.map((p) => p.id) || [poolId];
+    const poolsToProcess = siblingPools || [{ id: poolId, status: pool.status, void_unfilled_on_settle: pool.void_unfilled_on_settle, current_entries: pool.current_entries, max_entries: pool.max_entries }];
 
     let totalWinnersCount = 0;
+    let totalAutoVoided = 0;
+    let totalRefundedEntries = 0;
     const settlementDetails: any[] = [];
 
-    for (const currentPoolId of poolsToSettle) {
-      const result = await settlePool(supabaseAdmin, currentPoolId);
-      totalWinnersCount += result.winners;
-      settlementDetails.push({ poolId: currentPoolId, ...result });
+    for (const currentPool of poolsToProcess) {
+      const isFull = currentPool.current_entries >= currentPool.max_entries;
+      const shouldAutoVoid = currentPool.void_unfilled_on_settle && !isFull;
+
+      if (shouldAutoVoid) {
+        const result = await autoVoidPool(supabaseAdmin, currentPool.id, user.id, pool.contest_templates?.regatta_name);
+        totalAutoVoided++;
+        totalRefundedEntries += result.entriesRefunded;
+        settlementDetails.push({ poolId: currentPool.id, action: 'auto_voided', ...result });
+      } else if (currentPool.status === 'scoring_completed') {
+        const result = await settlePool(supabaseAdmin, currentPool.id);
+        totalWinnersCount += result.winners;
+        settlementDetails.push({ poolId: currentPool.id, action: 'settled', ...result });
+      }
     }
 
-    console.log("[settlement] Complete. Winners:", totalWinnersCount);
+    console.log("[settlement] Complete. Winners:", totalWinnersCount, "Auto-voided:", totalAutoVoided);
 
     try {
       await supabaseAdmin.from("compliance_audit_logs").insert({
         user_id: user.id,
         event_type: "contest_batch_settled",
         severity: "info",
-        description: `Settlement: ${pool.contest_templates?.regatta_name} — ${poolsToSettle.length} pool(s)`,
-        metadata: { pools_settled: poolsToSettle.length, winners: totalWinnersCount },
+        description: `Settlement: ${pool.contest_templates?.regatta_name} — ${poolsToProcess.length} pool(s)`,
+        metadata: { pools_settled: poolsToProcess.length - totalAutoVoided, pools_auto_voided: totalAutoVoided, winners: totalWinnersCount, entries_refunded: totalRefundedEntries },
       });
     } catch (logErr: any) {
       console.warn("[settlement] Compliance log failed (non-fatal):", logErr?.message);
@@ -100,7 +112,9 @@ Deno.serve(async (req) => {
 
     return new Response(JSON.stringify({
       success: true,
-      poolsSettled: poolsToSettle.length,
+      poolsSettled: poolsToProcess.length - totalAutoVoided,
+      poolsAutoVoided: totalAutoVoided,
+      entriesRefunded: totalRefundedEntries,
       winnersCount: totalWinnersCount,
       details: settlementDetails,
     }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
@@ -246,7 +260,89 @@ async function settlePool(supabaseAdmin: any, contestPoolId: string): Promise<{ 
       console.error("[settlePool] Wallet RPC error:", walletUpdateError.message);
     } else {
       console.log("[settlePool] Paid", winner.payoutCents, "cents to", winner.userId, winner.isTieRefund ? "(tie refund)" : "(payout)");
+}
+
+async function autoVoidPool(supabaseAdmin: any, contestPoolId: string, adminId: string, regattaName?: string): Promise<{ entriesRefunded: number; refundTotalCents: number }> {
+  console.log("[autoVoidPool] Auto-voiding unfilled pool:", contestPoolId);
+
+  const { data: pool } = await supabaseAdmin
+    .from("contest_pools")
+    .select("*, contest_templates(*)")
+    .eq("id", contestPoolId)
+    .single();
+
+  if (!pool) return { entriesRefunded: 0, refundTotalCents: 0 };
+
+  const { data: entries } = await supabaseAdmin
+    .from("contest_entries")
+    .select("*")
+    .eq("pool_id", contestPoolId)
+    .eq("status", "active");
+
+  let refundTotalCents = 0;
+
+  for (const entry of (entries || [])) {
+    const { data: wallet } = await supabaseAdmin
+      .from("wallets")
+      .select("id")
+      .eq("user_id", entry.user_id)
+      .single();
+
+    if (wallet) {
+      await supabaseAdmin.rpc("update_wallet_balance", {
+        _wallet_id: wallet.id,
+        _available_delta: entry.entry_fee_cents,
+        _pending_delta: 0,
+      });
+
+      await supabaseAdmin.from("transactions").insert({
+        user_id: entry.user_id,
+        wallet_id: wallet.id,
+        type: "refund",
+        amount: entry.entry_fee_cents / 100,
+        status: "completed",
+        completed_at: new Date().toISOString(),
+        description: `Contest entry refund - pool did not fill (${pool.current_entries}/${pool.max_entries})`,
+        reference_id: entry.id,
+        reference_type: "contest_entry",
+        metadata: { contest_pool_id: contestPoolId, reason: "auto_void_unfilled" },
+      });
+
+      refundTotalCents += entry.entry_fee_cents;
     }
+
+    await supabaseAdmin
+      .from("contest_entries")
+      .update({ status: "voided", updated_at: new Date().toISOString() })
+      .eq("id", entry.id);
+  }
+
+  await supabaseAdmin
+    .from("contest_pools")
+    .update({ status: "voided" })
+    .eq("id", contestPoolId);
+
+  try {
+    await supabaseAdmin.from("compliance_audit_logs").insert({
+      event_type: "pool_auto_voided",
+      admin_id: adminId,
+      severity: "info",
+      description: `Pool auto-voided: ${pool.current_entries}/${pool.max_entries} entries filled. ${entries?.length || 0} entries refunded.`,
+      metadata: {
+        contest_pool_id: contestPoolId,
+        contest_template_id: pool.contest_template_id,
+        tier_name: pool.tier_name,
+        entries_refunded: entries?.length || 0,
+        refund_total_cents: refundTotalCents,
+      },
+    });
+  } catch (e: any) {
+    console.warn("[autoVoidPool] Compliance log failed:", e?.message);
+  }
+
+  console.log("[autoVoidPool] Done:", contestPoolId, "refunded:", entries?.length || 0, "entries");
+  return { entriesRefunded: entries?.length || 0, refundTotalCents };
+}
   }
 
   for (const score of scores) {

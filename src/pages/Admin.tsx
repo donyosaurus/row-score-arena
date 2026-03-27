@@ -61,6 +61,7 @@ interface CreateContestForm {
   crews: NewCrew[];
   prizes: PrizeTier[];
   allowOverflow: boolean;
+  voidUnfilledOnSettle: boolean;
   multiTier: boolean;
   entryTiers: EntryTierForm[];
   bannerUrl: string;
@@ -119,6 +120,7 @@ const Admin = () => {
     crews: [],
     prizes: [{ rank: 1, amount: "" }],
     allowOverflow: false,
+    voidUnfilledOnSettle: false,
     multiTier: false,
     entryTiers: [
       { name: "Bronze", entryFee: "", prizes: [{ rank: 1, amount: "" }] },
@@ -202,7 +204,11 @@ const Admin = () => {
       toast.success(`Scored ${scoringData?.poolsScored || 1} pool(s). Settling payouts...`);
       const { data: settleData, error: settleError } = await supabase.functions.invoke("contest-settlement", { body: { contestPoolId: selectedContest.id } });
       if (settleError) throw new Error(`Settlement failed: ${settleError.message}`);
-      toast.success(`Done! ${settleData?.winnersCount || 0} winner(s) paid out across all pools.`);
+      let settleMsg = `Done! ${settleData?.winnersCount || 0} winner(s) paid out.`;
+      if (settleData?.poolsAutoVoided > 0) {
+        settleMsg += ` ${settleData.poolsAutoVoided} unfilled pool(s) auto-voided, ${settleData.entriesRefunded || 0} entry fee(s) refunded.`;
+      }
+      toast.success(settleMsg);
       setResultsModalOpen(false);
       setSelectedContest(null);
       loadDashboardData();
@@ -214,7 +220,11 @@ const Admin = () => {
     try {
       const { data, error } = await supabase.functions.invoke("contest-settlement", { body: { contestPoolId } });
       if (error) throw error;
-      toast.success(`Payouts settled! ${data?.winnersCount || 0} winner(s) paid`);
+      let msg = `Payouts settled! ${data?.winnersCount || 0} winner(s) paid.`;
+      if (data?.poolsAutoVoided > 0) {
+        msg += ` ${data.poolsAutoVoided} unfilled pool(s) auto-voided, ${data.entriesRefunded || 0} refunded.`;
+      }
+      toast.success(msg);
       loadDashboardData();
     } catch (error: any) { console.error("Error settling payouts:", error); toast.error(error.message || "Failed to settle payouts"); } finally { setSettlingPoolId(null); }
   };
@@ -321,7 +331,7 @@ const Admin = () => {
   const resetCreateForm = () => {
     setCreateForm({
       regattaName: "", genderCategory: "Men's", entryFee: "", maxEntries: "", lockTime: "",
-      crews: [], prizes: [{ rank: 1, amount: "" }], allowOverflow: false,
+      crews: [], prizes: [{ rank: 1, amount: "" }], allowOverflow: false, voidUnfilledOnSettle: false,
       multiTier: false,
       entryTiers: [
         { name: "Bronze", entryFee: "", prizes: [{ rank: 1, amount: "" }] },
@@ -503,6 +513,7 @@ const Admin = () => {
           entryTiers: entryTiersPayload,
           bannerUrl: createForm.bannerUrl.trim() || null,
           contestGroupId: (createForm.contestGroupId && createForm.contestGroupId !== "none") ? createForm.contestGroupId : null,
+          voidUnfilledOnSettle: createForm.allowOverflow ? createForm.voidUnfilledOnSettle : false,
         }
       });
       if (error) throw error;
@@ -695,6 +706,9 @@ const Admin = () => {
                                       <span>·</span>
                                       <Badge variant="outline" className="text-[10px] h-5">{pool.status}</Badge>
                                       {idx > 0 && <span className="text-muted-foreground/60">(overflow)</span>}
+                                      {pool.void_unfilled_on_settle && pool.current_entries < pool.max_entries && pool.status !== 'voided' && pool.status !== 'settled' && (
+                                        <Badge variant="outline" className="text-[10px] h-5 border-amber-400 text-amber-600">⚠ Auto-void</Badge>
+                                      )}
                                     </div>
                                   ))}
                                 </div>
@@ -933,12 +947,21 @@ const Admin = () => {
               </div>
             </div>
             <div className="flex items-start space-x-3">
-              <Checkbox id="allowOverflow" checked={createForm.allowOverflow} onCheckedChange={(checked) => setCreateForm(prev => ({ ...prev, allowOverflow: checked === true }))} />
+              <Checkbox id="allowOverflow" checked={createForm.allowOverflow} onCheckedChange={(checked) => setCreateForm(prev => ({ ...prev, allowOverflow: checked === true, voidUnfilledOnSettle: checked === true ? prev.voidUnfilledOnSettle : false }))} />
               <div className="grid gap-1.5 leading-none">
                 <Label htmlFor="allowOverflow" className="text-sm font-medium cursor-pointer">Enable Auto-Pooling</Label>
                 <p className="text-xs text-muted-foreground">Automatically create a new pool when this one fills up.</p>
               </div>
             </div>
+            {createForm.allowOverflow && (
+              <div className="flex items-start space-x-3 ml-6 mt-2">
+                <Checkbox id="voidUnfilled" checked={createForm.voidUnfilledOnSettle} onCheckedChange={(checked) => setCreateForm(prev => ({ ...prev, voidUnfilledOnSettle: checked === true }))} />
+                <div className="grid gap-1.5 leading-none">
+                  <Label htmlFor="voidUnfilled" className="text-sm font-medium cursor-pointer">Auto-void unfilled pools on settlement</Label>
+                  <p className="text-xs text-muted-foreground">Pools that don't completely fill will be voided and entry fees refunded when the contest is settled.</p>
+                </div>
+              </div>
+            )}
 
             {/* Multi-Tier Toggle */}
             <div className="flex items-start space-x-3 border-t pt-4">

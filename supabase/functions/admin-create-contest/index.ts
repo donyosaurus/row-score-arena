@@ -27,6 +27,7 @@ interface CreateContestRequest {
   entryTiers?: EntryTierInput[] | null;
   bannerUrl?: string | null;
   contestGroupId?: string | null;
+  voidUnfilledOnSettle?: boolean;
 }
 
 const VALID_GENDER_CATEGORIES = ["Men's", "Women's", "Mixed"];
@@ -105,6 +106,7 @@ Deno.serve(async (req) => {
       p_entry_tiers: body.entryTiers ?? null,
       p_banner_url: body.bannerUrl ?? null,
       p_contest_group_id: body.contestGroupId ?? null,
+      p_void_unfilled_on_settle: body.voidUnfilledOnSettle ?? false,
     };
 
     const { data, error } = await supabaseAdmin.rpc('admin_create_contest', rpcParams);

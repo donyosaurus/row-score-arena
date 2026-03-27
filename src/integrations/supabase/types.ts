@@ -357,6 +357,7 @@ export type Database = {
           status: string
           tier_id: string
           tier_name: string | null
+          void_unfilled_on_settle: boolean
           winner_ids: string[] | null
         }
         Insert: {
@@ -376,6 +377,7 @@ export type Database = {
           status?: string
           tier_id: string
           tier_name?: string | null
+          void_unfilled_on_settle?: boolean
           winner_ids?: string[] | null
         }
         Update: {
@@ -395,6 +397,7 @@ export type Database = {
           status?: string
           tier_id?: string
           tier_name?: string | null
+          void_unfilled_on_settle?: boolean
           winner_ids?: string[] | null
         }
         Relationships: [
@@ -1437,6 +1440,23 @@ export type Database = {
               p_max_entries: number
               p_payout_structure?: Json
               p_regatta_name: string
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_allow_overflow?: boolean
+              p_banner_url?: string
+              p_contest_group_id?: string
+              p_crews: Json
+              p_entry_fee_cents: number
+              p_entry_tiers?: Json
+              p_gender_category: string
+              p_lock_time: string
+              p_max_entries: number
+              p_payout_structure?: Json
+              p_regatta_name: string
+              p_void_unfilled_on_settle?: boolean
             }
             Returns: Json
           }
