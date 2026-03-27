@@ -69,30 +69,42 @@ Deno.serve(async (req) => {
 
     const { data: siblingPools } = await supabaseAdmin
       .from("contest_pools")
-      .select("id, status")
+      .select("id, status, void_unfilled_on_settle, current_entries, max_entries")
       .eq("contest_template_id", pool.contest_template_id)
-      .eq("status", "scoring_completed");
+      .in("status", ["scoring_completed", "locked", "results_entered"]);
 
-    const poolsToSettle = siblingPools?.map((p) => p.id) || [poolId];
+    const poolsToProcess = siblingPools || [{ id: poolId, status: pool.status, void_unfilled_on_settle: pool.void_unfilled_on_settle, current_entries: pool.current_entries, max_entries: pool.max_entries }];
 
     let totalWinnersCount = 0;
+    let totalAutoVoided = 0;
+    let totalRefundedEntries = 0;
     const settlementDetails: any[] = [];
 
-    for (const currentPoolId of poolsToSettle) {
-      const result = await settlePool(supabaseAdmin, currentPoolId);
-      totalWinnersCount += result.winners;
-      settlementDetails.push({ poolId: currentPoolId, ...result });
+    for (const currentPool of poolsToProcess) {
+      const isFull = currentPool.current_entries >= currentPool.max_entries;
+      const shouldAutoVoid = currentPool.void_unfilled_on_settle && !isFull;
+
+      if (shouldAutoVoid) {
+        const result = await autoVoidPool(supabaseAdmin, currentPool.id, user.id, pool.contest_templates?.regatta_name);
+        totalAutoVoided++;
+        totalRefundedEntries += result.entriesRefunded;
+        settlementDetails.push({ poolId: currentPool.id, action: 'auto_voided', ...result });
+      } else if (currentPool.status === 'scoring_completed') {
+        const result = await settlePool(supabaseAdmin, currentPool.id);
+        totalWinnersCount += result.winners;
+        settlementDetails.push({ poolId: currentPool.id, action: 'settled', ...result });
+      }
     }
 
-    console.log("[settlement] Complete. Winners:", totalWinnersCount);
+    console.log("[settlement] Complete. Winners:", totalWinnersCount, "Auto-voided:", totalAutoVoided);
 
     try {
       await supabaseAdmin.from("compliance_audit_logs").insert({
         user_id: user.id,
         event_type: "contest_batch_settled",
         severity: "info",
-        description: `Settlement: ${pool.contest_templates?.regatta_name} — ${poolsToSettle.length} pool(s)`,
-        metadata: { pools_settled: poolsToSettle.length, winners: totalWinnersCount },
+        description: `Settlement: ${pool.contest_templates?.regatta_name} — ${poolsToProcess.length} pool(s)`,
+        metadata: { pools_settled: poolsToProcess.length - totalAutoVoided, pools_auto_voided: totalAutoVoided, winners: totalWinnersCount, entries_refunded: totalRefundedEntries },
       });
     } catch (logErr: any) {
       console.warn("[settlement] Compliance log failed (non-fatal):", logErr?.message);
@@ -100,7 +112,9 @@ Deno.serve(async (req) => {
 
     return new Response(JSON.stringify({
       success: true,
-      poolsSettled: poolsToSettle.length,
+      poolsSettled: poolsToProcess.length - totalAutoVoided,
+      poolsAutoVoided: totalAutoVoided,
+      entriesRefunded: totalRefundedEntries,
       winnersCount: totalWinnersCount,
       details: settlementDetails,
     }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
