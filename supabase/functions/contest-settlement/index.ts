@@ -67,19 +67,23 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Fetch ALL sibling pools across ALL tiers for this template
     const { data: siblingPools } = await supabaseAdmin
       .from("contest_pools")
-      .select("id, status, void_unfilled_on_settle, current_entries, max_entries")
+      .select("id, status, void_unfilled_on_settle, current_entries, max_entries, tier_name, entry_fee_cents")
       .eq("contest_template_id", pool.contest_template_id)
       .in("status", ["scoring_completed", "locked", "results_entered"]);
 
-    const poolsToProcess = siblingPools || [{ id: poolId, status: pool.status, void_unfilled_on_settle: pool.void_unfilled_on_settle, current_entries: pool.current_entries, max_entries: pool.max_entries }];
+    const poolsToProcess = siblingPools && siblingPools.length > 0
+      ? siblingPools
+      : [{ id: poolId, status: pool.status, void_unfilled_on_settle: pool.void_unfilled_on_settle, current_entries: pool.current_entries, max_entries: pool.max_entries, tier_name: pool.tier_name, entry_fee_cents: pool.entry_fee_cents }];
 
     let totalWinnersCount = 0;
     let totalAutoVoided = 0;
     let totalRefundedEntries = 0;
     const settlementDetails: any[] = [];
 
+    // Process each pool individually — no grouping by tier for this decision
     for (const currentPool of poolsToProcess) {
       const isFull = currentPool.current_entries >= currentPool.max_entries;
       const shouldAutoVoid = currentPool.void_unfilled_on_settle && !isFull;
@@ -88,11 +92,27 @@ Deno.serve(async (req) => {
         const result = await autoVoidPool(supabaseAdmin, currentPool.id, user.id, pool.contest_templates?.regatta_name);
         totalAutoVoided++;
         totalRefundedEntries += result.entriesRefunded;
-        settlementDetails.push({ poolId: currentPool.id, action: 'auto_voided', ...result });
+        settlementDetails.push({
+          poolId: currentPool.id,
+          action: 'auto_voided',
+          tierName: currentPool.tier_name,
+          entryFeeCents: currentPool.entry_fee_cents,
+          currentEntries: currentPool.current_entries,
+          maxEntries: currentPool.max_entries,
+          ...result,
+        });
       } else if (currentPool.status === 'scoring_completed') {
         const result = await settlePool(supabaseAdmin, currentPool.id);
         totalWinnersCount += result.winners;
-        settlementDetails.push({ poolId: currentPool.id, action: 'settled', ...result });
+        settlementDetails.push({
+          poolId: currentPool.id,
+          action: 'settled',
+          tierName: currentPool.tier_name,
+          entryFeeCents: currentPool.entry_fee_cents,
+          currentEntries: currentPool.current_entries,
+          maxEntries: currentPool.max_entries,
+          ...result,
+        });
       }
     }
 
@@ -260,6 +280,17 @@ async function settlePool(supabaseAdmin: any, contestPoolId: string): Promise<{ 
       console.error("[settlePool] Wallet RPC error:", walletUpdateError.message);
     } else {
       console.log("[settlePool] Paid", winner.payoutCents, "cents to", winner.userId, winner.isTieRefund ? "(tie refund)" : "(payout)");
+    }
+  }
+
+  for (const score of scores) {
+    await supabaseAdmin.from("contest_entries").update({ status: "settled" }).eq("id", score.entry_id);
+  }
+
+  await supabaseAdmin.from("contest_pools").update({ status: "settled" }).eq("id", contestPoolId);
+
+  console.log("[settlePool] Done:", contestPoolId, "payments:", winners.length);
+  return { winners: winners.length, detail: isTieRefund ? "tie_refund" : "ok" };
 }
 
 async function autoVoidPool(supabaseAdmin: any, contestPoolId: string, adminId: string, regattaName?: string): Promise<{ entriesRefunded: number; refundTotalCents: number }> {
@@ -342,15 +373,4 @@ async function autoVoidPool(supabaseAdmin: any, contestPoolId: string, adminId: 
 
   console.log("[autoVoidPool] Done:", contestPoolId, "refunded:", entries?.length || 0, "entries");
   return { entriesRefunded: entries?.length || 0, refundTotalCents };
-}
-  }
-
-  for (const score of scores) {
-    await supabaseAdmin.from("contest_entries").update({ status: "settled" }).eq("id", score.entry_id);
-  }
-
-  await supabaseAdmin.from("contest_pools").update({ status: "settled" }).eq("id", contestPoolId);
-
-  console.log("[settlePool] Done:", contestPoolId, "payments:", winners.length);
-  return { winners: winners.length, detail: isTieRefund ? "tie_refund" : "ok" };
 }
