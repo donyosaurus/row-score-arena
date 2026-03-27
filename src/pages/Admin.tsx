@@ -120,6 +120,7 @@ const Admin = () => {
     crews: [],
     prizes: [{ rank: 1, amount: "" }],
     allowOverflow: false,
+    voidUnfilledOnSettle: false,
     multiTier: false,
     entryTiers: [
       { name: "Bronze", entryFee: "", prizes: [{ rank: 1, amount: "" }] },
