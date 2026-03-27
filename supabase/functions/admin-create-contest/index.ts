@@ -27,6 +27,7 @@ interface CreateContestRequest {
   entryTiers?: EntryTierInput[] | null;
   bannerUrl?: string | null;
   contestGroupId?: string | null;
+  voidUnfilledOnSettle?: boolean;
 }
 
 const VALID_GENDER_CATEGORIES = ["Men's", "Women's", "Mixed"];
