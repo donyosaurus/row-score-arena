@@ -731,17 +731,22 @@ const Admin = () => {
                                     )}
                                     {tier.overallStatus === 'voided' && <span className="text-xs text-destructive">Voided</span>}
                                   </div>
-                                  {tier.pools.map((pool: any, idx: number) => (
-                                    <div key={pool.id} className="text-xs text-muted-foreground flex items-center gap-2">
-                                      <span>Pool {idx + 1}: {pool.current_entries}/{pool.max_entries} entries</span>
-                                      <span>·</span>
-                                      <Badge variant="outline" className="text-[10px] h-5">{pool.status}</Badge>
-                                      {idx > 0 && <span className="text-muted-foreground/60">(overflow)</span>}
-                                      {pool.void_unfilled_on_settle && pool.current_entries < pool.max_entries && pool.status !== 'voided' && pool.status !== 'settled' && (
-                                        <Badge variant="outline" className="text-[10px] h-5 border-amber-400 text-amber-600">⚠ Auto-void</Badge>
-                                      )}
-                                    </div>
-                                  ))}
+                                  {tier.pools.map((pool: any, idx: number) => {
+                                    const isAutoVoided = pool.status === 'voided' && pool.void_unfilled_on_settle && pool.current_entries < pool.max_entries;
+                                    return (
+                                      <div key={pool.id} className="text-xs text-muted-foreground flex items-center gap-2">
+                                        <span>Pool {idx + 1}: {pool.current_entries}/{pool.max_entries} entries</span>
+                                        <span>·</span>
+                                        <Badge variant="outline" className="text-[10px] h-5">
+                                          {isAutoVoided ? 'Voided (unfilled)' : pool.status}
+                                        </Badge>
+                                        {idx > 0 && <span className="text-muted-foreground/60">(overflow)</span>}
+                                        {pool.void_unfilled_on_settle && pool.current_entries < pool.max_entries && pool.status !== 'voided' && pool.status !== 'settled' && (
+                                          <Badge variant="outline" className="text-[10px] h-5 border-amber-400 text-amber-600">⚠ Auto-void</Badge>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
                                 </div>
                               ))}
                             </div>
