@@ -323,7 +323,7 @@ const Admin = () => {
   const resetCreateForm = () => {
     setCreateForm({
       regattaName: "", genderCategory: "Men's", entryFee: "", maxEntries: "", lockTime: "",
-      crews: [], prizes: [{ rank: 1, amount: "" }], allowOverflow: false,
+      crews: [], prizes: [{ rank: 1, amount: "" }], allowOverflow: false, voidUnfilledOnSettle: false,
       multiTier: false,
       entryTiers: [
         { name: "Bronze", entryFee: "", prizes: [{ rank: 1, amount: "" }] },
