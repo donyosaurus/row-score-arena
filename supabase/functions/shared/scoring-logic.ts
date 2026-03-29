@@ -312,7 +312,6 @@ export async function scoreContestPool(
       {
         entry_id: score.entry_id,
         pool_id: contestPoolId,
-        instance_id: null,
         user_id: score.user_id,
         total_points: score.total_points,
         margin_bonus: score.margin_error, // store margin_error in margin_bonus field
