@@ -1,6 +1,7 @@
 // Contest Settlement & Payout Engine - Admin-only
 // Supports Auto-Pooling: Settles all sibling pools for a contest in one operation
 // Each tier is its own pool — no tiered branching needed within a single pool.
+// Includes: H2H tie refund logic, auto-void unfilled pools, per-pool settlement
 
 import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.76.1';
 import { z } from 'https://deno.land/x/zod@v3.22.4/mod.ts';
@@ -18,7 +19,10 @@ interface ContestPool {
   payout_structure: PayoutStructure | null;
   entry_fee_cents: number;
   current_entries: number;
+  max_entries: number;
   tier_id: string;
+  tier_name: string | null;
+  void_unfilled_on_settle: boolean;
 }
 
 interface ContestEntry {
@@ -35,12 +39,16 @@ interface ContestScore {
   user_id: string;
   rank: number | null;
   total_points: number;
+  margin_bonus: number;
   payout_cents: number | null;
 }
 
 interface PoolSettlementResult {
   poolId: string;
   success: boolean;
+  action: 'settled' | 'auto_voided' | 'error' | 'already_settled';
+  tierName?: string | null;
+  entryFeeCents?: number;
   collectedRevenueCents: number;
   totalPayoutCents: number;
   adminProfitCents: number;
@@ -48,11 +56,114 @@ interface PoolSettlementResult {
   winnersCount: number;
   nonWinnersSettled: number;
   failedPayouts: number;
+  entriesRefunded?: number;
+  refundTotalCents?: number;
   error?: string;
-  alreadySettled?: boolean;
+  detail?: string;
 }
 
-// ============ CORE SETTLEMENT LOGIC (per-pool, no tier branching) ============
+// ============ AUTO-VOID UNFILLED POOL ============
+
+async function autoVoidPool(
+  supabaseAdmin: SupabaseClient,
+  poolId: string,
+  adminId: string,
+  pool: ContestPool
+): Promise<PoolSettlementResult> {
+  console.log('[settle:autoVoid] Auto-voiding unfilled pool:', poolId);
+
+  const { data: entries } = await supabaseAdmin
+    .from('contest_entries')
+    .select('id, user_id, entry_fee_cents')
+    .eq('pool_id', poolId)
+    .eq('status', 'active');
+
+  let refundTotalCents = 0;
+  const entriesToRefund = entries || [];
+
+  for (const entry of entriesToRefund) {
+    const { data: wallet } = await supabaseAdmin
+      .from('wallets').select('id').eq('user_id', entry.user_id).single();
+
+    if (wallet) {
+      await supabaseAdmin.rpc('update_wallet_balance', {
+        _wallet_id: wallet.id,
+        _available_delta: entry.entry_fee_cents,
+        _pending_delta: 0,
+      });
+
+      await supabaseAdmin.from('ledger_entries').insert({
+        user_id: entry.user_id,
+        transaction_type: 'ENTRY_FEE_REFUND',
+        amount: entry.entry_fee_cents,
+        description: `Contest entry refund - pool did not fill (${pool.current_entries}/${pool.max_entries})`,
+        reference_id: poolId,
+      });
+
+      await supabaseAdmin.from('transactions').insert({
+        user_id: entry.user_id,
+        wallet_id: wallet.id,
+        type: 'refund',
+        amount: entry.entry_fee_cents / 100,
+        status: 'completed',
+        completed_at: new Date().toISOString(),
+        description: `Contest entry refund - pool did not fill (${pool.current_entries}/${pool.max_entries})`,
+        reference_id: entry.id,
+        reference_type: 'contest_entry',
+        metadata: { contest_pool_id: poolId, reason: 'auto_void_unfilled' },
+      });
+
+      refundTotalCents += entry.entry_fee_cents;
+    }
+
+    await supabaseAdmin
+      .from('contest_entries')
+      .update({ status: 'voided', updated_at: new Date().toISOString() })
+      .eq('id', entry.id);
+  }
+
+  await supabaseAdmin
+    .from('contest_pools')
+    .update({ status: 'voided' })
+    .eq('id', poolId);
+
+  try {
+    await supabaseAdmin.from('compliance_audit_logs').insert({
+      admin_id: adminId,
+      event_type: 'pool_auto_voided',
+      severity: 'info',
+      description: `Pool auto-voided: ${pool.current_entries}/${pool.max_entries} entries filled. ${entriesToRefund.length} entries refunded.`,
+      metadata: {
+        contest_pool_id: poolId,
+        contest_template_id: pool.contest_template_id,
+        tier_name: pool.tier_name,
+        entries_refunded: entriesToRefund.length,
+        refund_total_cents: refundTotalCents,
+      },
+    });
+  } catch (e: unknown) {
+    console.warn('[settle:autoVoid] Compliance log failed:', e);
+  }
+
+  return {
+    poolId,
+    success: true,
+    action: 'auto_voided',
+    tierName: pool.tier_name,
+    entryFeeCents: pool.entry_fee_cents,
+    collectedRevenueCents: 0,
+    totalPayoutCents: 0,
+    adminProfitCents: 0,
+    totalEntries: pool.current_entries,
+    winnersCount: 0,
+    nonWinnersSettled: 0,
+    failedPayouts: 0,
+    entriesRefunded: entriesToRefund.length,
+    refundTotalCents,
+  };
+}
+
+// ============ CORE SETTLEMENT LOGIC (per-pool) ============
 
 async function processSinglePool(
   supabaseAdmin: SupabaseClient,
@@ -63,22 +174,28 @@ async function processSinglePool(
 
   const { data: poolData, error: poolError } = await supabaseAdmin
     .from('contest_pools')
-    .select('id, status, prize_pool_cents, contest_template_id, payout_structure, entry_fee_cents, current_entries')
+    .select('id, status, prize_pool_cents, contest_template_id, payout_structure, entry_fee_cents, current_entries, max_entries, tier_id, tier_name, void_unfilled_on_settle')
     .eq('id', poolId)
     .single();
 
   if (poolError || !poolData) {
-    return { poolId, success: false, collectedRevenueCents: 0, totalPayoutCents: 0, adminProfitCents: 0, totalEntries: 0, winnersCount: 0, nonWinnersSettled: 0, failedPayouts: 0, error: 'Contest pool not found' };
+    return { poolId, success: false, action: 'error', collectedRevenueCents: 0, totalPayoutCents: 0, adminProfitCents: 0, totalEntries: 0, winnersCount: 0, nonWinnersSettled: 0, failedPayouts: 0, error: 'Contest pool not found' };
   }
 
   const pool = poolData as ContestPool;
 
   if (pool.status === 'settled') {
-    return { poolId, success: true, collectedRevenueCents: pool.entry_fee_cents * pool.current_entries, totalPayoutCents: 0, adminProfitCents: 0, totalEntries: pool.current_entries, winnersCount: 0, nonWinnersSettled: 0, failedPayouts: 0, alreadySettled: true };
+    return { poolId, success: true, action: 'already_settled', tierName: pool.tier_name, entryFeeCents: pool.entry_fee_cents, collectedRevenueCents: pool.entry_fee_cents * pool.current_entries, totalPayoutCents: 0, adminProfitCents: 0, totalEntries: pool.current_entries, winnersCount: 0, nonWinnersSettled: 0, failedPayouts: 0 };
+  }
+
+  // Auto-void check: unfilled pool with void flag
+  const isFull = pool.current_entries >= pool.max_entries;
+  if (pool.void_unfilled_on_settle && !isFull) {
+    return await autoVoidPool(supabaseAdmin, poolId, adminId, pool);
   }
 
   if (pool.status !== 'scoring_completed') {
-    return { poolId, success: false, collectedRevenueCents: 0, totalPayoutCents: 0, adminProfitCents: 0, totalEntries: 0, winnersCount: 0, nonWinnersSettled: 0, failedPayouts: 0, error: `Cannot settle pool with status '${pool.status}'. Must be 'scoring_completed'.` };
+    return { poolId, success: false, action: 'error', collectedRevenueCents: 0, totalPayoutCents: 0, adminProfitCents: 0, totalEntries: 0, winnersCount: 0, nonWinnersSettled: 0, failedPayouts: 0, error: `Cannot settle pool with status '${pool.status}'. Must be 'scoring_completed'.` };
   }
 
   const { data: entriesData, error: entriesError } = await supabaseAdmin
@@ -87,34 +204,120 @@ async function processSinglePool(
     .eq('pool_id', poolId);
 
   if (entriesError) {
-    return { poolId, success: false, collectedRevenueCents: 0, totalPayoutCents: 0, adminProfitCents: 0, totalEntries: 0, winnersCount: 0, nonWinnersSettled: 0, failedPayouts: 0, error: 'Failed to fetch contest entries' };
+    return { poolId, success: false, action: 'error', collectedRevenueCents: 0, totalPayoutCents: 0, adminProfitCents: 0, totalEntries: 0, winnersCount: 0, nonWinnersSettled: 0, failedPayouts: 0, error: 'Failed to fetch contest entries' };
   }
 
   const allEntries = (entriesData || []) as ContestEntry[];
 
   if (allEntries.length === 0) {
     await supabaseAdmin.from('contest_pools').update({ status: 'settled', settled_at: new Date().toISOString() }).eq('id', poolId);
-    return { poolId, success: true, collectedRevenueCents: 0, totalPayoutCents: 0, adminProfitCents: 0, totalEntries: 0, winnersCount: 0, nonWinnersSettled: 0, failedPayouts: 0 };
+    return { poolId, success: true, action: 'settled', tierName: pool.tier_name, entryFeeCents: pool.entry_fee_cents, collectedRevenueCents: 0, totalPayoutCents: 0, adminProfitCents: 0, totalEntries: 0, winnersCount: 0, nonWinnersSettled: 0, failedPayouts: 0 };
   }
 
-  const { data: scoresData, error: scoresError } = await supabaseAdmin
+  // Fetch scores — try pool_id first, then instance_id as fallback
+  let allScores: ContestScore[] = [];
+  const { data: scoresByPool, error: scoresByPoolError } = await supabaseAdmin
     .from('contest_scores')
-    .select('id, entry_id, user_id, rank, total_points, payout_cents')
-    .eq('instance_id', poolId)
+    .select('id, entry_id, user_id, rank, total_points, margin_bonus, payout_cents')
+    .eq('pool_id', poolId)
     .order('rank', { ascending: true });
 
-  if (scoresError) {
-    return { poolId, success: false, collectedRevenueCents: 0, totalPayoutCents: 0, adminProfitCents: 0, totalEntries: allEntries.length, winnersCount: 0, nonWinnersSettled: 0, failedPayouts: 0, error: 'Failed to fetch contest scores' };
+  if (!scoresByPoolError && scoresByPool && scoresByPool.length > 0) {
+    allScores = scoresByPool as ContestScore[];
+  } else {
+    // Fallback: try instance_id
+    const { data: scoresByInstance } = await supabaseAdmin
+      .from('contest_scores')
+      .select('id, entry_id, user_id, rank, total_points, margin_bonus, payout_cents')
+      .eq('instance_id', poolId)
+      .order('rank', { ascending: true });
+    allScores = (scoresByInstance || []) as ContestScore[];
   }
 
-  const allScores = (scoresData || []) as ContestScore[];
+  // ========== H2H TIE DETECTION ==========
+  const isH2H = pool.max_entries <= 2;
+
+  if (isH2H && allScores.length === 2) {
+    const a = allScores[0];
+    const b = allScores[1];
+    const marginA = a.margin_bonus ?? 0;
+    const marginB = b.margin_bonus ?? 0;
+    const isTie = a.total_points === b.total_points && Math.abs(marginA - marginB) < 0.01;
+
+    if (isTie) {
+      console.log('[settle] H2H tie detected — refunding entry fees');
+
+      for (const score of allScores) {
+        const { data: wallet } = await supabaseAdmin
+          .from('wallets').select('id').eq('user_id', score.user_id).single();
+        if (!wallet) continue;
+
+        const refundCents = pool.entry_fee_cents;
+
+        await supabaseAdmin.rpc('update_wallet_balance', {
+          _wallet_id: wallet.id,
+          _available_delta: refundCents,
+          _pending_delta: 0,
+          _lifetime_winnings_delta: 0,
+          _lifetime_deposits_delta: 0,
+          _lifetime_withdrawals_delta: 0,
+        });
+
+        await supabaseAdmin.from('ledger_entries').insert({
+          user_id: score.user_id,
+          transaction_type: 'REFUND',
+          amount: refundCents,
+          description: `H2H tie — entry fee refund - Pool ${poolId}`,
+          reference_id: poolId,
+        });
+
+        await supabaseAdmin.from('transactions').insert({
+          user_id: score.user_id,
+          wallet_id: wallet.id,
+          type: 'refund',
+          amount: refundCents / 100,
+          status: 'completed',
+          completed_at: new Date().toISOString(),
+          description: 'H2H tie — entry fee refund',
+          reference_id: score.entry_id,
+          reference_type: 'contest_entry',
+          metadata: { contest_pool_id: poolId, is_tie_refund: true },
+        });
+
+        await supabaseAdmin.from('contest_entries').update({ status: 'settled', payout_cents: refundCents }).eq('id', score.entry_id);
+        await supabaseAdmin.from('contest_scores').update({ payout_cents: refundCents, is_winner: false }).eq('id', score.id);
+      }
+
+      await supabaseAdmin.from('contest_pools').update({ status: 'settled', settled_at: new Date().toISOString() }).eq('id', poolId);
+
+      await supabaseAdmin.from('compliance_audit_logs').insert({
+        admin_id: adminId,
+        event_type: 'pool_settled',
+        severity: 'info',
+        description: `H2H tie refund — pool ${poolId}`,
+        metadata: { contest_pool_id: poolId, h2h_tie: true, refund_per_entry_cents: pool.entry_fee_cents },
+      });
+
+      return {
+        poolId, success: true, action: 'settled',
+        tierName: pool.tier_name, entryFeeCents: pool.entry_fee_cents,
+        collectedRevenueCents: pool.entry_fee_cents * pool.current_entries,
+        totalPayoutCents: pool.entry_fee_cents * 2,
+        adminProfitCents: 0,
+        totalEntries: pool.current_entries,
+        winnersCount: 0, nonWinnersSettled: 2, failedPayouts: 0,
+        detail: 'h2h_tie_refund',
+      };
+    }
+  }
+
+  // ========== NORMAL PAYOUT LOGIC ==========
   const payoutStructure = pool.payout_structure;
   const collectedRevenue = pool.entry_fee_cents * pool.current_entries;
   let totalPayoutCents = 0;
   const processedEntryIds = new Set<string>();
   const payoutResults: Array<{ userId: string; entryId: string; rank: number; payoutCents: number; success: boolean; error?: string }> = [];
 
-  // Use payout_structure if available
   if (payoutStructure && Object.keys(payoutStructure).length > 0) {
     console.log('[settle:single] Using payout structure:', payoutStructure);
 
@@ -158,7 +361,7 @@ async function processSinglePool(
             user_id: winner.user_id,
             wallet_id: (wallet as { id: string }).id,
             type: 'payout',
-            amount: payoutPerEntry,
+            amount: payoutPerEntry / 100,
             status: 'completed',
             completed_at: new Date().toISOString(),
             description: `Contest winnings - Rank ${rank}`,
@@ -169,7 +372,7 @@ async function processSinglePool(
             metadata: { contest_pool_id: poolId, rank, total_points: winner.total_points },
           });
 
-          await supabaseAdmin.from('contest_scores').update({ payout_cents: payoutPerEntry }).eq('id', winner.id);
+          await supabaseAdmin.from('contest_scores').update({ payout_cents: payoutPerEntry, is_winner: true }).eq('id', winner.id);
           await supabaseAdmin.from('contest_entries').update({ payout_cents: payoutPerEntry, status: 'settled' }).eq('id', winner.entry_id);
 
           processedEntryIds.add(winner.entry_id);
@@ -216,7 +419,7 @@ async function processSinglePool(
             user_id: winner.user_id,
             wallet_id: (wallet as { id: string }).id,
             type: 'payout',
-            amount: payoutPerWinner,
+            amount: payoutPerWinner / 100,
             status: 'completed',
             completed_at: new Date().toISOString(),
             description: `Contest winnings`,
@@ -226,7 +429,7 @@ async function processSinglePool(
             tax_year: new Date().getFullYear(),
           });
 
-          await supabaseAdmin.from('contest_scores').update({ payout_cents: payoutPerWinner }).eq('id', winner.id);
+          await supabaseAdmin.from('contest_scores').update({ payout_cents: payoutPerWinner, is_winner: true }).eq('id', winner.id);
           await supabaseAdmin.from('contest_entries').update({ payout_cents: payoutPerWinner, status: 'settled' }).eq('id', winner.entry_id);
 
           processedEntryIds.add(winner.entry_id);
@@ -274,6 +477,9 @@ async function processSinglePool(
   return {
     poolId,
     success: true,
+    action: 'settled',
+    tierName: pool.tier_name,
+    entryFeeCents: pool.entry_fee_cents,
     collectedRevenueCents: collectedRevenue,
     totalPayoutCents,
     adminProfitCents: adminProfit,
@@ -334,17 +540,23 @@ Deno.serve(async (req) => {
     const requestedPool = requestedPoolData as { id: string; contest_template_id: string; tier_id: string };
 
     // Fetch ALL sibling pools (same template, ALL tiers — settle everything at once)
+    // Include statuses that are ready for settlement or auto-void evaluation
     const { data: siblingPoolsData, error: siblingsError } = await supabaseAdmin
       .from('contest_pools')
-      .select('id, status')
+      .select('id, status, void_unfilled_on_settle')
       .eq('contest_template_id', requestedPool.contest_template_id);
 
     if (siblingsError) {
       return new Response(JSON.stringify({ error: 'Failed to fetch sibling pools' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    const siblingPools = (siblingPoolsData || []) as Array<{ id: string; status: string }>;
-    const settleablePools = siblingPools.filter(p => p.status === 'scoring_completed' || p.status === 'settled');
+    const siblingPools = (siblingPoolsData || []) as Array<{ id: string; status: string; void_unfilled_on_settle: boolean }>;
+    // Settleable: scoring_completed, or any status with void_unfilled flag (locked, results_entered, open with no entries)
+    const settleablePools = siblingPools.filter(p =>
+      p.status === 'scoring_completed' ||
+      p.status === 'settled' ||
+      (p.void_unfilled_on_settle && ['locked', 'results_entered', 'open'].includes(p.status))
+    );
 
     if (settleablePools.length === 0) {
       return new Response(
@@ -354,15 +566,28 @@ Deno.serve(async (req) => {
     }
 
     const results: PoolSettlementResult[] = [];
-    let totalRevenue = 0, totalPayouts = 0, totalProfit = 0, successCount = 0, alreadySettledCount = 0, failCount = 0;
+    let totalRevenue = 0, totalPayouts = 0, totalProfit = 0;
+    let successCount = 0, alreadySettledCount = 0, failCount = 0, autoVoidedCount = 0;
+    let totalEntriesRefunded = 0;
 
     for (const pool of settleablePools) {
       const result = await processSinglePool(supabaseAdmin, pool.id, user.id);
       results.push(result);
       if (result.success) {
-        if (result.alreadySettled) alreadySettledCount++;
-        else { successCount++; totalRevenue += result.collectedRevenueCents; totalPayouts += result.totalPayoutCents; totalProfit += result.adminProfitCents; }
-      } else { failCount++; }
+        if (result.action === 'already_settled') {
+          alreadySettledCount++;
+        } else if (result.action === 'auto_voided') {
+          autoVoidedCount++;
+          totalEntriesRefunded += result.entriesRefunded || 0;
+        } else {
+          successCount++;
+          totalRevenue += result.collectedRevenueCents;
+          totalPayouts += result.totalPayoutCents;
+          totalProfit += result.adminProfitCents;
+        }
+      } else {
+        failCount++;
+      }
     }
 
     await supabaseAdmin.from('compliance_audit_logs').insert({
@@ -374,8 +599,10 @@ Deno.serve(async (req) => {
         contest_template_id: requestedPool.contest_template_id,
         triggered_by_pool_id: contestPoolId,
         pools_settled: successCount,
+        pools_auto_voided: autoVoidedCount,
         pools_already_settled: alreadySettledCount,
         pools_failed: failCount,
+        entries_refunded: totalEntriesRefunded,
         total_revenue_cents: totalRevenue,
         total_payout_cents: totalPayouts,
         total_profit_cents: totalProfit,
@@ -386,16 +613,18 @@ Deno.serve(async (req) => {
       JSON.stringify({
         success: failCount === 0,
         poolsSettled: successCount,
+        poolsAutoVoided: autoVoidedCount,
         poolsAlreadySettled: alreadySettledCount,
         poolsFailed: failCount,
+        entriesRefunded: totalEntriesRefunded,
         totalRevenueCents: totalRevenue,
         totalPayoutCents: totalPayouts,
         totalProfitCents: totalProfit,
         winnersCount: results.reduce((s, r) => s + r.winnersCount, 0),
-        poolResults: results,
+        details: results,
         message: failCount > 0
           ? `Batch settlement completed with ${failCount} failure(s)`
-          : `Successfully settled ${successCount} pool(s)${alreadySettledCount > 0 ? ` (${alreadySettledCount} already settled)` : ''}`,
+          : `Successfully settled ${successCount} pool(s)${autoVoidedCount > 0 ? `, auto-voided ${autoVoidedCount} pool(s)` : ''}${alreadySettledCount > 0 ? ` (${alreadySettledCount} already settled)` : ''}`,
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

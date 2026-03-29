@@ -202,7 +202,7 @@ const Admin = () => {
       const { data: scoringData, error: scoringError } = await supabase.functions.invoke("contest-scoring", { body: { contestPoolId: selectedContest.id } });
       if (scoringError) throw new Error(`Scoring failed: ${scoringError.message}`);
       toast.success(`Scored ${scoringData?.poolsScored || 1} pool(s). Settling payouts...`);
-      const { data: settleData, error: settleError } = await supabase.functions.invoke("contest-settlement", { body: { contestPoolId: selectedContest.id } });
+      const { data: settleData, error: settleError } = await supabase.functions.invoke("contest-settle", { body: { contestPoolId: selectedContest.id } });
       if (settleError) throw new Error(`Settlement failed: ${settleError.message}`);
       let settleMsg = `Done! ${settleData?.winnersCount || 0} winner(s) paid out.`;
       if (settleData?.poolsAutoVoided > 0) {
@@ -218,7 +218,7 @@ const Admin = () => {
   const settlePayouts = async (contestPoolId: string) => {
     setSettlingPoolId(contestPoolId);
     try {
-      const { data, error } = await supabase.functions.invoke("contest-settlement", { body: { contestPoolId } });
+      const { data, error } = await supabase.functions.invoke("contest-settle", { body: { contestPoolId } });
       if (error) throw error;
 
       const details = data?.details || [];
