@@ -374,63 +374,18 @@ const RegattaDetail = () => {
       <DraftPageBackground />
       <div className="relative z-10 flex flex-col min-h-screen">
       <Header />
-      {/* ── Gradient Hero Header ── */}
-      <div className="gradient-hero text-primary-foreground">
-        <div className="container mx-auto px-4 max-w-6xl py-6 lg:py-8">
-          <Link
-            to="/lobby"
-            className="inline-flex items-center gap-2 text-primary-foreground/70 hover:text-primary-foreground text-sm mb-4 transition-base"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back to Lobby
-          </Link>
-
-          <div className="flex items-start justify-between gap-4 mb-5">
-            <div>
-              <h1 className="font-heading text-3xl lg:text-4xl font-bold mb-1">
-                {contestPool.contest_templates.regatta_name}
-              </h1>
-              <p className="text-primary-foreground/70 text-sm lg:text-base">
-                {contestPool.contest_templates.gender_category} Multi-Team Fantasy · Draft a crew from each event
-              </p>
-            </div>
-            <Badge
-              className={`flex-shrink-0 text-sm px-3 py-1 font-semibold ${
-                isContestOpen
-                  ? "bg-success/20 text-success border-success/30"
-                  : "bg-primary-foreground/10 text-primary-foreground/60 border-primary-foreground/20"
-              }`}
-            >
-              {statusLabel}
-            </Badge>
-          </div>
-
-          {/* Stat Cards Row */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <div className="rounded-xl bg-white/10 backdrop-blur-sm border border-white/15 px-5 py-4 hover:bg-white/15 transition-colors">
-              <div className="flex items-center gap-2 mb-1"><Trophy className="h-4 w-4 text-amber-400" /><span className="text-xs text-accent font-medium">1st Prize</span></div>
-              <p className="font-heading text-xl lg:text-2xl font-bold text-white">
-                {headerStats.firstPrizePrefix || ""}{formatCents(headerStats.firstPrize)}
-              </p>
-            </div>
-            <div className="rounded-xl bg-white/10 backdrop-blur-sm border border-white/15 px-5 py-4 hover:bg-white/15 transition-colors">
-              <div className="flex items-center gap-2 mb-1"><Zap className="h-4 w-4 text-accent" /><span className="text-xs text-accent font-medium">Entry Fee</span></div>
-              <p className="font-heading text-xl lg:text-2xl font-bold text-white">{headerStats.entryFeeLabel}</p>
-            </div>
-            <div className="rounded-xl bg-white/10 backdrop-blur-sm border border-white/15 px-5 py-4 hover:bg-white/15 transition-colors">
-              <div className="flex items-center gap-2 mb-1"><Clock className="h-4 w-4 text-white/60" /><span className="text-xs text-accent font-medium">Locks</span></div>
-              <p className="font-heading text-lg lg:text-xl font-bold text-white">{formattedLockTime}</p>
-            </div>
-            <div className="rounded-xl bg-white/10 backdrop-blur-sm border border-white/15 px-5 py-4 hover:bg-white/15 transition-colors">
-              <div className="flex items-center gap-2 mb-1"><Users className="h-4 w-4 text-white/60" /><span className="text-xs text-accent font-medium">{headerStats.entriesSublabel || "Entries"}</span></div>
-              <p className="font-heading text-xl lg:text-2xl font-bold text-white mb-1.5">{headerStats.entriesLabel}</p>
-              {!headerStats.isTiered && (
-                <div className="h-1 w-full rounded-full bg-white/10 overflow-hidden"><div className="h-full rounded-full bg-accent transition-all" style={{ width: `${fillPercent}%` }} /></div>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
+      {/* ── Banner Image Header ── */}
+      <ContestBannerHeader
+        regattaName={contestPool.contest_templates.regatta_name}
+        genderCategory={contestPool.contest_templates.gender_category}
+        lockTime={contestPool.lock_time}
+        status={contestPool.status}
+        bannerUrl={contestPool.contest_templates.banner_url}
+        maxEntries={contestPool.max_entries}
+        entryFeeCents={contestPool.entry_fee_cents}
+        entryTiers={entryTiers}
+        allowOverflow={contestPool.allow_overflow}
+      />
 
       {/* ── Main Content ── */}
       <main className="flex-1 pb-32 lg:pb-12">
