@@ -34,6 +34,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { formatCents } from "@/lib/formatCurrency";
 import { TierSelector, type EntryTier } from "@/components/TierSelector";
+import { ContestBannerHeader } from "@/components/ContestBannerHeader";
 
 interface PoolCrew {
   id: string;
@@ -62,6 +63,7 @@ interface ContestPool {
     gender_category: string;
     min_picks: number;
     max_picks: number;
+    banner_url?: string | null;
   };
   contest_pool_crews: PoolCrew[];
 }
