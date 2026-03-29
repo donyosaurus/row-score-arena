@@ -218,7 +218,7 @@ const Admin = () => {
   const settlePayouts = async (contestPoolId: string) => {
     setSettlingPoolId(contestPoolId);
     try {
-      const { data, error } = await supabase.functions.invoke("contest-settlement", { body: { contestPoolId } });
+      const { data, error } = await supabase.functions.invoke("contest-settle", { body: { contestPoolId } });
       if (error) throw error;
 
       const details = data?.details || [];
