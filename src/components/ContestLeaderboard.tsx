@@ -17,15 +17,15 @@ export const ContestLeaderboard = ({ instanceId, autoRefresh = false }: ContestL
 
   const loadLeaderboard = async () => {
     try {
-      // Get instance status
-      const { data: instance } = await supabase
-        .from('contest_instances')
+      // Get pool status
+      const { data: pool } = await supabase
+        .from('contest_pools')
         .select('status')
         .eq('id', instanceId)
         .single();
 
-      if (instance) {
-        setStatus(instance.status);
+      if (pool) {
+        setStatus(pool.status);
       }
 
       // Get scores with user profiles
@@ -35,7 +35,7 @@ export const ContestLeaderboard = ({ instanceId, autoRefresh = false }: ContestL
           *,
           profiles!contest_scores_user_id_fkey (username)
         `)
-        .eq('instance_id', instanceId)
+        .eq('pool_id', instanceId)
         .order('rank', { ascending: true });
 
       if (error) {
@@ -54,7 +54,6 @@ export const ContestLeaderboard = ({ instanceId, autoRefresh = false }: ContestL
   useEffect(() => {
     loadLeaderboard();
 
-    // Auto-refresh every 30 seconds if enabled
     let interval: ReturnType<typeof setInterval> | undefined;
     if (autoRefresh && status !== 'completed') {
       interval = setInterval(() => {
@@ -103,13 +102,13 @@ export const ContestLeaderboard = ({ instanceId, autoRefresh = false }: ContestL
           <div>
             <CardTitle>Leaderboard</CardTitle>
             <CardDescription>
-              {status === 'completed' ? 'Final Standings' : 'Current Standings'}
-              {autoRefresh && status !== 'completed' && (
+              {status === 'completed' || status === 'settled' ? 'Final Standings' : 'Current Standings'}
+              {autoRefresh && status !== 'completed' && status !== 'settled' && (
                 <span className="ml-2 text-xs">(Updates every 30s)</span>
               )}
             </CardDescription>
           </div>
-          {status === 'completed' && (
+          {(status === 'completed' || status === 'settled') && (
             <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
               Final
             </Badge>
@@ -170,7 +169,7 @@ export const ContestLeaderboard = ({ instanceId, autoRefresh = false }: ContestL
           </div>
         )}
 
-        {status !== 'completed' && entries.length > 0 && (
+        {status !== 'completed' && status !== 'settled' && entries.length > 0 && (
           <p className="text-xs text-center text-muted-foreground mt-4">
             Final rankings will be determined after race results are posted
           </p>

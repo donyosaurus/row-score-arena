@@ -40,7 +40,7 @@ export interface ContestInstance {
 export interface ContestScore {
   id: string;
   entry_id: string;
-  instance_id: string;
+  pool_id: string;
   user_id: string;
   total_points: number;
   margin_bonus: number;
