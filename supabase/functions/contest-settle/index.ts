@@ -214,7 +214,7 @@ async function processSinglePool(
     return { poolId, success: true, action: 'settled', tierName: pool.tier_name, entryFeeCents: pool.entry_fee_cents, collectedRevenueCents: 0, totalPayoutCents: 0, adminProfitCents: 0, totalEntries: 0, winnersCount: 0, nonWinnersSettled: 0, failedPayouts: 0 };
   }
 
-  // Fetch scores — try pool_id first, then instance_id as fallback
+  // Fetch scores by pool_id
   let allScores: ContestScore[] = [];
   const { data: scoresByPool, error: scoresByPoolError } = await supabaseAdmin
     .from('contest_scores')
@@ -222,16 +222,8 @@ async function processSinglePool(
     .eq('pool_id', poolId)
     .order('rank', { ascending: true });
 
-  if (!scoresByPoolError && scoresByPool && scoresByPool.length > 0) {
+  if (!scoresByPoolError && scoresByPool) {
     allScores = scoresByPool as ContestScore[];
-  } else {
-    // Fallback: try instance_id
-    const { data: scoresByInstance } = await supabaseAdmin
-      .from('contest_scores')
-      .select('id, entry_id, user_id, rank, total_points, margin_bonus, payout_cents')
-      .eq('instance_id', poolId)
-      .order('rank', { ascending: true });
-    allScores = (scoresByInstance || []) as ContestScore[];
   }
 
   // ========== H2H TIE DETECTION ==========
