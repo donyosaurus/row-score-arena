@@ -27,7 +27,7 @@ interface ContestPool {
   entry_tiers: unknown;
   contest_templates: {
     regatta_name: string;
-    banner_url: string | null;
+    card_banner_url: string | null;
     contest_group_id: string | null;
     display_order_in_group: number;
   };
