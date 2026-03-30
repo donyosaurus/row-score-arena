@@ -25,7 +25,8 @@ interface CreateContestRequest {
   payouts: Record<string, number>;
   allowOverflow?: boolean;
   entryTiers?: EntryTierInput[] | null;
-  bannerUrl?: string | null;
+  cardBannerUrl?: string | null;
+  draftBannerUrl?: string | null;
   contestGroupId?: string | null;
   voidUnfilledOnSettle?: boolean;
 }
