@@ -64,7 +64,7 @@ const Profile = () => {
   const navigate = useNavigate();
   const [profileData, setProfileData] = useState<ProfileData | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [contests, setContests] = useState<Contest[]>([]);
+  
   const [loading, setLoading] = useState(true);
   
   const [usernameDialogOpen, setUsernameDialogOpen] = useState(false);
