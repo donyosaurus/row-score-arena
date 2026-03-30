@@ -105,7 +105,8 @@ Deno.serve(async (req) => {
       p_payout_structure: body.payouts,
       p_allow_overflow: body.allowOverflow ?? false,
       p_entry_tiers: body.entryTiers ?? null,
-      p_banner_url: body.bannerUrl ?? null,
+      p_card_banner_url: body.cardBannerUrl ?? null,
+      p_draft_banner_url: body.draftBannerUrl ?? null,
       p_contest_group_id: body.contestGroupId ?? null,
       p_void_unfilled_on_settle: body.voidUnfilledOnSettle ?? false,
     };

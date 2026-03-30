@@ -64,7 +64,8 @@ interface CreateContestForm {
   voidUnfilledOnSettle: boolean;
   multiTier: boolean;
   entryTiers: EntryTierForm[];
-  bannerUrl: string;
+  cardBannerUrl: string;
+  draftBannerUrl: string;
   contestGroupId: string;
 }
 
