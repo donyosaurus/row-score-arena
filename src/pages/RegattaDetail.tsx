@@ -55,7 +55,8 @@ interface ContestPool {
     gender_category: string;
     min_picks: number;
     max_picks: number;
-    banner_url?: string | null;
+    card_banner_url?: string | null;
+    draft_banner_url?: string | null;
   };
   contest_pool_crews: PoolCrew[];
 }
@@ -102,7 +103,7 @@ const RegattaDetail = () => {
     const fetchPoolData = async () => {
       const { data, error: fetchError } = await supabase
         .from("contest_pools")
-        .select(`*, payout_structure, contest_template_id, tier_id, allow_overflow, contest_templates (id, regatta_name, gender_category, min_picks, max_picks, banner_url), contest_pool_crews (id, crew_id, crew_name, event_id, logo_url)`)
+        .select(`*, payout_structure, contest_template_id, tier_id, allow_overflow, contest_templates (id, regatta_name, gender_category, min_picks, max_picks, card_banner_url, draft_banner_url), contest_pool_crews (id, crew_id, crew_name, event_id, logo_url)`)
         .eq("id", id)
         .single();
       if (fetchError || !data) { setError("Contest not found"); setLoading(false); return; }
@@ -372,7 +373,7 @@ const RegattaDetail = () => {
         genderCategory={contestPool.contest_templates.gender_category}
         lockTime={contestPool.lock_time}
         status={contestPool.status}
-        bannerUrl={contestPool.contest_templates.banner_url}
+        bannerUrl={contestPool.contest_templates.draft_banner_url || contestPool.contest_templates.card_banner_url}
         maxEntries={contestPool.max_entries}
         entryFeeCents={contestPool.entry_fee_cents}
         entryTiers={entryTiers}

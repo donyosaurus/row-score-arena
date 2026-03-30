@@ -54,7 +54,8 @@ interface ContestPool {
     gender_category: string;
     min_picks: number;
     max_picks: number;
-    banner_url?: string | null;
+    card_banner_url?: string | null;
+    draft_banner_url?: string | null;
   };
   contest_pool_crews: PoolCrew[];
 }
@@ -105,7 +106,7 @@ const ContestDetail = () => {
         .select(`
           id, lock_time, status, entry_fee_cents, prize_pool_cents, payout_structure,
           current_entries, max_entries, contest_template_id, tier_name, allow_overflow,
-          contest_templates (id, regatta_name, gender_category, min_picks, max_picks, banner_url),
+          contest_templates (id, regatta_name, gender_category, min_picks, max_picks, card_banner_url, draft_banner_url),
           contest_pool_crews (id, crew_id, crew_name, event_id, logo_url)
         `)
         .eq("id", id)
@@ -366,7 +367,7 @@ const ContestDetail = () => {
         genderCategory={template.gender_category}
         lockTime={contestPool.lock_time}
         status={contestPool.status}
-        bannerUrl={template.banner_url}
+        bannerUrl={template.draft_banner_url || template.card_banner_url}
         maxEntries={contestPool.max_entries}
         entryFeeCents={contestPool.entry_fee_cents}
         entryTiers={entryTiers}

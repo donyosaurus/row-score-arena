@@ -27,7 +27,7 @@ interface ContestPool {
   entry_tiers: unknown;
   contest_templates: {
     regatta_name: string;
-    banner_url: string | null;
+    card_banner_url: string | null;
     contest_group_id: string | null;
     display_order_in_group: number;
   };
@@ -82,7 +82,7 @@ const Lobby = () => {
            id, contest_template_id, lock_time, status, entry_fee_cents,
            prize_pool_cents, payout_structure, current_entries, max_entries,
            allow_overflow, created_at, tier_id, tier_name, entry_tiers,
-           contest_templates(regatta_name, banner_url, contest_group_id, display_order_in_group),
+           contest_templates(regatta_name, card_banner_url, contest_group_id, display_order_in_group),
            contest_pool_crews(event_id)
          `)
         .in("status", ["open", "locked"]);
@@ -198,7 +198,7 @@ const Lobby = () => {
           status: primary.status,
           userEntered,
           entryTiers: entryTiersForCard,
-          bannerUrl: primary.contest_templates?.banner_url || null,
+          bannerUrl: primary.contest_templates?.card_banner_url || null,
           contestGroupId: primary.contest_templates?.contest_group_id || null,
           displayOrderInGroup: primary.contest_templates?.display_order_in_group || 0,
           events: [...new Set(pools.flatMap(p => (p.contest_pool_crews || []).map(c => c.event_id)).filter(Boolean))],

@@ -99,14 +99,14 @@ export const ContestBannerHeader = ({
       : { label: "Locked", cls: "bg-red-500/90" };
 
   return (
-    <div className="relative w-full bg-[#0c2340]">
+    <div className="relative w-full">
       <div className="relative h-48 md:h-56 lg:h-64 xl:h-72 overflow-hidden">
       {/* Background */}
       {bannerUrl ? (
         <img
           src={bannerUrl}
           alt={regattaName}
-          className="w-full h-full object-contain"
+          className="w-full h-full object-cover"
           onError={(e) => {
             e.currentTarget.style.display = "none";
             const fallback = e.currentTarget.nextElementSibling as HTMLElement;

@@ -64,7 +64,8 @@ interface CreateContestForm {
   voidUnfilledOnSettle: boolean;
   multiTier: boolean;
   entryTiers: EntryTierForm[];
-  bannerUrl: string;
+  cardBannerUrl: string;
+  draftBannerUrl: string;
   contestGroupId: string;
 }
 
@@ -111,6 +112,7 @@ const Admin = () => {
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [creatingContest, setCreatingContest] = useState(false);
   const [uploadingBanner, setUploadingBanner] = useState(false);
+  const [uploadingDraftBanner, setUploadingDraftBanner] = useState(false);
   const [createForm, setCreateForm] = useState<CreateContestForm>({
     regattaName: "",
     genderCategory: "Men's",
@@ -126,7 +128,8 @@ const Admin = () => {
       { name: "Bronze", entryFee: "", prizes: [{ rank: 1, amount: "" }] },
       { name: "Silver", entryFee: "", prizes: [{ rank: 1, amount: "" }] },
     ],
-    bannerUrl: "",
+    cardBannerUrl: "",
+    draftBannerUrl: "",
     contestGroupId: "",
   });
   const [newCrewInput, setNewCrewInput] = useState<NewCrew>({
@@ -368,7 +371,8 @@ const Admin = () => {
         { name: "Bronze", entryFee: "", prizes: [{ rank: 1, amount: "" }] },
         { name: "Silver", entryFee: "", prizes: [{ rank: 1, amount: "" }] },
       ],
-      bannerUrl: "",
+      cardBannerUrl: "",
+      draftBannerUrl: "",
       contestGroupId: "",
     });
     setNewCrewInput({ crew_name: "", crew_id: "", event_id: "", logo_url: null });
@@ -542,7 +546,8 @@ const Admin = () => {
           payouts,
           allowOverflow: createForm.allowOverflow,
           entryTiers: entryTiersPayload,
-          bannerUrl: createForm.bannerUrl.trim() || null,
+          cardBannerUrl: createForm.cardBannerUrl.trim() || null,
+          draftBannerUrl: createForm.draftBannerUrl.trim() || null,
           contestGroupId: (createForm.contestGroupId && createForm.contestGroupId !== "none") ? createForm.contestGroupId : null,
           voidUnfilledOnSettle: createForm.allowOverflow ? createForm.voidUnfilledOnSettle : false,
         }
@@ -849,96 +854,124 @@ const Admin = () => {
                 <Input id="regattaName" placeholder="e.g., Harvard-Yale Regatta 2026" value={createForm.regattaName} onChange={(e) => setCreateForm(prev => ({ ...prev, regattaName: e.target.value }))} />
               </div>
               <div>
-                <Label>Banner Image (optional)</Label>
-                {!createForm.bannerUrl ? (
-                  <label className="mt-1 flex flex-col items-center justify-center border-2 border-dashed border-slate-300 rounded-lg p-8 text-center cursor-pointer hover:border-slate-400 hover:bg-slate-50 transition-all">
+                <Label>Card Banner — Lobby (optional)</Label>
+                {!createForm.cardBannerUrl ? (
+                  <label className="mt-1 flex flex-col items-center justify-center border-2 border-dashed border-slate-300 rounded-lg p-6 text-center cursor-pointer hover:border-slate-400 hover:bg-slate-50 transition-all">
                     {uploadingBanner ? (
-                      <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                     ) : (
                       <>
-                        <Upload className="h-8 w-8 text-muted-foreground mb-2" />
-                        <span className="text-sm text-muted-foreground">Drop image here or click to upload</span>
-                        <span className="text-xs text-muted-foreground mt-1">PNG, JPG up to 5MB</span>
-                        <span className="text-xs text-slate-500 mt-1">Recommended: 1200×400px (3:1 ratio). Keep logos and text centered.</span>
+                        <Upload className="h-6 w-6 text-muted-foreground mb-1" />
+                        <span className="text-sm text-muted-foreground">Drop image or click to upload</span>
+                        <span className="text-xs text-slate-500 mt-1">Recommended: 760×320px (2.4:1). Fills the contest card in the lobby.</span>
                       </>
                     )}
-                    <input
-                      type="file"
-                      accept="image/png,image/jpeg,image/webp"
-                      className="hidden"
-                      onChange={async (e) => {
-                        const file = e.target.files?.[0];
-                        if (!file) return;
-                        if (file.size > 5 * 1024 * 1024) { toast.error("File must be under 5MB"); return; }
-                        setUploadingBanner(true);
-                        try {
-                          const fileName = `banner-${Date.now()}-${file.name}`;
-                          const { data, error } = await supabase.storage.from('contest-banners').upload(fileName, file, { contentType: file.type });
-                          if (error) throw error;
-                          const { data: { publicUrl } } = supabase.storage.from('contest-banners').getPublicUrl(fileName);
-                          setCreateForm(prev => ({ ...prev, bannerUrl: publicUrl }));
-                          toast.success("Banner uploaded!");
-                        } catch (err: any) {
-                          console.error("Upload error:", err);
-                          toast.error(err.message || "Failed to upload banner");
-                        } finally {
-                          setUploadingBanner(false);
-                        }
-                      }}
-                    />
+                    <input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      if (file.size > 5 * 1024 * 1024) { toast.error("File must be under 5MB"); return; }
+                      setUploadingBanner(true);
+                      try {
+                        const fileName = `card-${Date.now()}-${file.name}`;
+                        const { error } = await supabase.storage.from('contest-banners').upload(fileName, file, { contentType: file.type });
+                        if (error) throw error;
+                        const { data: { publicUrl } } = supabase.storage.from('contest-banners').getPublicUrl(fileName);
+                        setCreateForm(prev => ({ ...prev, cardBannerUrl: publicUrl }));
+                        toast.success("Card banner uploaded!");
+                      } catch (err: any) {
+                        console.error("Upload error:", err);
+                        toast.error(err.message || "Failed to upload banner");
+                      } finally { setUploadingBanner(false); }
+                    }} />
                   </label>
                 ) : (
                   <div className="mt-1 relative">
-                    <img src={createForm.bannerUrl} alt="Banner" className="w-full h-[120px] object-contain bg-[#0c2340] rounded-lg border" />
-                    <button
-                      type="button"
-                      className="absolute top-2 right-2 bg-black/60 text-white rounded-full p-1 hover:bg-black/80"
-                      onClick={() => setCreateForm(prev => ({ ...prev, bannerUrl: "" }))}
-                    >
+                    <img src={createForm.cardBannerUrl} alt="Card Banner" className="w-full h-[100px] object-cover rounded-lg border" />
+                    <button type="button" className="absolute top-2 right-2 bg-black/60 text-white rounded-full p-1 hover:bg-black/80" onClick={() => setCreateForm(prev => ({ ...prev, cardBannerUrl: "" }))}>
                       <X className="h-4 w-4" />
                     </button>
                   </div>
                 )}
-                {/* Card Preview */}
-                <div className="mt-3">
-                  <p className="text-xs font-medium text-muted-foreground mb-2">Card Preview</p>
-                  <div className="rounded-xl overflow-hidden border border-slate-200 shadow-sm max-w-xs">
-                    <div className="relative h-28 overflow-hidden bg-[#0c2340]">
-                      {createForm.bannerUrl ? (
-                        <img src={createForm.bannerUrl} alt="Preview" className="w-full h-full object-contain" />
-                      ) : (
-                        <div
-                          className="w-full h-full flex items-center justify-center"
-                          style={{ background: CARD_GRADIENTS[hashString(createForm.regattaName || 'Contest') % CARD_GRADIENTS.length] }}
-                        >
-                          <span className="text-white/20 text-lg font-bold text-center px-4 select-none">
-                            {createForm.regattaName || 'Contest Name'}
-                          </span>
-                        </div>
-                      )}
-                      <div className="absolute bottom-2 left-2 bg-black/60 text-white text-[10px] font-semibold px-2 py-0.5 rounded-full">
-                        2d 8h
+              </div>
+              <div>
+                <Label>Draft Page Banner — Header (optional)</Label>
+                {!createForm.draftBannerUrl ? (
+                  <label className="mt-1 flex flex-col items-center justify-center border-2 border-dashed border-slate-300 rounded-lg p-6 text-center cursor-pointer hover:border-slate-400 hover:bg-slate-50 transition-all">
+                    {uploadingDraftBanner ? (
+                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                    ) : (
+                      <>
+                        <Upload className="h-6 w-6 text-muted-foreground mb-1" />
+                        <span className="text-sm text-muted-foreground">Drop image or click to upload</span>
+                        <span className="text-xs text-slate-500 mt-1">Recommended: 1500×300px (5:1). Fills the full-width header on the draft page.</span>
+                      </>
+                    )}
+                    <input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      if (file.size > 5 * 1024 * 1024) { toast.error("File must be under 5MB"); return; }
+                      setUploadingDraftBanner(true);
+                      try {
+                        const fileName = `draft-${Date.now()}-${file.name}`;
+                        const { error } = await supabase.storage.from('contest-banners').upload(fileName, file, { contentType: file.type });
+                        if (error) throw error;
+                        const { data: { publicUrl } } = supabase.storage.from('contest-banners').getPublicUrl(fileName);
+                        setCreateForm(prev => ({ ...prev, draftBannerUrl: publicUrl }));
+                        toast.success("Draft banner uploaded!");
+                      } catch (err: any) {
+                        console.error("Upload error:", err);
+                        toast.error(err.message || "Failed to upload banner");
+                      } finally { setUploadingDraftBanner(false); }
+                    }} />
+                  </label>
+                ) : (
+                  <div className="mt-1 relative">
+                    <img src={createForm.draftBannerUrl} alt="Draft Banner" className="w-full h-[80px] object-cover rounded-lg border" />
+                    <button type="button" className="absolute top-2 right-2 bg-black/60 text-white rounded-full p-1 hover:bg-black/80" onClick={() => setCreateForm(prev => ({ ...prev, draftBannerUrl: "" }))}>
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                )}
+              </div>
+              {/* Card Preview */}
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-2">Card Preview</p>
+                <div className="rounded-xl overflow-hidden border border-slate-200 shadow-sm max-w-xs">
+                  <div className="relative h-28 overflow-hidden">
+                    {createForm.cardBannerUrl ? (
+                      <img src={createForm.cardBannerUrl} alt="Preview" className="w-full h-full object-cover" />
+                    ) : (
+                      <div
+                        className="w-full h-full flex items-center justify-center"
+                        style={{ background: CARD_GRADIENTS[hashString(createForm.regattaName || 'Contest') % CARD_GRADIENTS.length] }}
+                      >
+                        <span className="text-white/20 text-lg font-bold text-center px-4 select-none">
+                          {createForm.regattaName || 'Contest Name'}
+                        </span>
                       </div>
+                    )}
+                    <div className="absolute bottom-2 left-2 bg-black/60 text-white text-[10px] font-semibold px-2 py-0.5 rounded-full">
+                      2d 8h
                     </div>
-                    <div className="h-1 bg-slate-200"><div className="h-full w-0 bg-teal-400 rounded-r-full" /></div>
-                    <div className="p-3 bg-white">
-                      <div className="border-l-3 border-teal-400 pl-2">
-                        <p className="text-sm font-bold text-slate-900 truncate">{createForm.regattaName || 'Contest Name'}</p>
-                        <p className="text-xs text-slate-500">{createForm.genderCategory} · Locks Thu 8:00 AM</p>
+                  </div>
+                  <div className="h-1 bg-slate-200"><div className="h-full w-0 bg-teal-400 rounded-r-full" /></div>
+                  <div className="p-3 bg-white">
+                    <div className="border-l-3 border-teal-400 pl-2">
+                      <p className="text-sm font-bold text-slate-900 truncate">{createForm.regattaName || 'Contest Name'}</p>
+                      <p className="text-xs text-slate-500">{createForm.genderCategory} · Locks Thu 8:00 AM</p>
+                    </div>
+                    <div className="flex gap-1.5 mt-2">
+                      <div className="bg-slate-50 rounded px-2 py-1 text-center flex-1">
+                        <div className="text-xs font-bold text-slate-900">0/{createForm.maxEntries || '?'}</div>
+                        <div className="text-[8px] text-slate-500 uppercase">Entries</div>
                       </div>
-                      <div className="flex gap-1.5 mt-2">
-                        <div className="bg-slate-50 rounded px-2 py-1 text-center flex-1">
-                          <div className="text-xs font-bold text-slate-900">0/{createForm.maxEntries || '?'}</div>
-                          <div className="text-[8px] text-slate-500 uppercase">Entries</div>
-                        </div>
-                        <div className="bg-slate-50 rounded px-2 py-1 text-center flex-1">
-                          <div className="text-xs font-bold text-teal-600">{createForm.entryFee ? `$${parseFloat(createForm.entryFee).toFixed(2)}` : '$?.??'}</div>
-                          <div className="text-[8px] text-slate-500 uppercase">Entry</div>
-                        </div>
-                        <div className="bg-slate-50 rounded px-2 py-1 text-center flex-1">
-                          <div className="text-xs font-bold text-amber-600">{createForm.prizes[0]?.amount ? `$${parseFloat(createForm.prizes[0].amount).toFixed(2)}` : '$?.??'}</div>
-                          <div className="text-[8px] text-slate-500 uppercase">Prizes</div>
-                        </div>
+                      <div className="bg-slate-50 rounded px-2 py-1 text-center flex-1">
+                        <div className="text-xs font-bold text-teal-600">{createForm.entryFee ? `$${parseFloat(createForm.entryFee).toFixed(2)}` : '$?.??'}</div>
+                        <div className="text-[8px] text-slate-500 uppercase">Entry</div>
+                      </div>
+                      <div className="bg-slate-50 rounded px-2 py-1 text-center flex-1">
+                        <div className="text-xs font-bold text-amber-600">{createForm.prizes[0]?.amount ? `$${parseFloat(createForm.prizes[0].amount).toFixed(2)}` : '$?.??'}</div>
+                        <div className="text-[8px] text-slate-500 uppercase">Prizes</div>
                       </div>
                     </div>
                   </div>

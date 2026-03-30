@@ -410,12 +410,13 @@ export type Database = {
       }
       contest_templates: {
         Row: {
-          banner_url: string | null
+          card_banner_url: string | null
           contest_group_id: string | null
           created_at: string
           crews: Json
           display_order_in_group: number | null
           divisions: Json
+          draft_banner_url: string | null
           entry_tiers: Json
           gender_category: string
           id: string
@@ -428,12 +429,13 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          banner_url?: string | null
+          card_banner_url?: string | null
           contest_group_id?: string | null
           created_at?: string
           crews?: Json
           display_order_in_group?: number | null
           divisions?: Json
+          draft_banner_url?: string | null
           entry_tiers?: Json
           gender_category: string
           id?: string
@@ -446,12 +448,13 @@ export type Database = {
           updated_at?: string
         }
         Update: {
-          banner_url?: string | null
+          card_banner_url?: string | null
           contest_group_id?: string | null
           created_at?: string
           crews?: Json
           display_order_in_group?: number | null
           divisions?: Json
+          draft_banner_url?: string | null
           entry_tiers?: Json
           gender_category?: string
           id?: string
@@ -1492,6 +1495,24 @@ export type Database = {
               p_banner_url?: string
               p_contest_group_id?: string
               p_crews: Json
+              p_entry_fee_cents: number
+              p_entry_tiers?: Json
+              p_gender_category: string
+              p_lock_time: string
+              p_max_entries: number
+              p_payout_structure?: Json
+              p_regatta_name: string
+              p_void_unfilled_on_settle?: boolean
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_allow_overflow?: boolean
+              p_card_banner_url?: string
+              p_contest_group_id?: string
+              p_crews: Json
+              p_draft_banner_url?: string
               p_entry_fee_cents: number
               p_entry_tiers?: Json
               p_gender_category: string
