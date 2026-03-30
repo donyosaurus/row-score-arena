@@ -112,6 +112,7 @@ const Admin = () => {
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [creatingContest, setCreatingContest] = useState(false);
   const [uploadingBanner, setUploadingBanner] = useState(false);
+  const [uploadingDraftBanner, setUploadingDraftBanner] = useState(false);
   const [createForm, setCreateForm] = useState<CreateContestForm>({
     regattaName: "",
     genderCategory: "Men's",
@@ -127,7 +128,8 @@ const Admin = () => {
       { name: "Bronze", entryFee: "", prizes: [{ rank: 1, amount: "" }] },
       { name: "Silver", entryFee: "", prizes: [{ rank: 1, amount: "" }] },
     ],
-    bannerUrl: "",
+    cardBannerUrl: "",
+    draftBannerUrl: "",
     contestGroupId: "",
   });
   const [newCrewInput, setNewCrewInput] = useState<NewCrew>({
