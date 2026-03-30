@@ -889,7 +889,7 @@ const Admin = () => {
                   </label>
                 ) : (
                   <div className="mt-1 relative">
-                    <img src={createForm.bannerUrl} alt="Banner" className="w-full h-[120px] object-cover rounded-lg border" />
+                    <img src={createForm.bannerUrl} alt="Banner" className="w-full h-[120px] object-contain bg-[#0c2340] rounded-lg border" />
                     <button
                       type="button"
                       className="absolute top-2 right-2 bg-black/60 text-white rounded-full p-1 hover:bg-black/80"
