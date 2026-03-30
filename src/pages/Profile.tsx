@@ -78,9 +78,7 @@ const Profile = () => {
   
   const [txTypeFilter, setTxTypeFilter] = useState("all");
   const [txPage, setTxPage] = useState(1);
-  const [contestPage, setContestPage] = useState(1);
   const [txTotal, setTxTotal] = useState(0);
-  const [contestTotal, setContestTotal] = useState(0);
 
   useEffect(() => {
     if (!user) { navigate("/login"); return; }
