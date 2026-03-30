@@ -903,9 +903,9 @@ const Admin = () => {
                 <div className="mt-3">
                   <p className="text-xs font-medium text-muted-foreground mb-2">Card Preview</p>
                   <div className="rounded-xl overflow-hidden border border-slate-200 shadow-sm max-w-xs">
-                    <div className="relative h-28 overflow-hidden">
+                    <div className="relative h-28 overflow-hidden bg-[#0c2340]">
                       {createForm.bannerUrl ? (
-                        <img src={createForm.bannerUrl} alt="Preview" className="w-full h-full object-cover" />
+                        <img src={createForm.bannerUrl} alt="Preview" className="w-full h-full object-contain" />
                       ) : (
                         <div
                           className="w-full h-full flex items-center justify-center"
