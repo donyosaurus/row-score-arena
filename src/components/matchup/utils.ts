@@ -1,4 +1,5 @@
 import { formatCents } from "@/lib/formatCurrency";
+import { getCircleFlagUrl } from "@/data/countryFlags";
 import type { CrewInfo, ParsedPick, EntrantRow } from "./types";
 
 export function parsePicks(picks: unknown, crewMap: Map<string, CrewInfo>): ParsedPick[] {
