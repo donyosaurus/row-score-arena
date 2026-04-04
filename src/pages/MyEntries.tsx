@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { getCircleFlagUrl } from "@/data/countryFlags";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
