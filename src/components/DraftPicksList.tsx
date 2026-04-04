@@ -44,7 +44,6 @@ export function DraftPicksList({ picks, events, maxPicks, onRemove }: DraftPicks
                 logoUrl={pick.logoUrl}
                 crewName={pick.crewName}
                 size={32}
-              </div>
               <div className="flex-1 min-w-0">
                 <p className="font-semibold text-sm text-foreground truncate">{pick.crewName}</p>
                 <p className="text-xs text-muted-foreground">{pick.eventId}</p>
