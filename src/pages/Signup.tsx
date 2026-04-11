@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -32,6 +32,7 @@ const Signup = () => {
   const [loadingContent, setLoadingContent] = useState(false);
   const { signUp, user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const fetchContent = async (slug: string) => {
     setLoadingContent(true);
@@ -68,9 +69,10 @@ const Signup = () => {
   // Redirect if already logged in
   useEffect(() => {
     if (user) {
-      navigate("/");
+      const from = (location.state as any)?.from || "/";
+      navigate(from);
     }
-  }, [user, navigate]);
+  }, [user, navigate, location.state]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
