@@ -88,7 +88,7 @@ const Login = () => {
               
               <p className="text-sm text-center text-muted-foreground">
                 Don't have an account?{" "}
-                <Link to="/signup" className="text-accent hover:underline font-medium">
+                <Link to="/signup" state={location.state} className="text-accent hover:underline font-medium">
                   Sign up
                 </Link>
               </p>

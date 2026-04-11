@@ -299,7 +299,7 @@ const Signup = () => {
               
               <p className="text-sm text-center text-muted-foreground">
                 Already have an account?{" "}
-                <Link to="/login" className="text-accent hover:underline font-medium">
+                <Link to="/login" state={location.state} className="text-accent hover:underline font-medium">
                   Log in
                 </Link>
               </p>
