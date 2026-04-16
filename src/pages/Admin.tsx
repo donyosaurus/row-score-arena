@@ -275,16 +275,7 @@ const Admin = () => {
     } catch (error: any) { console.error("Error calculating scores:", error); toast.error(error.message || "Failed to calculate scores"); } finally { setScoringPoolId(null); }
   };
 
-  const voidContest = async (contestPoolId: string) => {
-    if (!confirm("Are you sure you want to void this contest? All entry fees will be refunded.")) return;
-    setVoidingPoolId(contestPoolId);
-    try {
-      const { data, error } = await supabase.functions.invoke("admin-contest-void", { body: { contestPoolId } });
-      if (error) throw error;
-      toast.success("Contest voided and refunds issued");
-      loadDashboardData();
-    } catch (error: any) { console.error("Error voiding contest:", error); toast.error(error.message || "Failed to void contest"); } finally { setVoidingPoolId(null); }
-  };
+  // voidContest removed — use voidAllPoolsForTemplate instead.
 
   const voidTier = async (templateId: string, tierName: string) => {
     if (!confirm(`Void all ${tierName} tier pools? Entry fees will be refunded for ${tierName} entrants only.`)) return;
@@ -299,17 +290,24 @@ const Admin = () => {
     } catch (error: any) { console.error("Error voiding tier:", error); toast.error(error.message || "Failed to void tier"); } finally { setVoidingPoolId(null); }
   };
 
-  const voidAllTiers = async (templateId: string) => {
-    if (!confirm("Void ALL tiers for this contest? All entry fees will be refunded.")) return;
+  const voidAllPoolsForTemplate = async (templateId: string) => {
+    const allPools = contests.filter((p: any) => p.contest_template_id === templateId && p.status !== 'voided' && p.status !== 'settled');
+    if (allPools.length === 0) {
+      toast.info("No active pools to void for this contest.");
+      return;
+    }
+    const msg = allPools.length === 1
+      ? "Are you sure you want to void this contest? All entry fees will be refunded."
+      : `Void ALL ${allPools.length} pools for this contest? All entry fees will be refunded.`;
+    if (!confirm(msg)) return;
     setVoidingPoolId(templateId);
     try {
-      const allPools = contests.filter((p: any) => p.contest_template_id === templateId && p.status !== 'voided' && p.status !== 'settled');
       for (const pool of allPools) {
         await supabase.functions.invoke("admin-contest-void", { body: { contestPoolId: pool.id } });
       }
-      toast.success("All tiers voided and refunds issued");
+      toast.success(allPools.length === 1 ? "Contest voided and refunds issued" : "All pools voided and refunds issued");
       loadDashboardData();
-    } catch (error: any) { console.error("Error voiding all tiers:", error); toast.error(error.message || "Failed to void contest"); } finally { setVoidingPoolId(null); }
+    } catch (error: any) { console.error("Error voiding contest:", error); toast.error(error.message || "Failed to void contest"); } finally { setVoidingPoolId(null); }
   };
 
   const isContestPastLockTime = (contest: any) => new Date() > new Date(contest.lock_time);
@@ -772,8 +770,8 @@ const Admin = () => {
                             {overallStatus === "settled" && <span className="text-sm text-muted-foreground">Completed</span>}
                             {overallStatus === "open" && !isContestPastLockTime(primary) && <span className="text-sm text-muted-foreground">Awaiting lock</span>}
                             {overallStatus !== "settled" && overallStatus !== "voided" && (
-                              <Button size="sm" variant="destructive" disabled={voidingPoolId === primary.contest_template_id || voidingPoolId === primary.id} onClick={() => hasTiers ? voidAllTiers(primary.contest_template_id) : voidContest(primary.id)}>
-                                {(voidingPoolId === primary.contest_template_id || voidingPoolId === primary.id) ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Voiding...</> : hasTiers ? "Void All" : "Void"}
+                              <Button size="sm" variant="destructive" disabled={voidingPoolId === primary.contest_template_id} onClick={() => voidAllPoolsForTemplate(primary.contest_template_id)}>
+                                {voidingPoolId === primary.contest_template_id ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Voiding...</> : hasTiers ? "Void All" : "Void"}
                               </Button>
                             )}
                             {overallStatus === "voided" && <span className="text-sm text-destructive">Voided</span>}
