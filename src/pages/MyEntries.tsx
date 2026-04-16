@@ -164,10 +164,107 @@ const MyEntries = () => {
         totalWinnings: totalWinnings / 100,
         winRate: completed.length > 0 ? wins.length / completed.length * 100 : 0
       });
+
+      // Fetch wallet balance for resubmit modal
+      const { data: walletData } = await supabase
+        .from('wallets')
+        .select('available_balance')
+        .eq('user_id', user.id)
+        .single();
+      if (walletData) setWalletBalanceCents(Number(walletData.available_balance));
     } catch (error) {
       console.error('Error loading entries:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const openResubmit = (entry: Entry) => {
+    if (entry.contest_pools?.status !== 'open') {
+      toast.error('This contest has locked and is no longer accepting entries.');
+      return;
+    }
+    if (new Date(entry.contest_templates.lock_time) <= new Date()) {
+      toast.error('This contest has locked and is no longer accepting entries.');
+      return;
+    }
+    setResubmitEntry(entry);
+  };
+
+  const handleResubmit = async () => {
+    if (!resubmitEntry || !user) return;
+    const entry = resubmitEntry;
+    const fee = entry.contest_pools?.entry_fee_cents ?? entry.entry_fee_cents;
+
+    if (entry.contest_pools?.status !== 'open' || new Date(entry.contest_templates.lock_time) <= new Date()) {
+      toast.error('This contest has locked and is no longer accepting entries.');
+      setResubmitEntry(null);
+      return;
+    }
+    if (walletBalanceCents !== null && walletBalanceCents < fee) {
+      toast.error(`Insufficient balance. You need ${formatCents(fee)} but have ${formatCents(walletBalanceCents)}.`);
+      return;
+    }
+
+    // Normalize picks into the shape contest-matchmaking expects
+    let rawPicks: unknown = entry.picks;
+    if (typeof rawPicks === 'string') {
+      try { rawPicks = JSON.parse(rawPicks); } catch { rawPicks = []; }
+    }
+    let picksArray: any[] = [];
+    if (Array.isArray(rawPicks)) picksArray = rawPicks;
+    else if (rawPicks && typeof rawPicks === 'object' && Array.isArray((rawPicks as any).crews)) {
+      picksArray = (rawPicks as any).crews;
+    }
+    const picks = picksArray.map((p: any) => {
+      if (typeof p === 'string') return { crewId: p, event_id: '', predictedMargin: 0 };
+      return {
+        crewId: String(p.crewId || p.crew_id || p.id || ''),
+        event_id: p.event_id || p.eventId || '',
+        predictedMargin: Number(p.predictedMargin ?? p.predicted_margin ?? 0),
+      };
+    });
+
+    // Backfill missing event_ids from crewMap
+    for (const pick of picks) {
+      if (!pick.event_id) {
+        const info = crewMap.get(`${entry.pool_id}-${pick.crewId}`) as any;
+        if (info?.event_id) pick.event_id = info.event_id;
+      }
+    }
+
+    setResubmitting(true);
+    try {
+      const templateId = entry.contest_pools?.contest_template_id || entry.contest_template_id;
+      const { data, error } = await supabase.functions.invoke('contest-matchmaking', {
+        body: {
+          contestTemplateId: templateId,
+          tierId: entry.pool_id,
+          picks,
+          entryFeeCents: fee,
+          tierName: entry.tier_name ?? null,
+          stateCode: null,
+        },
+      });
+      if (error) throw error;
+      if (data?.entryId) {
+        toast.success("Entry submitted! You're in the contest.");
+        setResubmitEntry(null);
+        await loadEntries();
+      } else {
+        toast.error(data?.error || 'Failed to submit entry.');
+      }
+    } catch (err: any) {
+      let errorMessage = 'Failed to submit entry';
+      if (err?.context?.json) {
+        try {
+          const ctx = typeof err.context.json === 'string' ? JSON.parse(err.context.json) : err.context.json;
+          errorMessage = ctx.error || ctx.message || errorMessage;
+        } catch { errorMessage = err.message || errorMessage; }
+      } else if (err?.message) errorMessage = err.message;
+      toast.error(errorMessage);
+    } finally {
+      setResubmitting(false);
     }
   };
 
