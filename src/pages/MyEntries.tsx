@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { getCircleFlagUrl } from "@/data/countryFlags";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
@@ -76,6 +76,7 @@ const MyEntries = () => {
   const [resubmitEntry, setResubmitEntry] = useState<Entry | null>(null);
   const [resubmitting, setResubmitting] = useState(false);
   const [walletBalanceCents, setWalletBalanceCents] = useState<number | null>(null);
+  const poolChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const [stats, setStats] = useState({
     totalEntries: 0,
     activeEntries: 0,
@@ -91,24 +92,28 @@ const MyEntries = () => {
 
     loadEntries();
 
-    const channel = supabase.
-    channel('my-entries-updates').
-    on(
-      'postgres_changes',
-      {
-        event: 'UPDATE',
-        schema: 'public',
-        table: 'contest_entries',
-        filter: `user_id=eq.${user.id}`
-      },
-      () => {
-        loadEntries();
-      }
-    ).
-    subscribe();
+    const userChannel = supabase
+      .channel('my-entries-user-updates')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'contest_entries',
+          filter: `user_id=eq.${user.id}`,
+        },
+        () => {
+          loadEntries();
+        }
+      )
+      .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(userChannel);
+      if (poolChannelRef.current) {
+        supabase.removeChannel(poolChannelRef.current);
+        poolChannelRef.current = null;
+      }
     };
   }, [user, navigate]);
 
@@ -136,6 +141,42 @@ const MyEntries = () => {
       setEntries(entriesData);
 
       const poolIds = [...new Set(entriesData.map((e) => e.pool_id).filter(Boolean))];
+
+      // (Re)subscribe to opponent activity in any pool the user is in
+      const activePoolIds = [...new Set(
+        entriesData
+          .filter((e) => ['active', 'scored'].includes(e.status))
+          .map((e) => e.pool_id)
+          .filter(Boolean)
+      )];
+
+      if (poolChannelRef.current) {
+        supabase.removeChannel(poolChannelRef.current);
+        poolChannelRef.current = null;
+      }
+
+      if (activePoolIds.length > 0) {
+        const filter = `pool_id=in.(${activePoolIds.join(',')})`;
+        const poolFilter = `id=in.(${activePoolIds.join(',')})`;
+        poolChannelRef.current = supabase
+          .channel(`my-entries-pool-updates-${Date.now()}`)
+          .on(
+            'postgres_changes',
+            { event: 'INSERT', schema: 'public', table: 'contest_entries', filter },
+            () => loadEntries()
+          )
+          .on(
+            'postgres_changes',
+            { event: 'UPDATE', schema: 'public', table: 'contest_entries', filter },
+            () => loadEntries()
+          )
+          .on(
+            'postgres_changes',
+            { event: 'UPDATE', schema: 'public', table: 'contest_pools', filter: poolFilter },
+            () => loadEntries()
+          )
+          .subscribe();
+      }
 
       if (poolIds.length > 0) {
         const { data: crewsData, error: crewsError } = await supabase.
