@@ -462,21 +462,21 @@ const MyEntries = () => {
               )}
               {parsedPicks.length === 0 && <span className="text-sm text-muted-foreground">No picks recorded</span>}
             </div>
-            {entry.contest_pools?.status === 'open' && (
+          </div>
+
+          {/* Action buttons row */}
+          <div className="flex justify-between items-center mt-3 gap-2">
+            {entry.contest_pools?.status === 'open' ? (
               <Button
                 type="button"
                 size="sm"
                 onClick={() => openResubmit(entry)}
-                className="mt-3 bg-accent text-accent-foreground hover:bg-accent/90 shadow-accent transition-smooth font-semibold"
+                className="bg-accent text-accent-foreground hover:bg-accent/90 shadow-accent transition-smooth font-semibold"
               >
                 <Plus className="h-4 w-4" />
                 Submit Another Entry
               </Button>
-            )}
-          </div>
-
-          {/* View Matchup button */}
-          <div className="flex justify-end mt-3">
+            ) : <span />}
             <Button
               variant="outline"
               size="sm"
