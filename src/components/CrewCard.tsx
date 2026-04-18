@@ -26,11 +26,11 @@ export function CrewCard({
     <div
       className={`
         relative flex items-center gap-4 pl-5 pr-4 py-3 rounded-xl transition-all border-2 overflow-hidden
-        bg-[#0f1a2e]
+        bg-white
         ${!isOpen ? "opacity-60 cursor-not-allowed" : "cursor-pointer"}
         ${isSelected
           ? "border-teal-400 shadow-lg shadow-teal-400/20 scale-[1.01]"
-          : "border-transparent hover:border-white/10 hover:scale-[1.005]"
+          : "border-transparent hover:border-slate-200 hover:bg-slate-50 hover:scale-[1.005]"
         }
       `}
       style={{
@@ -56,8 +56,8 @@ export function CrewCard({
 
       {/* Text */}
       <div className="flex-1 min-w-0">
-        <p className="text-base font-bold truncate text-white">{crewName}</p>
-        <p className="text-xs font-semibold uppercase tracking-wider text-white/60">{eventId}</p>
+        <p className="text-base font-bold truncate text-slate-900">{crewName}</p>
+        <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">{eventId}</p>
       </div>
 
       {/* Selected checkmark */}
@@ -72,13 +72,13 @@ export function CrewCard({
       {/* Margin input when selected */}
       {isSelected && isOpen && (
         <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
-          <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-white/10 border border-white/15">
+          <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-slate-100 border border-slate-200">
             <Input
               type="number"
               min="0.01"
               step="0.1"
               placeholder="Margin"
-              className="h-6 w-16 text-xs border-0 bg-transparent p-0 focus-visible:ring-0 placeholder:text-white/40 text-white"
+              className="h-6 w-16 text-xs border-0 bg-transparent p-0 focus-visible:ring-0 placeholder:text-slate-400 text-slate-900"
               value={marginVal || ""}
               onClick={(e) => e.stopPropagation()}
               onChange={(e) => {
@@ -86,7 +86,7 @@ export function CrewCard({
                 onMarginChange(crewId, parseFloat(e.target.value) || 0);
               }}
             />
-            <span className="text-[10px] whitespace-nowrap text-white/60">sec</span>
+            <span className="text-[10px] whitespace-nowrap text-slate-500">sec</span>
           </div>
         </div>
       )}
