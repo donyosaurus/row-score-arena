@@ -9,7 +9,7 @@ import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Waves } from "lucide-react";
+import { Waves, Check, Circle } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -129,6 +129,16 @@ const Signup = () => {
       toast.error("Password must be at least 8 characters");
       return;
     }
+
+    if (!/[A-Z]/.test(password)) {
+      toast.error("Password must contain at least one uppercase letter");
+      return;
+    }
+
+    if (!/[0-9]/.test(password)) {
+      toast.error("Password must contain at least one number");
+      return;
+    }
     
     if (password !== confirmPassword) {
       toast.error("Passwords do not match");
@@ -231,9 +241,27 @@ const Signup = () => {
                   required
                   minLength={8}
                 />
-                <p className="text-xs text-muted-foreground">
-                  At least 8 characters. Avoid common or previously breached passwords.
-                </p>
+                <ul className="space-y-1 pt-1">
+                  {[
+                    { label: "At least 8 characters", met: password.length >= 8 },
+                    { label: "One uppercase letter", met: /[A-Z]/.test(password) },
+                    { label: "One number", met: /[0-9]/.test(password) },
+                  ].map((req) => (
+                    <li
+                      key={req.label}
+                      className={`flex items-center gap-2 text-xs transition-colors ${
+                        req.met ? "text-accent" : "text-muted-foreground"
+                      }`}
+                    >
+                      {req.met ? (
+                        <Check className="h-3.5 w-3.5" strokeWidth={3} />
+                      ) : (
+                        <Circle className="h-3.5 w-3.5" />
+                      )}
+                      {req.label}
+                    </li>
+                  ))}
+                </ul>
               </div>
 
               <div className="space-y-2">
