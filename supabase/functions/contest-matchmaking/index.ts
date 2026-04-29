@@ -463,7 +463,7 @@ Deno.serve(async (req) => {
       user_id: userId,
       wallet_id: wallet.id,
       type: "entry_fee" as const,
-      amount: authoritativeFeeDollars,
+      amount: authoritativeFeeCents,
       status: "completed" as const,
       reference_type: "contest_entry",
       description: `Entry fee — ${template.regatta_name}`,

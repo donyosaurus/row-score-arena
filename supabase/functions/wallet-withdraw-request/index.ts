@@ -165,7 +165,7 @@ Deno.serve(async (req) => {
         user_id: userId,
         wallet_id: wallet.id,
         type: 'withdrawal',
-        amount: -(body.amount_cents / 100),
+        amount: -body.amount_cents,
         status: 'pending',
         description: 'Withdrawal request',
       })

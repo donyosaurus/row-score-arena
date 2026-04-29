@@ -72,7 +72,7 @@ Deno.serve(async (req) => {
     }
 
     // Restore funds from pending back to available
-    const amountCents = Math.abs(Math.round(transaction.amount * 100));
+    const amountCents = Math.abs(Number(transaction.amount));
     const serviceClient = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
