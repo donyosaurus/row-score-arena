@@ -132,12 +132,12 @@ Deno.serve(async (req) => {
           .single();
           
         if (wallet) {
-          // Create deposit transaction (transactions table stores dollars)
+          // Create deposit transaction (transactions.amount stores cents (bigint))
           await supabase.from('transactions').insert({ 
             user_id: session.user_id, 
             wallet_id: wallet.id, 
             type: 'deposit', 
-            amount: session.amount_cents / 100, 
+            amount: session.amount_cents, 
             status: 'completed', 
             reference_id: sessionId,
             reference_type: 'payment_session',

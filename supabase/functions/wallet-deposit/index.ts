@@ -121,7 +121,7 @@ Deno.serve(async (req) => {
         user_id: user.id,
         wallet_id: wallet.id,
         type: 'deposit',
-        amount: amount / 100,
+        amount: amount,
         status: 'completed',
         completed_at: new Date().toISOString(),
         deposit_timestamp: new Date().toISOString(),
