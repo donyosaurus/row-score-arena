@@ -134,7 +134,7 @@ Deno.serve(async (req) => {
 
     const todayTotal = (todayWithdrawals || []).reduce((sum: number, tx: any) => sum + Math.abs(Number(tx.amount)), 0);
 
-    if ((todayTotal * 100) + body.amount_cents > 50000) {
+    if ((todayTotal + body.amount_cents) > 50000) {
       return new Response(
         JSON.stringify({ error: ERROR_MESSAGES.DAILY_LIMIT }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -197,7 +197,6 @@ Deno.serve(async (req) => {
     return new Response(
       JSON.stringify({
         requestId: transaction.id,
-        amount: body.amount_cents / 100,
         amountCents: body.amount_cents,
         status: 'pending',
         message: 'Withdrawal request submitted successfully',
