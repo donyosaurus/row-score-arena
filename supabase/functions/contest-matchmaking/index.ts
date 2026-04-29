@@ -225,18 +225,8 @@ Deno.serve(async (req) => {
     }
 
     const balanceCents = Number(wallet.available_balance);
-    const entryFeeCents = body.entryFeeCents;
-    const entryFeeDollars = entryFeeCents / 100;
-    const balanceDollars = balanceCents / 100;
-
-    if (balanceCents < entryFeeCents) {
-      return new Response(
-        JSON.stringify({
-          error: `Insufficient balance. You need $${entryFeeDollars.toFixed(2)} but have $${balanceDollars.toFixed(2)}.`,
-        }),
-        { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
-    }
+    // NOTE: Authoritative entry fee is derived from targetPool.entry_fee_cents
+    // AFTER pool selection — never trust body.entryFeeCents for money operations.
 
     // -----------------------------------------------------------------------
     // POOL SELECTION
@@ -405,11 +395,57 @@ Deno.serve(async (req) => {
     }
 
     // -----------------------------------------------------------------------
+    // AUTHORITATIVE FEE: derived from the selected pool, NOT the client body.
+    // This prevents a malicious client from entering a high-stakes pool by
+    // submitting a low entryFeeCents value.
+    // -----------------------------------------------------------------------
+    const authoritativeFeeCents = Number(targetPool.entry_fee_cents);
+
+    if (!Number.isFinite(authoritativeFeeCents) || authoritativeFeeCents <= 0) {
+      console.error("[matchmaking] Invalid pool entry fee:", targetPool.entry_fee_cents);
+      return new Response(JSON.stringify({ error: "Invalid contest configuration." }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // If the client sent an entryFeeCents, it MUST match the pool's fee.
+    // Mismatch indicates a stale UI or a tampering attempt — reject.
+    if (body.entryFeeCents !== authoritativeFeeCents) {
+      console.warn(
+        "[matchmaking] entryFeeCents mismatch — client:",
+        body.entryFeeCents,
+        "pool:",
+        authoritativeFeeCents,
+        "user:",
+        userId,
+      );
+      return new Response(
+        JSON.stringify({
+          error: "Entry fee mismatch. Please refresh and try again.",
+        }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    const authoritativeFeeDollars = authoritativeFeeCents / 100;
+    const balanceDollars = balanceCents / 100;
+
+    if (balanceCents < authoritativeFeeCents) {
+      return new Response(
+        JSON.stringify({
+          error: `Insufficient balance. You need $${authoritativeFeeDollars.toFixed(2)} but have $${balanceDollars.toFixed(2)}.`,
+        }),
+        { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    // -----------------------------------------------------------------------
     // DEDUCT wallet BEFORE creating entry
     // -----------------------------------------------------------------------
     const { error: deductError } = await supabaseAdmin.rpc("update_wallet_balance", {
       _wallet_id: wallet.id,
-      _available_delta: -body.entryFeeCents,
+      _available_delta: -authoritativeFeeCents,
       _pending_delta: 0,
       _lifetime_winnings_delta: 0,
     });
@@ -427,7 +463,7 @@ Deno.serve(async (req) => {
       user_id: userId,
       wallet_id: wallet.id,
       type: "entry_fee" as const,
-      amount: entryFeeDollars,
+      amount: authoritativeFeeDollars,
       status: "completed" as const,
       reference_type: "contest_entry",
       description: `Entry fee — ${template.regatta_name}`,
@@ -442,7 +478,7 @@ Deno.serve(async (req) => {
     // Record in ledger_entries
     const { error: ledgerError } = await supabaseAdmin.from("ledger_entries").insert({
       user_id: userId,
-      amount: -entryFeeCents,
+      amount: -authoritativeFeeCents,
       transaction_type: "ENTRY_FEE",
       description: `Contest Entry Fee`,
       reference_id: targetPoolId,
@@ -462,7 +498,7 @@ Deno.serve(async (req) => {
         pool_id: targetPoolId,
         contest_template_id: body.contestTemplateId,
         picks: body.picks,
-        entry_fee_cents: body.entryFeeCents,
+        entry_fee_cents: authoritativeFeeCents,
         state_code: body.stateCode ?? null,
         tier_name: body.tierName ?? null,
         status: "active",
@@ -474,7 +510,7 @@ Deno.serve(async (req) => {
       console.error("[matchmaking] Entry insert failed:", entryError.message, "— refunding wallet");
       await supabaseAdmin.rpc("update_wallet_balance", {
         _wallet_id: wallet.id,
-        _available_delta: body.entryFeeCents,
+        _available_delta: authoritativeFeeCents,
         _pending_delta: 0,
         _lifetime_winnings_delta: 0,
       });
@@ -497,10 +533,10 @@ Deno.serve(async (req) => {
       metadata: {
         entry_id: entry.id,
         pool_id: targetPoolId,
-        entry_fee_cents: body.entryFeeCents,
+        entry_fee_cents: authoritativeFeeCents,
         picks_count: body.picks.length,
         unique_events: uniqueEvents.size,
-        wallet_deducted: body.entryFeeCents,
+        wallet_deducted: authoritativeFeeCents,
       },
     });
 
