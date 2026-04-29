@@ -237,7 +237,7 @@ export async function performComplianceChecks(
         0
       );
       
-      if (totalDeposited + context.amountCents / 100 > depositLimit / 100) {
+      if (totalDeposited + context.amountCents > depositLimit) {
         await logComplianceEvent(supabase, {
           userId: context.userId,
           eventType: 'deposit_limit_exceeded',
@@ -245,9 +245,9 @@ export async function performComplianceChecks(
           description: 'Monthly deposit limit exceeded',
           stateCode: context.stateCode,
           metadata: {
-            current_total: totalDeposited,
-            limit: depositLimit / 100,
-            attempted_amount: context.amountCents / 100,
+            current_total_cents: totalDeposited,
+            limit_cents: depositLimit,
+            attempted_amount_cents: context.amountCents,
           },
         });
         
@@ -255,8 +255,8 @@ export async function performComplianceChecks(
           allowed: false,
           reason: 'Monthly deposit limit exceeded',
           metadata: {
-            limit: depositLimit / 100,
-            remaining: Math.max(0, depositLimit / 100 - totalDeposited),
+            limit_cents: depositLimit,
+            remaining_cents: Math.max(0, depositLimit - totalDeposited),
           },
         };
       }
@@ -317,14 +317,14 @@ export async function performComplianceChecks(
         0
       );
       
-      if ((dailyTotal * 100) + context.amountCents > 50000) {
+      if ((dailyTotal + context.amountCents) > 50000) {
         return {
           allowed: false,
           reason: 'Daily withdrawal limit of $500 reached',
           metadata: {
-            dailyTotal,
-            limit: 500,
-            remaining: Math.max(0, 500 - dailyTotal),
+            daily_total_cents: dailyTotal,
+            limit_cents: 50000,
+            remaining_cents: Math.max(0, 50000 - dailyTotal),
           },
         };
       }
@@ -346,7 +346,7 @@ export async function performComplianceChecks(
         0
       );
       
-      if (holdAmount * 100 >= context.amountCents) {
+      if (holdAmount >= context.amountCents) {
         return {
           allowed: false,
           reason: 'Newly deposited funds must be held for 24 hours before withdrawal',
