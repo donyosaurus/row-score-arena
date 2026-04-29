@@ -1,4 +1,4 @@
-// Wallet Withdraw Request - Create pending withdrawal with limits and rate limiting
+// Wallet Withdraw Request - Thin wrapper around initiate_withdrawal_atomic SQL function
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.76.1';
 import { z } from 'https://deno.land/x/zod@v3.22.4/mod.ts';
@@ -46,157 +46,99 @@ Deno.serve(async (req) => {
 
     // Validate input
     const withdrawSchema = z.object({
-      amount_cents: z.number().int().min(500).max(20000), // $5 to $200
+      amount_cents: z.number().int().min(500).max(50000), // $5 to $500
     });
 
     const body = withdrawSchema.parse(await req.json());
 
-    // Use service client for atomic operations
-    const supabaseAdmin = createClient(SUPABASE_URL, SERVICE_KEY);
-
-    // Fetch wallet
-    const { data: wallet } = await auth.supabase
+    // Look up wallet via auth-scoped client (RLS enforced)
+    const { data: wallet, error: walletError } = await auth.supabase
       .from('wallets')
-      .select('*')
+      .select('id')
       .eq('user_id', userId)
       .single();
 
-    if (!wallet) {
+    if (walletError || !wallet) {
       return new Response(
         JSON.stringify({ error: ERROR_MESSAGES.NOT_FOUND }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Check per-transaction limit ($200 = 20000 cents)
-    if (body.amount_cents > 20000) {
-      return new Response(
-        JSON.stringify({ error: 'Per-transaction withdrawal limit is $200' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+    // Service client used to call SECURITY DEFINER function (function enforces user_id matching internally)
+    const supabaseAdmin = createClient(SUPABASE_URL, SERVICE_KEY);
 
-    // Check available balance
-    if (Number(wallet.available_balance) < body.amount_cents) {
-      return new Response(
-        JSON.stringify({ error: ERROR_MESSAGES.INSUFFICIENT_FUNDS }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+    const stateCode = req.headers.get('x-user-state') || ''; // placeholder; geofencing not yet wired
 
-    // Check for pending withdrawals
-    const { data: pendingWithdrawals } = await auth.supabase
-      .from('transactions')
-      .select('id')
-      .eq('user_id', userId)
-      .eq('type', 'withdrawal')
-      .eq('status', 'pending');
-
-    if (pendingWithdrawals && pendingWithdrawals.length > 0) {
-      return new Response(
-        JSON.stringify({ error: 'You have a pending withdrawal. Please wait for it to complete.' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Check 10-minute cooldown
-    const { data: lastWithdrawal } = await auth.supabase
-      .from('transactions')
-      .select('created_at')
-      .eq('user_id', userId)
-      .eq('type', 'withdrawal')
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single();
-
-    if (lastWithdrawal) {
-      const timeSince = Date.now() - new Date(lastWithdrawal.created_at).getTime();
-      const minutesSince = timeSince / (1000 * 60);
-      if (minutesSince < 10) {
-        return new Response(
-          JSON.stringify({ error: ERROR_MESSAGES.WITHDRAWAL_COOLDOWN }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-    }
-
-    // Check daily limit ($500) - Use UTC
-    const todayStart = new Date();
-    todayStart.setUTCHours(0, 0, 0, 0);
-
-    const { data: todayWithdrawals } = await auth.supabase
-      .from('transactions')
-      .select('amount')
-      .eq('user_id', userId)
-      .eq('type', 'withdrawal')
-      .in('status', ['completed', 'pending'])
-      .gte('created_at', todayStart.toISOString());
-
-    const todayTotal = (todayWithdrawals || []).reduce((sum: number, tx: any) => sum + Math.abs(Number(tx.amount)), 0);
-
-    if ((todayTotal + body.amount_cents) > 50000) {
-      return new Response(
-        JSON.stringify({ error: ERROR_MESSAGES.DAILY_LIMIT }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Check 24-hour deposit hold
-    const { data: recentDeposits } = await auth.supabase
-      .from('transactions')
-      .select('created_at')
-      .eq('user_id', userId)
-      .eq('type', 'deposit')
-      .eq('status', 'completed')
-      .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
-      .limit(1);
-
-    if (recentDeposits && recentDeposits.length > 0) {
-      return new Response(
-        JSON.stringify({ error: 'Please wait 24 hours after your last deposit before withdrawing' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Create pending withdrawal transaction
-    const { data: transaction, error: txError } = await supabaseAdmin
-      .from('transactions')
-      .insert({
-        user_id: userId,
-        wallet_id: wallet.id,
-        type: 'withdrawal',
-        amount: -body.amount_cents,
-        status: 'pending',
-        description: 'Withdrawal request',
-      })
-      .select()
-      .single();
-
-    if (txError) throw txError;
-
-    // Move funds to pending (update_wallet_balance expects cents)
-    await supabaseAdmin.rpc('update_wallet_balance', {
+    const { data: result, error: rpcError } = await supabaseAdmin.rpc('initiate_withdrawal_atomic', {
+      _user_id: userId,
       _wallet_id: wallet.id,
-      _available_delta: -body.amount_cents,
-      _pending_delta: body.amount_cents,
+      _amount_cents: body.amount_cents,
+      _state_code: stateCode,
     });
 
-    // Log compliance event
-    await supabaseAdmin.from('compliance_audit_logs').insert({
-      user_id: userId,
-      event_type: 'withdrawal_requested',
-      description: 'User requested withdrawal',
-      severity: 'info',
-      metadata: {
-        amount_cents: body.amount_cents,
-        transaction_id: transaction.id,
-        today_total_cents: body.amount_cents,
-      },
-    });
+    if (rpcError) {
+      const requestId = logSecureError('wallet-withdraw-request', rpcError);
+      return new Response(
+        JSON.stringify({ error: mapErrorToClient(rpcError), requestId }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const withdrawal = Array.isArray(result) ? result[0] : result;
+
+    if (!withdrawal) {
+      const requestId = logSecureError('wallet-withdraw-request', new Error('Empty result from initiate_withdrawal_atomic'));
+      return new Response(
+        JSON.stringify({ error: ERROR_MESSAGES.INTERNAL_ERROR, requestId }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (!withdrawal.allowed) {
+      const errorMap: Record<string, { status: number; message: string }> = {
+        per_transaction_limit: { status: 400, message: 'Per-transaction withdrawal limit is $5 to $500' },
+        wallet_not_found: { status: 404, message: ERROR_MESSAGES.NOT_FOUND },
+        insufficient_balance: { status: 400, message: ERROR_MESSAGES.INSUFFICIENT_FUNDS },
+        pending_withdrawal_exists: { status: 400, message: 'You have a pending withdrawal. Please wait for it to complete.' },
+        cooldown: { status: 400, message: ERROR_MESSAGES.WITHDRAWAL_COOLDOWN },
+        daily_limit: { status: 400, message: ERROR_MESSAGES.DAILY_LIMIT },
+        deposit_hold_24h: { status: 400, message: 'Please wait 24 hours after your last deposit before withdrawing' },
+      };
+
+      const mapped = errorMap[withdrawal.reason] ?? { status: 400, message: ERROR_MESSAGES.INTERNAL_ERROR };
+
+      if (!errorMap[withdrawal.reason]) {
+        logSecureError('wallet-withdraw-request', new Error(`Unknown withdrawal reason: ${withdrawal.reason}`));
+      }
+
+      return new Response(
+        JSON.stringify({ error: mapped.message }),
+        { status: mapped.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Best-effort compliance audit log; failures must not roll back the withdrawal
+    try {
+      await supabaseAdmin.from('compliance_audit_logs').insert({
+        user_id: userId,
+        event_type: 'withdrawal_requested',
+        description: 'User requested withdrawal',
+        severity: 'info',
+        metadata: {
+          amount_cents: body.amount_cents,
+          transaction_id: withdrawal.transaction_id,
+          today_total_cents: withdrawal.today_total_cents,
+          remaining_balance_cents: withdrawal.available_balance_cents,
+        },
+      });
+    } catch (logError) {
+      logSecureError('wallet-withdraw-request', logError);
+    }
 
     return new Response(
       JSON.stringify({
-        requestId: transaction.id,
+        requestId: withdrawal.transaction_id,
         amountCents: body.amount_cents,
         status: 'pending',
         message: 'Withdrawal request submitted successfully',
