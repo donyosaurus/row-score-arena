@@ -46,7 +46,7 @@ Deno.serve(async (req) => {
 
     // Validate input
     const withdrawSchema = z.object({
-      amount_cents: z.number().int().min(500).max(50000), // $5 to $500
+      amount_cents: z.number().int().positive().max(100_000_000), // sanity ceiling only; SQL function enforces the actual $5-$500 rule
     });
 
     const body = withdrawSchema.parse(await req.json());
