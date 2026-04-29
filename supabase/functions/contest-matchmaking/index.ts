@@ -225,18 +225,8 @@ Deno.serve(async (req) => {
     }
 
     const balanceCents = Number(wallet.available_balance);
-    const entryFeeCents = body.entryFeeCents;
-    const entryFeeDollars = entryFeeCents / 100;
-    const balanceDollars = balanceCents / 100;
-
-    if (balanceCents < entryFeeCents) {
-      return new Response(
-        JSON.stringify({
-          error: `Insufficient balance. You need $${entryFeeDollars.toFixed(2)} but have $${balanceDollars.toFixed(2)}.`,
-        }),
-        { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
-    }
+    // NOTE: Authoritative entry fee is derived from targetPool.entry_fee_cents
+    // AFTER pool selection — never trust body.entryFeeCents for money operations.
 
     // -----------------------------------------------------------------------
     // POOL SELECTION
