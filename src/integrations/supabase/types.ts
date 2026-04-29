@@ -1562,6 +1562,25 @@ export type Database = {
             }
             Returns: Json
           }
+      enter_contest_pool_atomic: {
+        Args: {
+          _contest_template_id: string
+          _picks: Json
+          _state_code: string
+          _tier_name: string
+          _user_id: string
+          _wallet_id: string
+        }
+        Returns: {
+          allowed: boolean
+          available_balance_cents: number
+          current_entries: number
+          entry_id: string
+          max_entries: number
+          pool_id: string
+          reason: string
+        }[]
+      }
       get_pool_entrants: {
         Args: { p_pool_id: string }
         Returns: {
