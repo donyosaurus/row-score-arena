@@ -1639,6 +1639,24 @@ export type Database = {
         }
         Returns: number
       }
+      process_deposit_atomic: {
+        Args: {
+          _amount_cents: number
+          _idempotency_key: string
+          _payment_method: string
+          _payment_provider_reference: string
+          _state_code: string
+          _user_id: string
+          _wallet_id: string
+        }
+        Returns: {
+          allowed: boolean
+          available_balance_cents: number
+          reason: string
+          transaction_id: string
+          was_duplicate: boolean
+        }[]
+      }
       read_email_batch: {
         Args: { batch_size: number; queue_name: string; vt: number }
         Returns: {
