@@ -1,9 +1,11 @@
-// Wallet Deposit - Process deposit using wallet system with responsible gaming checks
+// Wallet Deposit - Thin wrapper around process_deposit_atomic SQL function
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.76.1';
 import { z } from 'https://deno.land/x/zod@v3.22.4/mod.ts';
 import { MockPaymentAdapter } from '../shared/payment-providers/mock-adapter.ts';
 import { getCorsHeaders } from '../shared/cors.ts';
+import { authenticateUser, checkRateLimit, getClientIp } from '../shared/auth-helpers.ts';
+import { ERROR_MESSAGES, logSecureError, mapErrorToClient } from '../shared/error-handler.ts';
 
 Deno.serve(async (req) => {
   const corsHeaders = getCorsHeaders(req);
@@ -20,76 +22,73 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const authHeader = req.headers.get('Authorization')!;
-    
-    const supabase = createClient(supabaseUrl, Deno.env.get('SUPABASE_ANON_KEY')!, {
-      global: { headers: { Authorization: authHeader } },
-    });
+    const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
+    const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!;
 
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
+    const auth = await authenticateUser(req, SUPABASE_URL, ANON_KEY);
+    if (!auth) {
       return new Response(
-        JSON.stringify({ error: 'Unauthorized' }),
+        JSON.stringify({ error: ERROR_MESSAGES.UNAUTHORIZED }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    const userId = auth.user.id;
+
+    const supabaseAdmin = createClient(SUPABASE_URL, SERVICE_KEY);
+
+    const rateOk = await checkRateLimit(supabaseAdmin, userId, 'wallet-deposit', 10, 1);
+    if (!rateOk) {
+      return new Response(
+        JSON.stringify({ error: ERROR_MESSAGES.RATE_LIMIT }),
+        { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     const depositSchema = z.object({
-      amount: z.number().int().positive().min(500).max(50000),
+      amount_cents: z.number().int().positive().max(100_000_000),
+      payment_method: z.string().min(1).max(50).default('mock'),
+      idempotency_key: z.string().uuid().optional(),
     });
 
-    let body;
+    let body: z.infer<typeof depositSchema>;
     try {
       const rawBody = await req.json();
       body = depositSchema.parse(rawBody);
-    } catch (error) {
+    } catch (_error) {
       return new Response(
-        JSON.stringify({ error: 'Invalid input: amount must be between 500 and 50000 cents ($5-$500)' }),
+        JSON.stringify({ error: ERROR_MESSAGES.INVALID_INPUT }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    const { amount } = body;
-    const adminClient = createClient(supabaseUrl, serviceRoleKey);
-
-    const { data: limitCheck, error: limitError } = await adminClient
-      .rpc('check_deposit_limit', { p_user_id: user.id, p_amount: amount });
-
-    if (limitError) {
-      console.error('[wallet-deposit] Responsible gaming check failed:', limitError);
-      return new Response(
-        JSON.stringify({ error: 'Deposit not allowed by responsible gaming limits' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    let { data: wallet, error: walletError } = await adminClient
+    // Look up wallet via auth-scoped client (RLS enforced)
+    let { data: wallet, error: walletError } = await auth.supabase
       .from('wallets')
       .select('id')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .single();
 
     if (walletError || !wallet) {
-      const { data: newWallet, error: createError } = await adminClient
+      const { data: newWallet, error: createError } = await supabaseAdmin
         .from('wallets')
-        .insert({ user_id: user.id })
+        .insert({ user_id: userId })
         .select('id')
         .single();
 
-      if (createError) {
-        console.error('[wallet-deposit] Failed to create wallet:', createError);
+      if (createError || !newWallet) {
+        const requestId = logSecureError('wallet-deposit', createError ?? new Error('Wallet create failed'));
         return new Response(
-          JSON.stringify({ error: 'Failed to create wallet' }),
+          JSON.stringify({ error: ERROR_MESSAGES.INTERNAL_ERROR, requestId }),
           { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
       wallet = newWallet;
     }
 
+    // Payment provider call (mock for now; separate refactor)
     const paymentAdapter = new MockPaymentAdapter();
-    const paymentResult = await paymentAdapter.processPayment(amount, 'USD');
+    const paymentResult = await paymentAdapter.processPayment(body.amount_cents, 'USD');
 
     if (!paymentResult.success) {
       return new Response(
@@ -98,75 +97,87 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { data: balanceResult, error: balanceUpdateError } = await adminClient.rpc('update_wallet_balance', {
+    const idempotencyKey = body.idempotency_key ?? crypto.randomUUID();
+    const stateCode = req.headers.get('x-user-state') || ''; // placeholder; geofencing not yet wired
+
+    const { data: result, error: rpcError } = await supabaseAdmin.rpc('process_deposit_atomic', {
+      _user_id: userId,
       _wallet_id: wallet.id,
-      _available_delta: amount,
-      _pending_delta: 0,
-      _lifetime_deposits_delta: amount,
-      _lifetime_winnings_delta: 0,
-      _lifetime_withdrawals_delta: 0,
+      _amount_cents: body.amount_cents,
+      _payment_provider_reference: paymentResult.transactionId,
+      _payment_method: body.payment_method,
+      _idempotency_key: idempotencyKey,
+      _state_code: stateCode,
     });
 
-    if (balanceUpdateError) {
-      console.error('[wallet-deposit] Wallet update error:', balanceUpdateError);
+    if (rpcError) {
+      const requestId = logSecureError('wallet-deposit', rpcError);
       return new Response(
-        JSON.stringify({ error: 'Failed to update wallet balance' }),
+        JSON.stringify({ error: mapErrorToClient(rpcError), requestId }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    const { error: txError } = await adminClient
-      .from('transactions')
-      .insert({
-        user_id: user.id,
-        wallet_id: wallet.id,
-        type: 'deposit',
-        amount: amount,
-        status: 'completed',
-        completed_at: new Date().toISOString(),
-        deposit_timestamp: new Date().toISOString(),
-        description: 'Deposit via Mock Payment',
-        reference_id: paymentResult.transactionId,
-        reference_type: 'payment_provider',
-        metadata: {
-          provider: 'mock',
-          transaction_id: paymentResult.transactionId,
-        },
-      });
+    const deposit = Array.isArray(result) ? result[0] : result;
 
-    if (txError) {
-      console.error('[wallet-deposit] Transaction record error:', txError);
+    if (!deposit) {
+      const requestId = logSecureError('wallet-deposit', new Error('Empty result from process_deposit_atomic'));
+      return new Response(
+        JSON.stringify({ error: ERROR_MESSAGES.INTERNAL_ERROR, requestId }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
-    await adminClient
-      .from('ledger_entries')
-      .insert({
-        user_id: user.id,
-        amount: amount,
-        transaction_type: 'DEPOSIT',
-        description: 'Deposit via Mock Payment',
-        reference_id: paymentResult.transactionId,
+    if (!deposit.allowed) {
+      const errorMap: Record<string, { status: number; message: string }> = {
+        per_transaction_limit: { status: 400, message: 'Per-transaction deposit limit is $5 to $500' },
+        self_excluded: { status: 403, message: 'Account is self-excluded' },
+        monthly_deposit_limit: { status: 400, message: 'Monthly deposit limit exceeded' },
+        wallet_not_found: { status: 404, message: ERROR_MESSAGES.NOT_FOUND },
+        idempotency_key_in_progress: { status: 409, message: 'A deposit with this idempotency key is already being processed' },
+      };
+
+      const mapped = errorMap[deposit.reason] ?? { status: 400, message: ERROR_MESSAGES.INTERNAL_ERROR };
+
+      if (!errorMap[deposit.reason]) {
+        logSecureError('wallet-deposit', new Error(`Unknown deposit reason: ${deposit.reason}`));
+      }
+
+      return new Response(
+        JSON.stringify({ error: mapped.message }),
+        { status: mapped.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Best-effort compliance audit log; never fail the request on log error
+    try {
+      await supabaseAdmin.from('compliance_audit_logs').insert({
+        user_id: userId,
+        event_type: deposit.was_duplicate ? 'deposit_idempotent_replay' : 'deposit_completed',
+        description: deposit.was_duplicate ? 'Idempotent deposit replay returned existing transaction' : 'Deposit completed',
+        severity: 'info',
+        metadata: {
+          amount_cents: body.amount_cents,
+          transaction_id: deposit.transaction_id,
+          payment_method: body.payment_method,
+          payment_provider_reference: paymentResult.transactionId,
+          balance_after_cents: deposit.available_balance_cents,
+          was_duplicate: deposit.was_duplicate,
+        },
       });
-
-    const { data: updatedWallet } = await adminClient
-      .from('wallets')
-      .select('available_balance')
-      .eq('id', wallet.id)
-      .single();
-
-    const balanceCents = updatedWallet?.available_balance || 0;
-    const balanceDisplay = `$${(balanceCents / 100).toFixed(2)}`;
-
-    console.log('[wallet-deposit] Deposit successful:', { userId: user.id, amount, transactionId: paymentResult.transactionId });
+    } catch (logError) {
+      logSecureError('wallet-deposit', logError);
+    }
 
     return new Response(
       JSON.stringify({
         success: true,
-        transactionId: paymentResult.transactionId,
-        depositedAmount: amount,
-        depositedDisplay: `$${(amount / 100).toFixed(2)}`,
-        balanceCents,
-        balanceDisplay,
+        transactionId: deposit.transaction_id,
+        depositedAmount: body.amount_cents,
+        depositedDisplay: `$${(body.amount_cents / 100).toFixed(2)}`,
+        balanceCents: deposit.available_balance_cents,
+        balanceDisplay: `$${(Number(deposit.available_balance_cents) / 100).toFixed(2)}`,
+        wasDuplicate: deposit.was_duplicate,
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
