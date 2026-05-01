@@ -329,7 +329,7 @@ export async function scoreContestPool(
         total_points: score.total_points,
         margin_error: score.margin_error,
         rank: score.rank,
-        payout_cents: score.payout_cents,
+        // payout_cents intentionally omitted — settlement (settle_contest_pool_atomic) owns payouts
         status: "active",
       })
       .eq("id", score.entry_id);
