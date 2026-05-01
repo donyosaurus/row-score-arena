@@ -1528,7 +1528,6 @@ export type Database = {
         Args: { p_contest_pool_id: string; p_results: Json }
         Returns: Json
       }
-      admin_void_contest: { Args: { p_contest_pool_id: string }; Returns: Json }
       auto_lock_expired_contests: { Args: never; Returns: number }
       calculate_pool_scores: {
         Args: { p_contest_pool_id: string; p_official_margin_seconds: number }
@@ -1695,6 +1694,17 @@ export type Database = {
       user_in_pool: {
         Args: { _pool_id: string; _user_id: string }
         Returns: boolean
+      }
+      void_contest_pool_atomic: {
+        Args: { _admin_user_id: string; _pool_id: string; _reason?: string }
+        Returns: {
+          allowed: boolean
+          pool_id: string
+          reason: string
+          refunded_count: number
+          total_refunded_cents: number
+          was_already_voided: boolean
+        }[]
       }
       withdraw_contest_entry: {
         Args: { p_contest_pool_id: string }
