@@ -273,33 +273,29 @@ export async function scoreContestPool(
       const isTrueTie = a.total_points === b.total_points && a.margin_error === b.margin_error;
 
       if (isTrueTie) {
-        // TRUE TIE in H2H — refund both users their entry fee
-        console.log("[scoring-logic] H2H TRUE TIE detected — refunding entry fees");
+        // TRUE TIE in H2H — settlement will detect via winner_ids=[] and refund entry fees
+        console.log("[scoring-logic] H2H TRUE TIE detected — settlement will issue refunds");
         isTieRefund = true;
         for (const score of scores) {
-          score.payout_cents = pool.entry_fee_cents || 0; // refund entry fee
           score.is_winner = false;
           score.rank = 1; // tied at rank 1
           score.is_tie_refund = true;
         }
       } else {
-        // Normal H2H: winner takes all
+        // Normal H2H: winner takes all (payout computed by settlement)
         for (const score of scores) {
-          score.payout_cents = score.rank === 1 ? prizePoolCents : 0;
           score.is_winner = score.rank === 1;
         }
       }
     } else {
-      // Single entry in H2H — just assign
+      // Single entry in H2H — just assign winner flag (payout computed by settlement)
       for (const score of scores) {
-        score.payout_cents = score.rank === 1 ? prizePoolCents : 0;
         score.is_winner = score.rank === 1;
       }
     }
   } else {
-    // Standard contest payouts
+    // Standard contest — payout computed by settlement using sum-and-split rule
     for (const score of scores) {
-      score.payout_cents = payoutStructure[score.rank!] || 0;
       score.is_winner = score.rank === 1;
     }
   }
@@ -314,7 +310,7 @@ export async function scoreContestPool(
         total_points: score.total_points,
         margin_bonus: score.margin_error, // store margin_error in margin_bonus field
         rank: score.rank,
-        payout_cents: score.payout_cents,
+        // payout_cents intentionally omitted — settlement (settle_contest_pool_atomic) owns payouts
         is_tiebreak_resolved: score.is_tiebreak_resolved ?? false,
         is_winner: score.is_winner ?? false,
         crew_scores: score.crew_scores,
